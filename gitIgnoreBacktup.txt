@@ -1,0 +1,60 @@
+# 1. Ignore absolutely everything to stop giting executables
+*
+
+# 2. Un-ignore directories
+!*/
+
+# 3. Un-ignore all files that have an extension
+!*.*
+
+# 4. Un-ignore specific extensionless files
+!Makefile
+
+# 5. reignore compiled files (because Step 3 just let them back in)
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.tnlcxx
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables with extensions
+*.exe
+*.out
+*.app
+
+# Python compiled files
+*.pyc
+
+# Specific files you wanted to ignore
+*.png
+__pycache__
+*.pyc
+gitignoreBackup.txt
+
+!/M35Full/dimensions.png
+!/M35Full/static_mass_flow_rate_plot.png
+!/M35Full/static_torque_plot.png
