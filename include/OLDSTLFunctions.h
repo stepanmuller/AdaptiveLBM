@@ -1,98 +1,9 @@
 #pragma once
 
-void readSTL( STLStructCPU &STLCPU, const std::string &filename )
-{
-	std::cout << "Reading STL: " << filename << std::endl;
-	std::ifstream file(filename, std::ios::binary);
-	if ( !file.is_open() ) throw std::runtime_error("Failed to open STL file");
-	
-	 // Skip header
-    char header[80];
-    file.read( header, 80 );
-
-    uint32_t triangleCount32;
-	file.read( reinterpret_cast<char*>(&triangleCount32), sizeof(uint32_t) );
-	int triangleCount = static_cast<int>( triangleCount32 );
-	STLCPU.triangleCount = triangleCount;
-    
-    std::cout<<"	triangleCount: "<< triangleCount << std::endl;
-
-    STLCPU.axArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.ayArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.azArray = FloatArrayTypeCPU( triangleCount );
-
-    STLCPU.bxArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.byArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.bzArray = FloatArrayTypeCPU( triangleCount );
-
-    STLCPU.cxArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.cyArray = FloatArrayTypeCPU( triangleCount );
-    STLCPU.czArray = FloatArrayTypeCPU( triangleCount );
-    
-    // Initialize minmax
-    STLCPU.xmin = std::numeric_limits<float>::max();
-	STLCPU.ymin = std::numeric_limits<float>::max();
-	STLCPU.zmin = std::numeric_limits<float>::max();
-
-	STLCPU.xmax = std::numeric_limits<float>::lowest();
-	STLCPU.ymax = std::numeric_limits<float>::lowest();
-	STLCPU.zmax = std::numeric_limits<float>::lowest();
-
-    for ( int triangle = 0; triangle < triangleCount; triangle++ )
-    {
-        float ax, ay, az;
-        float bx, by, bz;
-        float cx, cy, cz;
-        uint16_t attr;
-
-		// Skip normal (nx, ny, nz) = 3 floats = 12 bytes
-		file.seekg(12, std::ios::cur);
-
-        file.read( reinterpret_cast<char*>(&ax), 4 );
-        file.read( reinterpret_cast<char*>(&ay), 4 );
-        file.read( reinterpret_cast<char*>(&az), 4 );
-
-        file.read( reinterpret_cast<char*>(&bx), 4 );
-        file.read( reinterpret_cast<char*>(&by), 4 );
-        file.read( reinterpret_cast<char*>(&bz), 4 );
-
-        file.read( reinterpret_cast<char*>(&cx), 4 );
-        file.read( reinterpret_cast<char*>(&cy), 4 );
-        file.read( reinterpret_cast<char*>(&cz), 4 );
-
-        file.read( reinterpret_cast<char*>(&attr), 2 );
-
-        STLCPU.axArray[triangle] = ax;
-        STLCPU.ayArray[triangle] = ay;
-        STLCPU.azArray[triangle] = az;
-
-        STLCPU.bxArray[triangle] = bx;
-        STLCPU.byArray[triangle] = by;
-        STLCPU.bzArray[triangle] = bz;
-
-        STLCPU.cxArray[triangle] = cx;
-        STLCPU.cyArray[triangle] = cy;
-        STLCPU.czArray[triangle] = cz;
-        
-         // Update bounding box (vertices only)
-        STLCPU.xmin = std::min(STLCPU.xmin, std::min({ax, bx, cx}));
-        STLCPU.ymin = std::min(STLCPU.ymin, std::min({ay, by, cy}));
-        STLCPU.zmin = std::min(STLCPU.zmin, std::min({az, bz, cz}));
-
-        STLCPU.xmax = std::max(STLCPU.xmax, std::max({ax, bx, cx}));
-        STLCPU.ymax = std::max(STLCPU.ymax, std::max({ay, by, cy}));
-        STLCPU.zmax = std::max(STLCPU.zmax, std::max({az, bz, cz}));
-    }
-    std::cout << "	xmin xmax: " << STLCPU.xmin << " " << STLCPU.xmax << "\n";
-    std::cout << "	ymin ymax: " << STLCPU.ymin << " " << STLCPU.ymax << "\n";
-    std::cout << "	zmin zmax: " << STLCPU.zmin << " " << STLCPU.zmax << "\n";
-}
-
-
 void checkSTLEdges( STLStruct &STL )
 // For every edge, counts number of triangles that share it. Must be always 2 for a closed STL.
 {
-	std::cout << "Starting STL check for shared edges" << std::endl;
+	std::cout << "	Starting STL check for shared edges" << std::endl;
 	auto axArrayView = STL.axArray.getConstView();
 	auto ayArrayView = STL.ayArray.getConstView();
 	auto azArrayView = STL.azArray.getConstView();
@@ -179,6 +90,101 @@ void checkSTLEdges( STLStruct &STL )
 		}
 	}    
 	std::cout<< "	Total shared edge problems: " << errorCounter << std::endl; 
+}
+
+void readSTL( STLStruct &STL, const std::string &filename )
+{
+	STLStructCPU STLCPU;
+	
+	std::cout << "Reading STL: " << filename << std::endl;
+	std::ifstream file(filename, std::ios::binary);
+	if ( !file.is_open() ) throw std::runtime_error("Failed to open STL file");
+	
+	 // Skip header
+    char header[80];
+    file.read( header, 80 );
+
+    uint32_t triangleCount32;
+	file.read( reinterpret_cast<char*>(&triangleCount32), sizeof(uint32_t) );
+	int triangleCount = static_cast<int>( triangleCount32 );
+	STLCPU.triangleCount = triangleCount;
+    
+    std::cout<<"	triangleCount: "<< triangleCount << std::endl;
+
+    STLCPU.axArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.ayArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.azArray = FloatArrayTypeCPU( triangleCount );
+
+    STLCPU.bxArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.byArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.bzArray = FloatArrayTypeCPU( triangleCount );
+
+    STLCPU.cxArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.cyArray = FloatArrayTypeCPU( triangleCount );
+    STLCPU.czArray = FloatArrayTypeCPU( triangleCount );
+    
+    // Initialize minmax
+    STLCPU.xmin = std::numeric_limits<float>::max();
+	STLCPU.ymin = std::numeric_limits<float>::max();
+	STLCPU.zmin = std::numeric_limits<float>::max();
+
+	STLCPU.xmax = std::numeric_limits<float>::lowest();
+	STLCPU.ymax = std::numeric_limits<float>::lowest();
+	STLCPU.zmax = std::numeric_limits<float>::lowest();
+
+    for ( int triangle = 0; triangle < triangleCount; triangle++ )
+    {
+        float ax, ay, az;
+        float bx, by, bz;
+        float cx, cy, cz;
+        uint16_t attr;
+
+		// Skip normal (nx, ny, nz) = 3 floats = 12 bytes
+		file.seekg(12, std::ios::cur);
+
+        file.read( reinterpret_cast<char*>(&ax), 4 );
+        file.read( reinterpret_cast<char*>(&ay), 4 );
+        file.read( reinterpret_cast<char*>(&az), 4 );
+
+        file.read( reinterpret_cast<char*>(&bx), 4 );
+        file.read( reinterpret_cast<char*>(&by), 4 );
+        file.read( reinterpret_cast<char*>(&bz), 4 );
+
+        file.read( reinterpret_cast<char*>(&cx), 4 );
+        file.read( reinterpret_cast<char*>(&cy), 4 );
+        file.read( reinterpret_cast<char*>(&cz), 4 );
+
+        file.read( reinterpret_cast<char*>(&attr), 2 );
+
+        STLCPU.axArray[triangle] = ax;
+        STLCPU.ayArray[triangle] = ay;
+        STLCPU.azArray[triangle] = az;
+
+        STLCPU.bxArray[triangle] = bx;
+        STLCPU.byArray[triangle] = by;
+        STLCPU.bzArray[triangle] = bz;
+
+        STLCPU.cxArray[triangle] = cx;
+        STLCPU.cyArray[triangle] = cy;
+        STLCPU.czArray[triangle] = cz;
+        
+         // Update bounding box (vertices only)
+        STLCPU.xmin = std::min(STLCPU.xmin, std::min({ax, bx, cx}));
+        STLCPU.ymin = std::min(STLCPU.ymin, std::min({ay, by, cy}));
+        STLCPU.zmin = std::min(STLCPU.zmin, std::min({az, bz, cz}));
+
+        STLCPU.xmax = std::max(STLCPU.xmax, std::max({ax, bx, cx}));
+        STLCPU.ymax = std::max(STLCPU.ymax, std::max({ay, by, cy}));
+        STLCPU.zmax = std::max(STLCPU.zmax, std::max({az, bz, cz}));
+    }
+    std::cout << "	xmin xmax: " << STLCPU.xmin << " " << STLCPU.xmax << "\n";
+    std::cout << "	ymin ymax: " << STLCPU.ymin << " " << STLCPU.ymax << "\n";
+    std::cout << "	zmin zmax: " << STLCPU.zmin << " " << STLCPU.zmax << "\n";
+    
+    STL = STLStruct( STLCPU );
+	checkSTLEdges( STL );
+	std::cout << "	STL " << filename << " loaded and checked" << std::endl;
+	std::cout << std::endl;
 }
 
 __host__ __device__ bool getRayHitYesNo( 	const long long &ax, const long long &ay, 

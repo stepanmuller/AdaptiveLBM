@@ -1,4 +1,7 @@
+#pragma once
+
 #include <iostream>
+#include <sstream>
 #include <cmath>
 #include <fstream> 
 #include <cstdlib>
@@ -81,7 +84,9 @@ struct InfoStruct { float gridID = 0;
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
 						bool BCRho = 0; bool BCUxUyUz = 0; bool BCNonReflectiveOutlet = 0; 
 						bool deepRefinement = 0; };
-						
+
+struct BoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 
+					
 // IJK holds cell indexes on X, Y, Z axes within the Grid that owns it
 struct IJKArrayStructCPU; // just declaring first
 struct IJKArrayStruct { IntArrayType iArray; IntArrayType jArray; IntArrayType kArray; 
@@ -136,39 +141,35 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					TopMasterGridStruct TopMasterGrid;
 					}; 		
 					
-struct STLStructCPU { 	FloatArrayTypeCPU axArray; FloatArrayTypeCPU ayArray; FloatArrayTypeCPU azArray; 
+struct STLStructCPU { 	int triangleCount;
+						FloatArrayTypeCPU axArray; FloatArrayTypeCPU ayArray; FloatArrayTypeCPU azArray; 
 						FloatArrayTypeCPU bxArray; FloatArrayTypeCPU byArray; FloatArrayTypeCPU bzArray; 
 						FloatArrayTypeCPU cxArray; FloatArrayTypeCPU cyArray; FloatArrayTypeCPU czArray; 
-						float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; 
-						float ox = 0.f; float oy = 0.f; float oz = 0.f; int triangleCount; }; 
+						BoundsStruct Bounds; }; 
 
-struct STLStruct { 	FloatArrayType axArray; FloatArrayType ayArray; FloatArrayType azArray; 
+struct STLStruct { 	int triangleCount;
+					FloatArrayType axArray; FloatArrayType ayArray; FloatArrayType azArray; 
 					FloatArrayType bxArray; FloatArrayType byArray; FloatArrayType bzArray; 
 					FloatArrayType cxArray; FloatArrayType cyArray; FloatArrayType czArray; 
-					float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; 
-					float ox; float oy; float oz; int triangleCount; 
+					BoundsStruct Bounds; 
 					STLStruct() = default;
 					// Constructor copies data from STLStructCPU
 					STLStruct( const STLStructCPU& STLCPU )
 					{
+						triangleCount = STLCPU.triangleCount;
 						axArray = STLCPU.axArray; ayArray = STLCPU.ayArray;	azArray = STLCPU.azArray; 
 						bxArray = STLCPU.bxArray; byArray = STLCPU.byArray;	bzArray = STLCPU.bzArray; 
 						cxArray = STLCPU.cxArray; cyArray = STLCPU.cyArray;	czArray = STLCPU.czArray; 
-						xmin = STLCPU.xmin;	ymin = STLCPU.ymin;	zmin = STLCPU.zmin; xmax = STLCPU.xmax;
-						ymax = STLCPU.ymax;	zmax = STLCPU.zmax; 
-						ox = STLCPU.ox;	oy = STLCPU.oy; oz = STLCPU.oz;
-						triangleCount = STLCPU.triangleCount;
+						Bounds = STLCPU.Bounds;	
 					}
 				};
 
 struct VoxelizerStruct { 	InfoStruct Info; int rayMapDepth = 16; 
 							IntArray3DType rayMapBounceback; 
 							IntArray3DType rayMapMovingBounceback; 
-							IntArray3DType rayMapTotal };
+							IntArray3DType rayMapTotal; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
-	
-struct XYZBoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 
 
 struct LocalDuStruct { float duxdx = 0.f; float duydy = 0.f; float duzdz = 0.f; float duXY = 0.f; float duYZ = 0.f; float duXZ = 0.f; };
 
