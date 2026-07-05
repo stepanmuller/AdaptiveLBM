@@ -161,6 +161,11 @@ struct STLStruct { 	FloatArrayType axArray; FloatArrayType ayArray; FloatArrayTy
 					}
 				};
 
+struct VoxelizerStruct { 	InfoStruct Info; int rayMapDepth = 16; 
+							IntArray3DType rayMapBounceback; 
+							IntArray3DType rayMapMovingBounceback; 
+							IntArray3DType rayMapTotal };
+
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 	
 struct XYZBoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 

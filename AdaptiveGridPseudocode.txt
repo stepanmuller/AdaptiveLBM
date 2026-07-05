@@ -80,30 +80,23 @@ VirtualStructuredGrid - přejmenovat na TopMasterGrid
 
 Voxelizer
 	rayMapDepth
-	Marker (abych věděl bounceback nebo movingBounceback)
 	Info (Info bude stejné jako u nejjemnější sítě)
-	rayMap -> 3D array velikosti cellCountX * cellCountY * rayMapDepth <-konstanta, !otázka řazení v paměti! Má jít nejrychleji X nebo depth? nutno otestovat!
-	rayMapBuffer -> použije se při nasčítávání výsledku do jediné rayMap
-				- při updatování voxelizace se rayMap inicializuje na int max, každé STL se otiskne do bufferu a buffer se přičte k rayMap,
-				pak se bufer nastaví na int max a jde se na další STL
-	STLsOriginal -> list STLek v originální podobě před translací nebo rotací
-	STLs -> aktuální stav STLek včetně translace nebo rotace
-	Drží 2D voxelizaci, Marker (abych věděl bounceback nebo movingBounceback) a Info (Info bude stejné jako u nejjemnější sítě)
-	- hodilo by se mi dělat "součet" už na rayMap pokud mám víc STLek!
-	Mohl bych mít pouze dvě rayMaps, jedna pro bounceback, druhá pro movingBounceback
-	Tu bounceback rayMap naplnit a pak zapomenout to STL
-	Tu pro movingBounceback naplnit a držet originální STL a kopii pro rotaci
-	Po každém updatu rayMap sečíst ty mapy! Ideálně držet pouze dvě mapy, jednu naplnit STLkem a k té druhé to pořád dokola přičítat
+	rayMapBounceback -> 3D array velikosti cellCountX * cellCountY * rayMapDepth <-konstanta, !otázka řazení v paměti! Má jít nejrychleji X nebo depth? nutno otestovat!
+	rayMapMovingBounceback
+	rayMapTotal
+	- při updatování voxelizace se rayMapTotal inicializuje na int max a použije se jako buffer, abych mohl nejdřív nasčítat rayMapMovingBounceback.
+	každé STL se otiskne do bufferu a buffer se přičte k rayMapMovingBounceback, pak se bufer nastaví na int max a jde se na další STL
+	Po dokončení rayMapMovingBounceback zkopíruju rayMapTotal = rayMapBounceback a k tomu přičtu rayMapMovingBounceback.
 
 Algoritmy
 
-rebuildVoxelizer
-	nastaví rayMap i rayMapBuffer na int max
-	if len(STLs) == 1:
-		otiskni STL do rayMap
-	else loop přes STLs
-		otiskni STL do rayMapBufferu
-		sumRayMaps( rayMap, rayMapBuffer )
+??rebuildVoxelizer( Voxelizer, movingSTLs )
+	otiskni první STL do rayMapMovingBounceback
+	loop přes další STLs
+		otiskni STL do rayMapTotal
+		sumRayMaps( rayMapMovingBounceback, rayMapTotal )
+	Prohoď pointery rayMapTotal a rayMapBounceback
+	k rayMapTotal přičti rayMapMovingBounceback
 		
 sumRayMaps( rayMapSum, rayMap ) -> přičte rayMap do rayMapSum jako součet jejich intervalů solidu
 	depth = poslední prvek z getSizes(rayMapCummulative)
@@ -131,17 +124,17 @@ markerSpread ( Grid, markerArraySource, markerArrayTarget, horní mez! )
 	Ovšem, každý link při čtení i zápisu násobím geometrickou validitou linku definovanou v NBR
 
 markKeepArea( Grid, rayMaps, horní mez! )
-	1)	Hledám oblast tekutiny -> markFinestFluid( keepCellMarkerArray, rayMaps )
+	1)	Hledám oblast tekutiny -> markFinestFluid( keepCellMarkerArray, rayMapAll )
 		Pustím markerSpread jednou. Výsledek uložím do keepCellMarkerArray.
 		K tomu budu ještě chtít přidat tlustší region movingBouncebacku.
-		markFinestBounceback( movingBouncebackMarkerArray, moving rayMaps )
+		markFinestBounceback( movingBouncebackMarkerArray, rayMapMoving )
 		markerSpread od moving bouncebacku kolikrát potřebuji, výsledek přímo do sebe
 		markerSpread od keepCellMarkerArray, výsledek do bufferu
 		keepCellMarkerArray = keepCellMarkerArray + buffer * movingBounceback
 		
 markRefinementArea( Grid, rayMaps, horní mez! )
 	1)	markKeepArea
-	2)	Hledám oblast zjemnění. Označím všechny, které mohou obsahovat nejjemnější solid -> markFinestBounceback( deepRefinementMarkerArray, rayMaps )
+	2)	Hledám oblast zjemnění. Označím všechny, které mohou obsahovat nejjemnější solid -> markFinestBounceback( deepRefinementMarkerArray, rayMapAll )
 		Pustím Marker spread tolikrát, kolik chci přidat vrstev (wallRefinementCount?). 
 		deepRefinementMarkerArray = deepRefinementMarkerArray * keepCellMarkerArray
 	3)	Hledám fineToCoarse interface. 
