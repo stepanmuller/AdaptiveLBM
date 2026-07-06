@@ -1,109 +1,92 @@
 #pragma once
 
-__host__ __device__ bool getEdgeHitYesNo( 	const int &axInt, const int &ayInt, 
+__host__ __device__ bool getRayHitYesNo( 	const int &i, const int &j, 
+											const long long &wab, const long long &wbc, const long long &wca,
+											const int &axInt, const int &ayInt, 
 											const int &bxInt, const int &byInt,
-											const int &cxInt, const int &cyInt )
+											const int &cxInt, const int &cyInt,
+											const long long &abx, const long long &aby,
+											const long long &bcx, const long long &bcy,
+											const long long &cax, const long long &cay )
 {
-	// Decide if the hit counts in case that a ray hits exactly an edge of the triangle
-	// The triangle is already translated so that the ray lies at [0, 0]
-    
-    const long long ax = axInt;
-    const long long ay = ayInt;
-    const long long bx = bxInt;
-    const long long by = byInt;
-    const long long cx = cxInt;
-    const long long cy = cyInt;
-    
-    const long long abx = bx - ax;
-    const long long aby = by - ay;
-    const long long bcx = cx - bx;
-    const long long bcy = cy - by;
-    const long long cax = ax - cx;
-    const long long cay = ay - cy;
-    
-    const long long signedArea = abx * bcy - aby * bcx;
-    if ( signedArea == 0LL ) return false; 
-    
-    long long qz = 1LL;
-    if ( signedArea < 0LL ) qz = -1LL; // now ABCQ has positive volume
-    
-    const long long wab = qz * ( abx * ( -by ) - aby * ( -bx ) );
-    const long long wbc = qz * ( bcx * ( -cy ) - bcy * ( -cx ) );
-    const long long wca = qz * ( cax * ( -ay ) - cay * ( -ax ) );
-    if ( wab > 0LL && wbc > 0LL && wca > 0LL ) return true;
-    if ( wab < 0LL || wbc < 0LL || wca < 0LL ) return false;
-    
+	// Identify if triangle is hit by a ray
+	if ( wab > 0 && wbc > 0 && wca > 0 ) return true;
+    if ( wab < 0 || wbc < 0 || wca < 0 ) return false;
+    // If these two checks did not produce a return, it means ray is hitting exactly an edge
+	// Translate the triangle so that the ray lies at [0, 0]
+	const int rayXInt = i * 100;
+	const int rayYInt = j * 100;
+    const long long ax0 = axInt - rayXInt;
+    const long long ay0 = ayInt - rayYInt;
+    const long long bx0 = bxInt - rayXInt;
+    const long long by0 = byInt - rayYInt;
+    const long long cx0 = cxInt - rayXInt;
+    const long long cy0 = cyInt - rayYInt;
+            
     if ( wab == 0LL )
     {
 		if ( abx == 0LL ) // vertical edge
 		{
-			if ( cx < 0LL ) return true;
+			if ( cx0 < 0LL ) return true;
 			else return false;
 		}
 		// if we got here the edge is not vertical, so we can determine above or below
-		if ( bx > 0LL && cy * bx > by * cx ) return true;
-		if ( bx < 0LL && cy * bx < by * cx ) return true;
+		if ( bx0 > 0LL && cy0 * bx0 > by0 * cx0 ) return true;
+		if ( bx0 < 0LL && cy0 * bx0 < by0 * cx0 ) return true;
 	}
 	
 	if ( wbc == 0LL )
     {
 		if ( bcx == 0LL ) // vertical edge
 		{
-			if ( ax < 0LL ) return true;
+			if ( ax0 < 0LL ) return true;
 			else return false;
 		}
 		// if we got here the edge is not vertical, so we can determine above or below
-		if ( cx > 0LL && ay * cx > cy * ax ) return true;
-		if ( cx < 0LL && ay * cx < cy * ax ) return true;
+		if ( cx0 > 0LL && ay0 * cx0 > cy0 * ax0 ) return true;
+		if ( cx0 < 0LL && ay0 * cx0 < cy0 * ax0 ) return true;
 	}
 	
 	if ( wca == 0LL )
     {
 		if ( cax == 0LL ) // vertical edge
 		{
-			if ( bx < 0LL ) return true;
+			if ( bx0 < 0LL ) return true;
 			else return false;
 		}
 		// if we got here the edge is not vertical, so we can determine above or below
-		if ( ax > 0LL && by * ax > ay * bx ) return true;
-		if ( ax < 0LL && by * ax < ay * bx ) return true;
+		if ( ax0 > 0LL && by0 * ax0 > ay0 * bx0 ) return true;
+		if ( ax0 < 0LL && by0 * ax0 < ay0 * bx0 ) return true;
 	}
 
     return false; 
 }
 
-void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &rayMapArray )
+void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &rayMapArray )
 {
 	// Result is saved into the rayMap which is a 3D array of size cellCountX * cellCountY * rayMapDepth
 	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to rayMapDepth is filled with int max
 	// If rayMapDepth is too low, throw error
-	IntArrayType triangleIntersectionCounterArray;
-	triangleIntersectionCounterArray.setSize(STL.triangleCount);
-	triangleIntersectionCounterArray.setValue( 0 );
-	auto triangleIntersectionCounterView = triangleIntersectionCounterArray.getView();
-	
 	InfoStruct &Info = Voxelizer.Info;
-	IntArray2DType &intersectionCounterArray = Voxelizer.intersectionCounterArray;
+	IntArray2DType &hitsPerRayCounterArray = Voxelizer.hitsPerRayCounterArray;
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	
-	//const float invRes = 1.f / Info.res;
-	
-	if ( intersectionCounterArray.getSizes()[0] < 1 )
+	if ( hitsPerRayCounterArray.getSizes()[0] < 1 )
 	{
-		intersectionCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
+		hitsPerRayCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
 		Voxelizer.rayMapBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapMovingBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapTotalArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		const int rayMapElementCount = Info.cellCountX * Info.cellCountY * rayMapDepth;
 		const int rayMapMemoryMB = (float)(rayMapElementCount * 4) / 1000000.f;
-		std::cout << "Voxelizer memory allocated, a single rayMap now takes " << rayMapMemoryMB << " MB" << std::endl;
+		std::cout << "Voxelizer GPU memory allocated, a single rayMap now takes " << rayMapMemoryMB << " MB" << std::endl;
 	}
 	
-	intersectionCounterArray.setValue( 0 );
+	hitsPerRayCounterArray.setValue( 0 );
 	rayMapArray.setValue( std::numeric_limits<int>::max() );
 	
 	auto rayMapView = rayMapArray.getView();
-	auto intersectionCounterView = intersectionCounterArray.getView();
+	auto hitsPerRayCounterView = hitsPerRayCounterArray.getView();
 	
 	auto axView = STL.axArray.getConstView();
 	auto ayView = STL.ayArray.getConstView();
@@ -114,6 +97,48 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 	auto cxView = STL.cxArray.getConstView();
 	auto cyView = STL.cyArray.getConstView();
 	auto czView = STL.czArray.getConstView();
+	
+	IntArrayType &raysPerTriangleCounterArray = STL.raysPerTriangleCounterArray;
+	auto raysPerTriangleCounterView = raysPerTriangleCounterArray.getView();
+	
+	auto raysPerTriangleCounterLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+    {
+		// transform into the coordinate system of the LBM grid
+		const float ax = axView[ triangleIndex ] - Info.ox;
+		const float ay = ayView[ triangleIndex ] - Info.oy;
+		const float az = azView[ triangleIndex ] - Info.oz;
+		const float bx = bxView[ triangleIndex ] - Info.ox;
+		const float by = byView[ triangleIndex ] - Info.oy;
+		const float bz = bzView[ triangleIndex ] - Info.oz;
+		const float cx = cxView[ triangleIndex ] - Info.ox;
+		const float cy = cyView[ triangleIndex ] - Info.oy;
+		const float cz = czView[ triangleIndex ] - Info.oz;
+		// transform STL floats to integer grid that is 100x finer than the LBM grid to prevent float errors
+		// make the STL coords odd, rays will be even, this prevents hitting a vortex
+		const float scale = 50.0f / Info.res;
+		const int axInt = (int)(round( ax * scale )) * 2 + 1;
+		const int ayInt = (int)(round( ay * scale )) * 2 + 1;
+		const int bxInt = (int)(round( bx * scale )) * 2 + 1;
+		const int byInt = (int)(round( by * scale )) * 2 + 1;
+		const int cxInt = (int)(round( cx * scale )) * 2 + 1;
+		const int cyInt = (int)(round( cy * scale )) * 2 + 1;
+		// now figure out which rays can possibly hit the triangle -> get bounds
+		const int xIntMin = std::max({ 0, std::min({ axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 }) });
+		const int xIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
+		const int yIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
+		const int yIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
+		const int iStart = (xIntMin + 99) / 100;
+		const int iEnd = xIntMax / 100 + 1;
+		const int jStart = (yIntMin + 99) / 100;
+		const int jEnd = yIntMax / 100 + 1;
+		const int raysPerTriangleCount = ( jEnd - jStart ) * ( iEnd - iStart );
+		
+		raysPerTriangleCounterView[ triangleIndex ] = raysPerTriangleCount;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, raysPerTriangleCounterLambda );
+	std::cout << "Maximum intersections " << TNL::maxNorm( raysPerTriangleCounterArray ) << std::endl;
+	std::cout << "Sum of intersections " << TNL::sum( raysPerTriangleCounterArray ) << std::endl;
+	std::cout << "Average intersections " << TNL::sum( raysPerTriangleCounterArray ) / STL.triangleCount << std::endl;
 	
 	auto rayHitIndexLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
     {
@@ -136,21 +161,21 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 		const int byInt = (int)(round( by * scale )) * 2 + 1;
 		const int cxInt = (int)(round( cx * scale )) * 2 + 1;
 		const int cyInt = (int)(round( cy * scale )) * 2 + 1;
-		// now figure out which rays can possibyInty hit the triangle -> get bounds
+		// now figure out which rays can possibly hit the triangle -> get bounds
 		const int xIntMin = std::max({ 0, std::min({ axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 }) });
 		const int xIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
 		const int yIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
 		const int yIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
-		const int iMin = (xIntMin + 99) / 100;
-		const int iMax = xIntMax / 100;
-		const int jMin = (yIntMin + 99) / 100;
-		const int jMax = yIntMax / 100;
-		// prepare cayIntculation of the intersection yes no detection
+		const int iStart = (xIntMin + 99) / 100;
+		const int iEnd = xIntMax / 100 + 1;
+		const int jStart = (yIntMin + 99) / 100;
+		const int jEnd = yIntMax / 100 + 1;
+		// Prepare cayIntculation of the intersection yes no detection
 		// Here we will have to switch to long long because they get multiplied and an integer could overflow if a triangle is bigger than 300 cells
 		// A long long is large enough if the triangle is up to about 20M cells
 		// Transform the triangle into coordinate system where the first ray is [iMin, jMin]
-		const long long xLongMin = 100 * iMin;
-		const long long yLongMin = 100 * jMin;
+		const long long xLongMin = 100LL * (long long)iStart;
+		const long long yLongMin = 100LL * (long long)jStart;
 		const long long axLong = axInt - xLongMin;
 		const long long ayLong = ayInt - yLongMin;
 		const long long bxLong = bxInt - xLongMin;
@@ -186,8 +211,7 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 		const long long dwbc_dj = qzLong * bcxLong * 100LL;
 		const long long dwca_di = - qzLong * cayLong * 100LL;
 		const long long dwca_dj = qzLong * caxLong * 100LL;
-		
-		// prepare cayIntculation of the intersection coordinate
+		// Prepare calculation of the intersection coordinate
 		const float v1x = bx - ax;
 		const float v1y = by - ay;
 		const float v1z = bz - az;
@@ -203,25 +227,19 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 		
 		float rayZ;
 		
-		for ( int j = jMin; j <= jMax; j++ )
+		for ( int j = jStart; j < jEnd; j++ )
 		{
 			wab = wabJ;
 			wbc = wbcJ;
 			wca = wcaJ;
-			for ( int i = iMin; i <= iMax; i++ )
+			for ( int i = iStart; i < iEnd; i++ )
 			{
-				bool rayHit = ( wab > 0LL && wbc > 0LL && wca > 0LL );
-				if (!rayHit && !(wab < 0LL || wbc < 0LL || wca < 0LL) )
+				bool rayHit = getRayHitYesNo( i, j, wab, wbc, wca, 
+											axInt, ayInt, bxInt, byInt, cxInt, cyInt, 
+											abxLong, abyLong, bcxLong, bcyLong, caxLong, cayLong );
+				if ( rayHit ) 
 				{
-					// We are exactly on an edge -> run edge hit detector
-					const int rayXInt = i * 100;
-					const int rayYInt = j * 100;
-					rayHit = getEdgeHitYesNo( axInt - rayXInt, ayInt - rayYInt, bxInt - rayXInt, byInt - rayYInt, cxInt - rayXInt, cyInt - rayYInt );
-				}
-
-				if (rayHit) 
-				{
-					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(intersectionCounterView(i, j), 1);
+					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(hitsPerRayCounterView(i, j), 1);
 					if ( writePosition < rayMapDepth )
 					{
 						const float rayX = i * Info.res;
@@ -249,20 +267,16 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 			wcaJ = wcaJ + dwca_dj;
 		}
 		
-		triangleIntersectionCounterView[ triangleIndex ] = (jMax-jMin+1) * (iMax-iMin+1);
+		raysPerTriangleCounterView[ triangleIndex ] = ( jEnd - jStart ) * ( iEnd - iStart );
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, rayHitIndexLambda );
-	
-	std::cout << "Maximum intersections " << TNL::maxNorm( triangleIntersectionCounterArray ) << std::endl;
-	std::cout << "Sum of intersections " << TNL::sum( triangleIntersectionCounterArray ) << std::endl;
-	std::cout << "Average intersections " << TNL::sum( triangleIntersectionCounterArray ) / STL.triangleCount << std::endl;
 	
 	// check if intersection count fits within rayMapDepth
 	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
 	{
 		const int i = singleIndex % Info.cellCountX;
 		const int j = singleIndex / Info.cellCountX;
-		return intersectionCounterView( i, j );
+		return hitsPerRayCounterView( i, j );
 	};
 	auto reduction = [] __cuda_callable__( const int& a, const int& b )
 	{

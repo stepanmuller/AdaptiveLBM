@@ -183,6 +183,8 @@ void readSTL( STLStruct &STL, const std::string &filename )
     
     STL = STLStruct( STLCPU );
 	checkSTLEdges( STL );
+	STL.raysPerTriangleCounterArray.setSize( STL.triangleCount );
+	STL.raysPerTriangleCounterArray.setValue( 0 );
 	std::cout << "	STL: " << filename << " has been read and checked" << std::endl;
 	std::cout << std::endl;
 }

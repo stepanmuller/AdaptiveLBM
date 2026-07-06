@@ -1,6 +1,6 @@
 #pragma once
 
-__host__ __device__ bool getRayHitYesNo( 	const long long &ax, const long long &ay, 
+__host__ __device__ bool getRayHitYesNoOLD( 	const long long &ax, const long long &ay, 
 											const long long &bx, const long long &by,
 											const long long &cx, const long long &cy )
 {
@@ -103,22 +103,22 @@ void voxelizeSTL_OLD( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray
 	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to rayMapDepth is filled with int max
 	// If rayMapDepth is too low, throw error
 	InfoStruct &Info = Voxelizer.Info;
-	IntArray2DType &intersectionCounterArray = Voxelizer.intersectionCounterArray;
+	IntArray2DType &hitsPerRayCounterArray = Voxelizer.hitsPerRayCounterArray;
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	
-	if ( intersectionCounterArray.getSizes()[0] < 1 )
+	if ( hitsPerRayCounterArray.getSizes()[0] < 1 )
 	{
-		intersectionCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
+		hitsPerRayCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
 		Voxelizer.rayMapBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapMovingBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapTotalArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 	}
 	
-	intersectionCounterArray.setValue( 0 );
+	hitsPerRayCounterArray.setValue( 0 );
 	rayMapArray.setValue( std::numeric_limits<int>::max() );
 	
 	auto rayMapView = rayMapArray.getView();
-	auto intersectionCounterView = intersectionCounterArray.getView();
+	auto hitsPerRayCounterView = hitsPerRayCounterArray.getView();
 	
 	auto axView = STL.axArray.getConstView();
 	auto ayView = STL.ayArray.getConstView();
@@ -175,11 +175,11 @@ void voxelizeSTL_OLD( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray
 				const long long ck0 = ck - rayK;
 				const long long cl0 = cl - rayL;
 
-				const bool rayHit = getRayHitYesNo( ak0, al0, bk0, bl0, ck0, cl0 );
+				const bool rayHit = getRayHitYesNoOLD( ak0, al0, bk0, bl0, ck0, cl0 );
 
 				if (rayHit) 
 				{
-					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(intersectionCounterView(i, j), 1);
+					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(hitsPerRayCounterView(i, j), 1);
 					if ( writePosition < rayMapDepth )
 					{
 						const float rayX = i * Info.res;
@@ -199,7 +199,7 @@ void voxelizeSTL_OLD( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray
 	{
 		const int i = singleIndex % Info.cellCountX;
 		const int j = singleIndex / Info.cellCountX;
-		return intersectionCounterView( i, j );
+		return hitsPerRayCounterView( i, j );
 	};
 	auto reduction = [] __cuda_callable__( const int& a, const int& b )
 	{

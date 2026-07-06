@@ -152,6 +152,7 @@ struct STLStruct { 	int triangleCount;
 					FloatArrayType bxArray; FloatArrayType byArray; FloatArrayType bzArray; 
 					FloatArrayType cxArray; FloatArrayType cyArray; FloatArrayType czArray; 
 					BoundsStruct Bounds; 
+					IntArrayType raysPerTriangleCounterArray;
 					STLStruct() = default;
 					// Constructor copies data from STLStructCPU
 					STLStruct( const STLStructCPU& STLCPU )
@@ -168,7 +169,7 @@ struct VoxelizerStruct { 	InfoStruct Info; static constexpr int rayMapDepth = 32
 							IntArray3DType rayMapBouncebackArray; 
 							IntArray3DType rayMapMovingBouncebackArray; 
 							IntArray3DType rayMapTotalArray; 
-							IntArray2DType intersectionCounterArray; };
+							IntArray2DType hitsPerRayCounterArray; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 
