@@ -26,9 +26,9 @@
 using BoolArrayType = TNL::Containers::Vector< bool, TNL::Devices::Cuda, size_t >;
 using BoolArrayTypeCPU = TNL::Containers::Vector< bool, TNL::Devices::Host, size_t >;
 												
-using IntArrayType = TNL::Containers::Array< int, TNL::Devices::Cuda, size_t >;
-using IntArrayConstViewType = TNL::Containers::ArrayView< const int, TNL::Devices::Cuda, size_t >;
-using IntArrayTypeCPU = TNL::Containers::Array< int, TNL::Devices::Host, size_t >;
+using IntArrayType = TNL::Containers::Vector< int, TNL::Devices::Cuda, size_t >;
+using IntArrayConstViewType = TNL::Containers::VectorView< const int, TNL::Devices::Cuda, size_t >;
+using IntArrayTypeCPU = TNL::Containers::Vector< int, TNL::Devices::Host, size_t >;
 
 using IntArray2DType = TNL::Containers::NDArray< int, 
 												TNL::Containers::SizesHolder< size_t, 0, 0 >,
@@ -44,8 +44,8 @@ using IntArray3DType = TNL::Containers::NDArray< int,
 												std::index_sequence< 0, 1, 2 >,
 												TNL::Devices::Cuda >;
 
-using FloatArrayType = TNL::Containers::Array< float, TNL::Devices::Cuda, size_t >;
-using FloatArrayTypeCPU = TNL::Containers::Array< float, TNL::Devices::Host, size_t >;
+using FloatArrayType = TNL::Containers::Vector< float, TNL::Devices::Cuda, size_t >;
+using FloatArrayTypeCPU = TNL::Containers::Vector< float, TNL::Devices::Host, size_t >;
 
 using FloatArray2DType = TNL::Containers::NDArray< float, 
 												TNL::Containers::SizesHolder< size_t, 0, 0 >,
@@ -164,10 +164,11 @@ struct STLStruct { 	int triangleCount;
 					}
 				};
 
-struct VoxelizerStruct { 	InfoStruct Info; int rayMapDepth = 16; 
-							IntArray3DType rayMapBounceback; 
-							IntArray3DType rayMapMovingBounceback; 
-							IntArray3DType rayMapTotal; };
+struct VoxelizerStruct { 	InfoStruct Info; static constexpr int rayMapDepth = 32; 
+							IntArray3DType rayMapBouncebackArray; 
+							IntArray3DType rayMapMovingBouncebackArray; 
+							IntArray3DType rayMapTotalArray; 
+							IntArray2DType intersectionCounterArray; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 

@@ -187,26 +187,28 @@ void readSTL( STLStruct &STL, const std::string &filename )
 	std::cout << std::endl;
 }
 
+// Rotate STL, overwrite it
 void rotateSTLAlongX( STLStruct &STL, float &radians )
 {
-	auto ayArrayView = STL.ayArray.getView();
-	auto azArrayView = STL.azArray.getView();
-	auto byArrayView = STL.byArray.getView();
-	auto bzArrayView = STL.bzArray.getView();
-	auto cyArrayView = STL.cyArray.getView();
-	auto czArrayView = STL.czArray.getView();
+	auto ayView = STL.ayArray.getView();
+	auto azView = STL.azArray.getView();
+	auto byView = STL.byArray.getView();
+	auto bzView = STL.bzArray.getView();
+	auto cyView = STL.cyArray.getView();
+	auto czView = STL.czArray.getView();
+	
+	const float s = sinf(radians);
+	const float c = cosf(radians);
 	
 	auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
 	{
-		const float ay = ayArrayView[ triangleIndex ];
-		const float az = azArrayView[ triangleIndex ];
-		const float by = byArrayView[ triangleIndex ];
-		const float bz = bzArrayView[ triangleIndex ];
-		const float cy = cyArrayView[ triangleIndex ];
-		const float cz = czArrayView[ triangleIndex ];
+		const float ay = ayView[ triangleIndex ];
+		const float az = azView[ triangleIndex ];
+		const float by = byView[ triangleIndex ];
+		const float bz = bzView[ triangleIndex ];
+		const float cy = cyView[ triangleIndex ];
+		const float cz = czView[ triangleIndex ];
 		
-		const float s = sinf(radians);
-		const float c = cosf(radians);
 		const float newAy = ay * c - az * s;
 		const float newAz = ay * s + az * c;
 		const float newBy = by * c - bz * s;
@@ -214,38 +216,37 @@ void rotateSTLAlongX( STLStruct &STL, float &radians )
 		const float newCy = cy * c - cz * s;
 		const float newCz = cy * s + cz * c;
 		
-		ayArrayView[ triangleIndex ] = newAy;
-		azArrayView[ triangleIndex ] = newAz;
-		byArrayView[ triangleIndex ] = newBy;
-		bzArrayView[ triangleIndex ] = newBz;
-		cyArrayView[ triangleIndex ] = newCy;
-		czArrayView[ triangleIndex ] = newCz;
+		ayView[ triangleIndex ] = newAy;
+		azView[ triangleIndex ] = newAz;
+		byView[ triangleIndex ] = newBy;
+		bzView[ triangleIndex ] = newBz;
+		cyView[ triangleIndex ] = newCy;
+		czView[ triangleIndex ] = newCz;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, rotateLambda );
 }
 
 void rotateSTLAlongY( STLStruct &STL, float &radians )
 {
-	auto axArrayView = STL.axArray.getView();
-	auto azArrayView = STL.azArray.getView();
-	auto bxArrayView = STL.bxArray.getView();
-	auto bzArrayView = STL.bzArray.getView();
-	auto cxArrayView = STL.cxArray.getView();
-	auto czArrayView = STL.czArray.getView();
+	auto axView = STL.axArray.getView();
+	auto azView = STL.azArray.getView();
+	auto bxView = STL.bxArray.getView();
+	auto bzView = STL.bzArray.getView();
+	auto cxView = STL.cxArray.getView();
+	auto czView = STL.czArray.getView();
+	
+	const float s = sinf(radians);
+	const float c = cosf(radians);
 	
 	auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
 	{
-		const float ax = axArrayView[ triangleIndex ];
-		const float az = azArrayView[ triangleIndex ];
-		const float bx = bxArrayView[ triangleIndex ];
-		const float bz = bzArrayView[ triangleIndex ];
-		const float cx = cxArrayView[ triangleIndex ];
-		const float cz = czArrayView[ triangleIndex ];
+		const float ax = axView[ triangleIndex ];
+		const float az = azView[ triangleIndex ];
+		const float bx = bxView[ triangleIndex ];
+		const float bz = bzView[ triangleIndex ];
+		const float cx = cxView[ triangleIndex ];
+		const float cz = czView[ triangleIndex ];
 		
-		const float s = sinf(radians);
-		const float c = cosf(radians);
-		
-		// Standard right-handed rotation around the Y axis
 		const float newAx = ax * c + az * s;
 		const float newAz = -ax * s + az * c;
 		const float newBx = bx * c + bz * s;
@@ -253,36 +254,37 @@ void rotateSTLAlongY( STLStruct &STL, float &radians )
 		const float newCx = cx * c + cz * s;
 		const float newCz = -cx * s + cz * c;
 		
-		axArrayView[ triangleIndex ] = newAx;
-		azArrayView[ triangleIndex ] = newAz;
-		bxArrayView[ triangleIndex ] = newBx;
-		bzArrayView[ triangleIndex ] = newBz;
-		cxArrayView[ triangleIndex ] = newCx;
-		czArrayView[ triangleIndex ] = newCz;
+		axView[ triangleIndex ] = newAx;
+		azView[ triangleIndex ] = newAz;
+		bxView[ triangleIndex ] = newBx;
+		bzView[ triangleIndex ] = newBz;
+		cxView[ triangleIndex ] = newCx;
+		czView[ triangleIndex ] = newCz;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, rotateLambda );
 }
 
 void rotateSTLAlongZ( STLStruct &STL, const float &radians )
 {
-	auto axArrayView = STL.axArray.getView();
-	auto ayArrayView = STL.ayArray.getView();
-	auto bxArrayView = STL.bxArray.getView();
-	auto byArrayView = STL.byArray.getView();
-	auto cxArrayView = STL.cxArray.getView();
-	auto cyArrayView = STL.cyArray.getView();
+	auto axView = STL.axArray.getView();
+	auto ayView = STL.ayArray.getView();
+	auto bxView = STL.bxArray.getView();
+	auto byView = STL.byArray.getView();
+	auto cxView = STL.cxArray.getView();
+	auto cyView = STL.cyArray.getView();
+	
+	const float s = sinf(radians);
+	const float c = cosf(radians);
 	
     auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
     {
-		const float ax = axArrayView[ triangleIndex ];
-		const float ay = ayArrayView[ triangleIndex ];
-		const float bx = bxArrayView[ triangleIndex ];
-		const float by = byArrayView[ triangleIndex ];
-		const float cx = cxArrayView[ triangleIndex ];
-		const float cy = cyArrayView[ triangleIndex ];
+		const float ax = axView[ triangleIndex ];
+		const float ay = ayView[ triangleIndex ];
+		const float bx = bxView[ triangleIndex ];
+		const float by = byView[ triangleIndex ];
+		const float cx = cxView[ triangleIndex ];
+		const float cy = cyView[ triangleIndex ];
 		
-		const float s = sinf(radians);
-		const float c = cosf(radians);
 		const float newAx = ax * c - ay * s;
 		const float newAy = ax * s + ay * c;
 		const float newBx = bx * c - by * s;
@@ -290,12 +292,151 @@ void rotateSTLAlongZ( STLStruct &STL, const float &radians )
 		const float newCx = cx * c - cy * s;
 		const float newCy = cx * s + cy * c;
 		
-		axArrayView[ triangleIndex ] = newAx;
-		ayArrayView[ triangleIndex ] = newAy;
-		bxArrayView[ triangleIndex ] = newBx;
-		byArrayView[ triangleIndex ] = newBy;
-		cxArrayView[ triangleIndex ] = newCx;
-		cyArrayView[ triangleIndex ] = newCy;
+		axView[ triangleIndex ] = newAx;
+		ayView[ triangleIndex ] = newAy;
+		bxView[ triangleIndex ] = newBx;
+		byView[ triangleIndex ] = newBy;
+		cxView[ triangleIndex ] = newCx;
+		cyView[ triangleIndex ] = newCy;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, rotateLambda );
+}
+
+// Versions with source and target that don't overwrite the source STL
+void rotateSTLAlongX( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+{
+    auto sourceAyView = STLSource.ayArray.getConstView();
+    auto sourceAzView = STLSource.azArray.getConstView();
+    auto sourceByView = STLSource.byArray.getConstView();
+    auto sourceBzView = STLSource.bzArray.getConstView();
+    auto sourceCyView = STLSource.cyArray.getConstView();
+    auto sourceCzView = STLSource.czArray.getConstView();
+    
+    auto targetAyView = STLTarget.ayArray.getView();
+    auto targetAzView = STLTarget.azArray.getView();
+    auto targetByView = STLTarget.byArray.getView();
+    auto targetBzView = STLTarget.bzArray.getView();
+    auto targetCyView = STLTarget.cyArray.getView();
+    auto targetCzView = STLTarget.czArray.getView();
+    
+    const float s = sinf(radians);
+    const float c = cosf(radians);
+    
+    auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+    {
+        const float ay = sourceAyView[ triangleIndex ];
+        const float az = sourceAzView[ triangleIndex ];
+        const float by = sourceByView[ triangleIndex ];
+        const float bz = sourceBzView[ triangleIndex ];
+        const float cy = sourceCyView[ triangleIndex ];
+        const float cz = sourceCzView[ triangleIndex ];
+        
+        const float newAy = ay * c - az * s;
+        const float newAz = ay * s + az * c;
+        const float newBy = by * c - bz * s;
+        const float newBz = by * s + bz * c;
+        const float newCy = cy * c - cz * s;
+        const float newCz = cy * s + cz * c;
+        
+        targetAyView[ triangleIndex ] = newAy;
+        targetAzView[ triangleIndex ] = newAz;
+        targetByView[ triangleIndex ] = newBy;
+        targetBzView[ triangleIndex ] = newBz;
+        targetCyView[ triangleIndex ] = newCy;
+        targetCzView[ triangleIndex ] = newCz;
+    };
+    
+    TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STLSource.triangleCount, rotateLambda );
+}
+
+void rotateSTLAlongY( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+{
+    auto sourceAxView = STLSource.axArray.getConstView();
+    auto sourceAzView = STLSource.azArray.getConstView();
+    auto sourceBxView = STLSource.bxArray.getConstView();
+    auto sourceBzView = STLSource.bzArray.getConstView();
+    auto sourceCxView = STLSource.cxArray.getConstView();
+    auto sourceCzView = STLSource.czArray.getConstView();
+    
+    auto targetAxView = STLTarget.axArray.getView();
+    auto targetAzView = STLTarget.azArray.getView();
+    auto targetBxView = STLTarget.bxArray.getView();
+    auto targetBzView = STLTarget.bzArray.getView();
+    auto targetCxView = STLTarget.cxArray.getView();
+    auto targetCzView = STLTarget.czArray.getView();
+    
+    const float s = sinf(radians);
+    const float c = cosf(radians);
+    
+    auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+    {
+        const float ax = sourceAxView[ triangleIndex ];
+        const float az = sourceAzView[ triangleIndex ];
+        const float bx = sourceBxView[ triangleIndex ];
+        const float bz = sourceBzView[ triangleIndex ];
+        const float cx = sourceCxView[ triangleIndex ];
+        const float cz = sourceCzView[ triangleIndex ];
+
+        const float newAx = ax * c + az * s;
+        const float newAz = -ax * s + az * c;
+        const float newBx = bx * c + bz * s;
+        const float newBz = -bx * s + bz * c;
+        const float newCx = cx * c + cz * s;
+        const float newCz = -cx * s + cz * c;
+
+        targetAxView[ triangleIndex ] = newAx;
+        targetAzView[ triangleIndex ] = newAz;
+        targetBxView[ triangleIndex ] = newBx;
+        targetBzView[ triangleIndex ] = newBz;
+        targetCxView[ triangleIndex ] = newCx;
+        targetCzView[ triangleIndex ] = newCz;
+    };
+    
+    TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STLSource.triangleCount, rotateLambda );
+}
+
+void rotateSTLAlongZ( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+{
+    auto sourceAxView = STLSource.axArray.getConstView();
+    auto sourceAyView = STLSource.ayArray.getConstView();
+    auto sourceBxView = STLSource.bxArray.getConstView();
+    auto sourceByView = STLSource.byArray.getConstView();
+    auto sourceCxView = STLSource.cxArray.getConstView();
+    auto sourceCyView = STLSource.cyArray.getConstView();
+    
+    auto targetAxView = STLTarget.axArray.getView();
+    auto targetAyView = STLTarget.ayArray.getView();
+    auto targetBxView = STLTarget.bxArray.getView();
+    auto targetByView = STLTarget.byArray.getView();
+    auto targetCxView = STLTarget.cxArray.getView();
+    auto targetCyView = STLTarget.cyArray.getView();
+    
+    const float s = sinf(radians);
+    const float c = cosf(radians);
+    
+    auto rotateLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+    {
+        const float ax = sourceAxView[ triangleIndex ];
+        const float ay = sourceAyView[ triangleIndex ];
+        const float bx = sourceBxView[ triangleIndex ];
+        const float by = sourceByView[ triangleIndex ];
+        const float cx = sourceCxView[ triangleIndex ];
+        const float cy = sourceCyView[ triangleIndex ];
+        
+        const float newAx = ax * c - ay * s;
+        const float newAy = ax * s + ay * c;
+        const float newBx = bx * c - by * s;
+        const float newBy = bx * s + by * c;
+        const float newCx = cx * c - cy * s;
+        const float newCy = cx * s + cy * c;
+        
+        targetAxView[ triangleIndex ] = newAx;
+        targetAyView[ triangleIndex ] = newAy;
+        targetBxView[ triangleIndex ] = newBx;
+        targetByView[ triangleIndex ] = newBy;
+        targetCxView[ triangleIndex ] = newCx;
+        targetCyView[ triangleIndex ] = newCy;
+    };
+    
+    TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STLSource.triangleCount, rotateLambda );
 }

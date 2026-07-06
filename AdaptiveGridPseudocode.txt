@@ -84,6 +84,7 @@ Voxelizer
 	rayMapBounceback -> 3D array velikosti cellCountX * cellCountY * rayMapDepth <-konstanta, !otázka řazení v paměti! Má jít nejrychleji X nebo depth? nutno otestovat!
 	rayMapMovingBounceback
 	rayMapTotal
+	intersectionCounter -> 2D int array cellCountX * cellCountY buffer pro počítání průsečíků
 	- při updatování voxelizace se rayMapTotal inicializuje na int max a použije se jako buffer, abych mohl nejdřív nasčítat rayMapMovingBounceback.
 	každé STL se otiskne do bufferu a buffer se přičte k rayMapMovingBounceback, pak se bufer nastaví na int max a jde se na další STL
 	Po dokončení rayMapMovingBounceback zkopíruju rayMapTotal = rayMapBounceback a k tomu přičtu rayMapMovingBounceback.
@@ -297,13 +298,10 @@ rebuildGrid( Grid, rayMaps, Buffer )
 	
 	Postup -> pojďme teď implementovat výjimky pro nejhrubší i nejjemnější síť (může nastat obojí současně!)
 	
-	-2)	Pokud jsem nejhrubší:
+	-1)	Pokud jsem nejhrubší:
 		GridCoarse = virtualStructuredGrid
 		Jinak:
 		GridCoarse = předchozí level
-	
-	-1)	Pokud to dělám poprvé:
-			Vyřešit origin, dtPhys, res a všechny related věci -> řídí se to informacemi z GridCoarse
 	
 	0) 	cellCountOld = cellCount (na gridu 4)
 	
@@ -423,3 +421,10 @@ InitializeTopMasterGrid
 	dostane bounds oblasti a fyziku
 	vyplní svoje Info
 	alokuje paměť
+	
+initializeGrids( grids )
+	Pokud jsem nejhrubší:
+		origin, dtPhys, res, nu už mám
+		provedu initializeTopMasterGrid
+	else
+		Vyřešit origin, dtPhys, res a všechny related věci -> řídí se to informacemi z GridCoarse
