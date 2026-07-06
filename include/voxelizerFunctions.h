@@ -94,6 +94,9 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 		Voxelizer.rayMapBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapMovingBouncebackArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
 		Voxelizer.rayMapTotalArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
+		const int rayMapElementCount = Info.cellCountX * Info.cellCountY * rayMapDepth;
+		const int rayMapMemoryMB = (float)(rayMapElementCount * 4) / 1000000.f;
+		std::cout << "Voxelizer memory allocated, a single rayMap now takes " << rayMapMemoryMB << " MB" << std::endl;
 	}
 	
 	intersectionCounterArray.setValue( 0 );
@@ -135,25 +138,25 @@ void voxelizeSTL( const STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DTy
 		const int cyInt = (int)(round( cy * scale )) * 2 + 1;
 		// now figure out which rays can possibyInty hit the triangle -> get bounds
 		const int xIntMin = std::max({ 0, std::min({ axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 }) });
-		const int kIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
-		const int lIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
-		const int lIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
+		const int xIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
+		const int yIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
+		const int yIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
 		const int iMin = (xIntMin + 99) / 100;
-		const int iMax = kIntMax / 100;
-		const int jMin = (lIntMin + 99) / 100;
-		const int jMax = lIntMax / 100;
+		const int iMax = xIntMax / 100;
+		const int jMin = (yIntMin + 99) / 100;
+		const int jMax = yIntMax / 100;
 		// prepare cayIntculation of the intersection yes no detection
 		// Here we will have to switch to long long because they get multiplied and an integer could overflow if a triangle is bigger than 300 cells
 		// A long long is large enough if the triangle is up to about 20M cells
 		// Transform the triangle into coordinate system where the first ray is [iMin, jMin]
-		const long long xMinLong = 100 * iMin;
-		const long long yMinLong = 100 * jMin;
-		const long long axLong = axInt - xMinLong;
-		const long long ayLong = ayInt - yMinLong;
-		const long long bxLong = bxInt - xMinLong;
-		const long long byLong = byInt - yMinLong;
-		const long long cxLong = cxInt - xMinLong;
-		const long long cyLong = cyInt - yMinLong;
+		const long long xLongMin = 100 * iMin;
+		const long long yLongMin = 100 * jMin;
+		const long long axLong = axInt - xLongMin;
+		const long long ayLong = ayInt - yLongMin;
+		const long long bxLong = bxInt - xLongMin;
+		const long long byLong = byInt - yLongMin;
+		const long long cxLong = cxInt - xLongMin;
+		const long long cyLong = cyInt - yLongMin;
 		const long long abxLong = bxLong - axLong;
 		const long long abyLong = byLong - ayLong;
 		const long long bcxLong = cxLong - bxLong;
