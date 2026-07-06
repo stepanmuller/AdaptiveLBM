@@ -64,12 +64,12 @@ __host__ __device__ bool getRayHitYesNo( 	const int &i, const int &j,
 
 void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &rayMapArray )
 {
+	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	// Result is saved into the rayMap which is a 3D array of size cellCountX * cellCountY * rayMapDepth
 	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to rayMapDepth is filled with int max
 	// If rayMapDepth is too low, throw error
 	InfoStruct &Info = Voxelizer.Info;
 	IntArray2DType &hitsPerRayCounterArray = Voxelizer.hitsPerRayCounterArray;
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	
 	if ( hitsPerRayCounterArray.getSizes()[0] < 1 )
 	{
@@ -100,6 +100,9 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	
 	IntArrayType &raysPerTriangleCounterArray = STL.raysPerTriangleCounterArray;
 	auto raysPerTriangleCounterView = raysPerTriangleCounterArray.getView();
+	IntArrayType &threadToTriangleMapArray = STL.threadToTriangleMapArray;
+	const int threadCountMax = threadToTriangleMapArray.getSize();
+	auto threadToTriangleMapView = threadToTriangleMapArray.getView();
 	
 	auto raysPerTriangleCounterLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
     {
@@ -136,10 +139,15 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		raysPerTriangleCounterView[ triangleIndex ] = raysPerTriangleCount;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, raysPerTriangleCounterLambda );
-	std::cout << "Maximum intersections " << TNL::maxNorm( raysPerTriangleCounterArray ) << std::endl;
-	std::cout << "Sum of intersections " << TNL::sum( raysPerTriangleCounterArray ) << std::endl;
-	std::cout << "Average intersections " << TNL::sum( raysPerTriangleCounterArray ) / STL.triangleCount << std::endl;
 	
+	const int taskCount = TNL::sum( raysPerTriangleCounterArray );
+	// set worst case scenario limit for rays per thread so that thread count will never exceed size of the threadToTriangleMapArray
+	const int raysPerThreadLimit = std::max({16, std::max({0, taskCount - STL.triangleCount}) / ( threadCountMax - STL.triangleCount )}); 
+			
+	IntArrayType &threadsPerTriangleScanArray = raysPerTriangleCounterArray;
+	threadsPerTriangleScanArray = ( raysPerTriangleCounterArray + raysPerThreadLimit - 1 ) / raysPerThreadLimit;
+	TNL::Algorithms::inplaceExclusiveScan( threadsPerTriangleScanArray );
+		
 	auto rayHitIndexLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
     {
 		// transform into the coordinate system of the LBM grid

@@ -13,6 +13,7 @@
 #include <TNL/Algorithms/parallelFor.h>
 #include <TNL/Algorithms/AtomicOperations.h>
 #include <TNL/Algorithms/reduce.h>
+#include <TNL/Algorithms/scan.h>
 #include <TNL/Containers/Array.h>
 #include <TNL/Containers/Vector.h>
 #include <TNL/Containers/NDArray.h>
@@ -147,12 +148,14 @@ struct STLStructCPU { 	int triangleCount;
 						FloatArrayTypeCPU cxArray; FloatArrayTypeCPU cyArray; FloatArrayTypeCPU czArray; 
 						BoundsStruct Bounds; }; 
 
-struct STLStruct { 	int triangleCount;
+struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
+					int triangleCount;
 					FloatArrayType axArray; FloatArrayType ayArray; FloatArrayType azArray; 
 					FloatArrayType bxArray; FloatArrayType byArray; FloatArrayType bzArray; 
 					FloatArrayType cxArray; FloatArrayType cyArray; FloatArrayType czArray; 
 					BoundsStruct Bounds; 
 					IntArrayType raysPerTriangleCounterArray;
+					IntArrayType threadToTriangleMapArray;
 					STLStruct() = default;
 					// Constructor copies data from STLStructCPU
 					STLStruct( const STLStructCPU& STLCPU )
@@ -165,7 +168,8 @@ struct STLStruct { 	int triangleCount;
 					}
 				};
 
-struct VoxelizerStruct { 	InfoStruct Info; static constexpr int rayMapDepth = 32; 
+struct VoxelizerStruct { 	static constexpr int rayMapDepth = 32; 
+							InfoStruct Info; 
 							IntArray3DType rayMapBouncebackArray; 
 							IntArray3DType rayMapMovingBouncebackArray; 
 							IntArray3DType rayMapTotalArray; 
