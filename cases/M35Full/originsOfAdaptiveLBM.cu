@@ -42,16 +42,17 @@ int main(int argc, char **argv)
 		const int planeRemainder = singleIndex % ( Info.cellCountX * Info.cellCountY );
 		const int i = planeRemainder % Info.cellCountX;
 		const int j = planeRemainder / Info.cellCountX;
-		return std::abs( rayMapView1(i, j, layer) - rayMapView2(i, j, layer) );
+		if ( rayMapView1(i, j, layer) - rayMapView2(i, j, layer) != 0 ) return 1;
+		else return 0;
 	};
 	auto reduction = [] __cuda_callable__( const int& a, const int& b )
 	{
-		return TNL::max( a, b );
+		return a + b;
 	};
 	const int start = 0;
 	const int end = Voxelizer.Info.cellCountX * Voxelizer.Info.cellCountY * Voxelizer.rayMapDepth;
-	const int maxError = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
-	if (maxError > 0) std::cout << "ERROR! Old and new voxelizer don't match" << std::endl;
+	const int errorCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
+	if (errorCount > 0) std::cout << "ERROR! Old and new voxelizer don't match in " << errorCount << " elements" << std::endl;
 	else  std::cout << "OK! Old and new voxelizer match in every single index" << std::endl;
 	
 	return EXIT_SUCCESS;

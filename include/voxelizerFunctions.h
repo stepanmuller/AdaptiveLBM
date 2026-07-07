@@ -104,6 +104,7 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	const int threadCountMax = threadToTriangleMapArray.getSize();
 	auto threadToTriangleMapView = threadToTriangleMapArray.getView();
 	
+	// first find rays per triangle to be able to distribute workload on threads evenly later
 	auto raysPerTriangleCounterLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
     {
 		// transform into the coordinate system of the LBM grid
@@ -126,15 +127,15 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		const int cxInt = (int)(round( cx * scale )) * 2 + 1;
 		const int cyInt = (int)(round( cy * scale )) * 2 + 1;
 		// now figure out which rays can possibly hit the triangle -> get bounds
-		const int xIntMin = std::max({ 0, std::min({ axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 }) });
-		const int xIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
-		const int yIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
-		const int yIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
+		const int xIntMin = TNL::max( 0, TNL::min( axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 ) );
+		const int xIntMax = TNL::min( (int)(Info.cellCountX-1)*100, TNL::max( axInt, bxInt, cxInt, 0 ) );
+		const int yIntMin = TNL::max( 0, TNL::min( ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 ) );
+		const int yIntMax = TNL::min( (int)(Info.cellCountY-1)*100, TNL::max( ayInt, byInt, cyInt, 0 ) );
 		const int iStart = (xIntMin + 99) / 100;
 		const int iEnd = xIntMax / 100 + 1;
 		const int jStart = (yIntMin + 99) / 100;
 		const int jEnd = yIntMax / 100 + 1;
-		const int raysPerTriangleCount = ( jEnd - jStart ) * ( iEnd - iStart );
+		const int raysPerTriangleCount = TNL::max( 1, ( jEnd - jStart ) * ( iEnd - iStart ) );
 		
 		raysPerTriangleCounterView[ triangleIndex ] = raysPerTriangleCount;
 	};
@@ -142,14 +143,35 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	
 	const int taskCount = TNL::sum( raysPerTriangleCounterArray );
 	// set worst case scenario limit for rays per thread so that thread count will never exceed size of the threadToTriangleMapArray
-	const int raysPerThreadLimit = std::max({16, std::max({0, taskCount - STL.triangleCount}) / ( threadCountMax - STL.triangleCount )}); 
+	const int raysPerThreadLimit = TNL::max(16, TNL::max(0, taskCount - STL.triangleCount) / ( threadCountMax - STL.triangleCount )); 
 			
 	IntArrayType &threadsPerTriangleScanArray = raysPerTriangleCounterArray;
+	auto &threadsPerTriangleScanView = raysPerTriangleCounterView;
+	
 	threadsPerTriangleScanArray = ( raysPerTriangleCounterArray + raysPerThreadLimit - 1 ) / raysPerThreadLimit;
+	const int threadsPerLastTriangle = threadsPerTriangleScanArray.getElement( STL.triangleCount - 1 );
 	TNL::Algorithms::inplaceExclusiveScan( threadsPerTriangleScanArray );
-		
-	auto rayHitIndexLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+	const int threadCount = threadsPerTriangleScanArray.getElement( STL.triangleCount - 1 ) + threadsPerLastTriangle;
+	
+	threadToTriangleMapArray.setValue( 0 );
+	auto threadToTriangleMapLambda = [ = ] __cuda_callable__( const int triangleIndex ) mutable
+	{
+		const int firstThreadOnTriangle = threadsPerTriangleScanView[ triangleIndex ];
+		threadToTriangleMapView[ firstThreadOnTriangle ] = triangleIndex;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, threadToTriangleMapLambda );
+	
+	TNL::Algorithms::inplaceInclusiveScan( threadToTriangleMapArray, 0, threadCount, TNL::Max{} );
+	
+	auto rayHitIndexLambda = [ = ] __cuda_callable__( const int threadIndex ) mutable
     {
+		// first, find which triangle our thread is working on
+		const int triangleIndex = threadToTriangleMapView[ threadIndex ];
+		// what is the first thread working on our triangle?
+		const int firstThreadOnTriangle = threadsPerTriangleScanView[ triangleIndex ];
+		// where should our portion start?
+		const int taskStart = ( threadIndex - firstThreadOnTriangle ) * raysPerThreadLimit;
+		
 		// transform into the coordinate system of the LBM grid
 		const float ax = axView[ triangleIndex ] - Info.ox;
 		const float ay = ayView[ triangleIndex ] - Info.oy;
@@ -170,20 +192,20 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		const int cxInt = (int)(round( cx * scale )) * 2 + 1;
 		const int cyInt = (int)(round( cy * scale )) * 2 + 1;
 		// now figure out which rays can possibly hit the triangle -> get bounds
-		const int xIntMin = std::max({ 0, std::min({ axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 }) });
-		const int xIntMax = std::min({ (int)(Info.cellCountX-1)*100, std::max({ axInt, bxInt, cxInt, 0 }) });
-		const int yIntMin = std::max({ 0, std::min({ ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 }) });
-		const int yIntMax = std::min({ (int)(Info.cellCountY-1)*100, std::max({ ayInt, byInt, cyInt, 0 }) });
-		const int iStart = (xIntMin + 99) / 100;
-		const int iEnd = xIntMax / 100 + 1;
-		const int jStart = (yIntMin + 99) / 100;
-		const int jEnd = yIntMax / 100 + 1;
+		const int xIntMin = TNL::max( 0, TNL::min( axInt, bxInt, cxInt, (int)(Info.cellCountX-1)*100 ) );
+		const int xIntMax = TNL::min( (int)(Info.cellCountX-1)*100, TNL::max( axInt, bxInt, cxInt, 0 ) );
+		const int yIntMin = TNL::max( 0, TNL::min( ayInt, byInt, cyInt, (int)(Info.cellCountY-1)*100 ) );
+		const int yIntMax = TNL::min( (int)(Info.cellCountY-1)*100, TNL::max( ayInt, byInt, cyInt, 0 ) );
+		const int iStartGlobal = (xIntMin + 99) / 100;
+		const int iEndGlobal = xIntMax / 100 + 1;
+		const int jStartGlobal = (yIntMin + 99) / 100;
+		const int jEndGlobal = yIntMax / 100 + 1;
 		// Prepare cayIntculation of the intersection yes no detection
 		// Here we will have to switch to long long because they get multiplied and an integer could overflow if a triangle is bigger than 300 cells
 		// A long long is large enough if the triangle is up to about 20M cells
 		// Transform the triangle into coordinate system where the first ray is [iMin, jMin]
-		const long long xLongMin = 100LL * (long long)iStart;
-		const long long yLongMin = 100LL * (long long)jStart;
+		const long long xLongMin = 100LL * (long long)iStartGlobal;
+		const long long yLongMin = 100LL * (long long)jStartGlobal;
 		const long long axLong = axInt - xLongMin;
 		const long long ayLong = ayInt - yLongMin;
 		const long long bxLong = bxInt - xLongMin;
@@ -205,12 +227,6 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		const long long wab0 = qzLong * ( abxLong * ( -byLong ) - abyLong * ( -bxLong ) );
 		const long long wbc0 = qzLong * ( bcxLong * ( -cyLong ) - bcyLong * ( -cxLong ) );
 		const long long wca0 = qzLong * ( caxLong * ( -ayLong ) - cayLong * ( -axLong ) );
-		long long wabJ = wab0; // we will be changing this each time j changes
-		long long wbcJ = wbc0;
-		long long wcaJ = wca0;
-		long long wab;
-		long long wbc;
-		long long wca;
 		// Derivatives of the edge function with respect to i and j
 		// We will be adding this each time we do a step in i or j direction
 		const long long dwab_di = - qzLong * abyLong * 100LL;
@@ -229,18 +245,55 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		const float nx = v1y * v2z - v1z * v2y;
 		const float ny = v1z * v2x - v1x * v2z;
 		const float nz = v1x * v2y - v1y * v2x;
-		const float maxZ = std::max({az, bz, cz});
-		const float minZ = std::min({az, bz, cz});
+		const float maxZ = TNL::max(az, bz, cz);
+		const float minZ = TNL::min(az, bz, cz);
 		const float midZ = 0.5f * (maxZ + minZ);
 		
 		float rayZ;
 		
-		for ( int j = jStart; j < jEnd; j++ )
+		// Everything about the triangle is prepared now
+		// Find where we need to start from
+		const int iSpan = iEndGlobal - iStartGlobal;
+		const int jSpan = jEndGlobal - jStartGlobal;
+		
+		const int taskLast = TNL::min(taskStart + raysPerThreadLimit, iSpan * jSpan) - 1;
+		
+		const int jStartThread = jStartGlobal + (taskStart / iSpan);
+		const int iStartThread = iStartGlobal + (taskStart % iSpan);
+
+		const int jEndThread = jStartGlobal + (taskLast / iSpan) + 1;
+		const int iEndThread = iStartGlobal + (taskLast % iSpan) + 1;
+		
+		// we will be changing this each time j changes
+		int iStartJ, iEndJ;
+		long long wabJ = wab0 + (long long)(jStartThread - jStartGlobal) * dwab_dj; 
+		long long wbcJ = wbc0 + (long long)(jStartThread - jStartGlobal) * dwbc_dj;
+		long long wcaJ = wca0 + (long long)(jStartThread - jStartGlobal) * dwca_dj;
+		
+		// we will be changing this each time j or i changes
+		long long wab, wbc, wca;
+		
+		for ( int j = jStartThread; j < jEndThread; j++ )
 		{
-			wab = wabJ;
-			wbc = wbcJ;
-			wca = wcaJ;
-			for ( int i = iStart; i < iEnd; i++ )
+			if ( j == jStartThread ) 
+			{
+				iStartJ = iStartThread;
+				wab = wabJ + (long long)(iStartThread - iStartGlobal) * dwab_di;
+				wbc = wbcJ + (long long)(iStartThread - iStartGlobal) * dwbc_di;
+				wca = wcaJ + (long long)(iStartThread - iStartGlobal) * dwca_di;
+			}
+			else 
+			{
+				iStartJ = iStartGlobal;
+				wab = wabJ;
+				wbc = wbcJ;
+				wca = wcaJ;
+			}
+			if ( j == jEndThread - 1 ) 
+				iEndJ = iEndThread; 
+			else 
+				iEndJ = iEndGlobal;
+			for ( int i = iStartJ; i < iEndJ; i++ )
 			{
 				bool rayHit = getRayHitYesNo( i, j, wab, wbc, wca, 
 											axInt, ayInt, bxInt, byInt, cxInt, cyInt, 
@@ -274,10 +327,8 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 			wbcJ = wbcJ + dwbc_dj;
 			wcaJ = wcaJ + dwca_dj;
 		}
-		
-		raysPerTriangleCounterView[ triangleIndex ] = ( jEnd - jStart ) * ( iEnd - iStart );
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STL.triangleCount, rayHitIndexLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, threadCount, rayHitIndexLambda );
 	
 	// check if intersection count fits within rayMapDepth
 	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
