@@ -50,3 +50,60 @@ void markGeometricNBR( GridStruct &Grid, const int &upperBound, const bool markN
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
+
+void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
+{
+	// The way this is written creates a race condition, one that is harmless because all threads write the same 1
+	auto targetMarkerView = targetMarkerArray.getView();
+	auto sourceMarkerView = sourceMarkerArray.getConstView();
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+	
+	BoolViewType isGeometricMarkerView[7];
+	for ( int i = 0; i < 7; i++ ) isGeometricMarkerView[i] = Grid.NBR.isGeometricMarkerArray[i].getView();
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		int nbrPlus[7];
+		nbrPlus[0] = (cell + 1 < upperBound) ? cell + 1 : 0; 					// iPlus
+		nbrPlus[1] = jPlusView[ cell ];											// jPlus
+		nbrPlus[2] = (nbrPlus[1] + 1 < upperBound) ? nbrPlus[1] + 1 : 0;		// ijPlus
+		nbrPlus[3] = kPlusView[ cell ];											// kPlus
+		nbrPlus[4] = (nbrPlus[3] + 1 < upperBound) ? nbrPlus[3] + 1 : 0;		// ikPlus
+		nbrPlus[5] = jkPlusView[ cell ];										// jkPlus
+		nbrPlus[6] = (nbrPlus[5] + 1 < upperBound) ? nbrPlus[5] + 1 : 0;		// ijkPlus
+		bool isGeometricMarker[7];
+		for ( int q = 0; q < 7; q++ ) isGeometricMarker[q] = isGeometricMarkerView[q][cell];
+		
+		bool marker = sourceMarkerView[ cell ];
+		if ( !marker )
+		{
+			for ( int q = 0; q < 7; q++ )
+			{
+				if ( isGeometricMarker[q] )
+				{
+					if ( sourceMarkerView[nbrPlus[q]] )
+					{
+						marker = true;
+						break;
+					}
+				}
+			}
+		}
+		if ( marker )
+		{
+			targetMarkerView[ cell ] = true; // <- race condition here
+			for ( int q = 0; q < 7; q++ )
+			{
+				if ( isGeometricMarker[q] )
+				{
+					targetMarkerView[nbrPlus[q]] = true; // <- race condition here too <3
+				}
+			}
+		}		
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+// next: spreadMarkers for SkeletonGrid

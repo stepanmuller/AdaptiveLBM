@@ -128,6 +128,12 @@ markerSpread ( Grid, markerArraySource, markerArrayTarget, horní mez! )
 	Podívej se do všech 8 sousedů (já plus NBR)
 	Šířím oběma směry: Pokud já anebo kterýkoli soused je 1, přepisuju vše na 1, buď atomickou operací nebo je to možná jedno? Chci jen přidávat jedničky, nuly nepíšu
 	Ovšem, každý link při čtení i zápisu násobím geometrickou validitou linku definovanou v NBR
+	
+markerSpread ( SkeletonGrid, markerArraySource, markerArrayTarget )
+	Pro každou buňku:
+	Podívej se do všech 8 sousedů (já plus NBR)
+	Šířím oběma směry: Pokud já anebo kterýkoli soused je 1, přepisuju vše na 1, buď atomickou operací nebo je to možná jedno? Chci jen přidávat jedničky, nuly nepíšu
+	Ovšem, každý link při čtení i zápisu násobím geometrickou validitou linku definovanou v NBR
 
 markKeepArea( Grid, rayMaps, horní mez! )
 	1)	Hledám oblast tekutiny -> markFinestFluid( keepCellMarkerArray, rayMapAll )
