@@ -14,7 +14,7 @@ int main(int argc, char **argv)
 	VoxelizerStruct Voxelizer;
 	Voxelizer.Info.ox = -18.f;
 	Voxelizer.Info.oy = -18.f;
-	Voxelizer.Info.res = 0.01f;
+	Voxelizer.Info.res = 0.05f;
 	Voxelizer.Info.cellCountX = (int)(36.f / Voxelizer.Info.res);
 	Voxelizer.Info.cellCountY = Voxelizer.Info.cellCountX;
 	

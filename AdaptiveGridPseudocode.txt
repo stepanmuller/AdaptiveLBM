@@ -91,7 +91,7 @@ Voxelizer
 
 Algoritmy
 
-voxelizeSTL with thread balancing
+voxelizeSTL with thread balancing -> hotovo!
 1) 	paralelní loop přes trojúhelníky
 	u každého si zapiš, kolik průsečíků je třeba kontrolovat -> přidat array do STL structu
 2)	potřebuju každému jádru přiřadit právě jeden trojúhelník a nějaký počet jeho průsečíků. Potřebuju průsečík_start a průsečík_end

@@ -110,13 +110,10 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		// transform into the coordinate system of the LBM grid
 		const float ax = axView[ triangleIndex ] - Info.ox;
 		const float ay = ayView[ triangleIndex ] - Info.oy;
-		const float az = azView[ triangleIndex ] - Info.oz;
 		const float bx = bxView[ triangleIndex ] - Info.ox;
 		const float by = byView[ triangleIndex ] - Info.oy;
-		const float bz = bzView[ triangleIndex ] - Info.oz;
 		const float cx = cxView[ triangleIndex ] - Info.ox;
 		const float cy = cyView[ triangleIndex ] - Info.oy;
-		const float cz = czView[ triangleIndex ] - Info.oz;
 		// transform STL floats to integer grid that is 100x finer than the LBM grid to prevent float errors
 		// make the STL coords odd, rays will be even, this prevents hitting a vortex
 		const float scale = 50.0f / Info.res;
@@ -272,6 +269,7 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 		
 		// we will be changing this each time j or i changes
 		long long wab, wbc, wca;
+		bool rayHit;
 		
 		for ( int j = jStartThread; j < jEndThread; j++ )
 		{
@@ -293,11 +291,14 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 				iEndJ = iEndThread; 
 			else 
 				iEndJ = iEndGlobal;
+			// possible optimization for later:
+			// here we are starting to check all elements of the row
+			// instead we can just find the first true element and last true element
 			for ( int i = iStartJ; i < iEndJ; i++ )
 			{
-				bool rayHit = getRayHitYesNo( i, j, wab, wbc, wca, 
-											axInt, ayInt, bxInt, byInt, cxInt, cyInt, 
-											abxLong, abyLong, bcxLong, bcyLong, caxLong, cayLong );
+				rayHit = getRayHitYesNo( i, j, wab, wbc, wca, 
+										axInt, ayInt, bxInt, byInt, cxInt, cyInt, 
+										abxLong, abyLong, bcxLong, bcyLong, caxLong, cayLong );
 				if ( rayHit ) 
 				{
 					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(hitsPerRayCounterView(i, j), 1);
@@ -377,4 +378,9 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	IntPairType startList{ 0, 0 };
 	IntPairType endList{ Info.cellCountX, Info.cellCountY };
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(startList, endList, rayLambda );	
+}
+
+void sumRayMaps( IntArray3DType &rayMapArraySum, IntArray3DType &rayMapArray, IntArray2DType &hitsPerRayCounterArray )
+{
+	// add rayMapArray into rayMapArraySum as univication of all their solid intervals
 }
