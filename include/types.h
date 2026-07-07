@@ -173,7 +173,7 @@ struct VoxelizerStruct { 	static constexpr int rayMapDepth = 32;
 							IntArray3DType rayMapBouncebackArray; 
 							IntArray3DType rayMapMovingBouncebackArray; 
 							IntArray3DType rayMapTotalArray; 
-							IntArray2DType hitsPerRayCounterArray; };
+							IntArray2DType counterArray; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 

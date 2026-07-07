@@ -69,7 +69,7 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to rayMapDepth is filled with int max
 	// If rayMapDepth is too low, throw error
 	InfoStruct &Info = Voxelizer.Info;
-	IntArray2DType &hitsPerRayCounterArray = Voxelizer.hitsPerRayCounterArray;
+	IntArray2DType &hitsPerRayCounterArray = Voxelizer.counterArray;
 	
 	if ( hitsPerRayCounterArray.getSizes()[0] < 1 )
 	{
@@ -380,7 +380,125 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, IntArray3DType &ra
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(startList, endList, rayLambda );	
 }
 
-void sumRayMaps( IntArray3DType &rayMapArraySum, IntArray3DType &rayMapArray, IntArray2DType &hitsPerRayCounterArray )
+void sumRayMaps( IntArray3DType &rayMapSumArray, IntArray3DType &rayMapBonusArray, IntArray2DType &overflowCounterArray )
 {
-	// add rayMapArray into rayMapArraySum as univication of all their solid intervals
+	// add rayMapBonusArray into rayMapSumArray as univication of all their solid intervals
+	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
+	constexpr int intMax = std::numeric_limits<int>::max();
+	const int cellCountX = rayMapSumArray.getSizes()[0];
+	const int cellCountY = rayMapSumArray.getSizes()[1];
+	overflowCounterArray.setValue( 0 );
+	auto rayMapSumView = rayMapSumArray.getView();
+	auto rayMapBonusView = rayMapBonusArray.getView();
+	auto overflowCounterView = overflowCounterArray.getView();
+	// combine the intervals
+	auto rayLambda = [=] __cuda_callable__ ( const IntPairType& doubleIndex ) mutable
+	{
+		const int iRay = doubleIndex.x();
+		const int jRay = doubleIndex.y();
+		// load all intersections
+		int raySumHits[rayMapDepth];
+		int rayBonusHits[rayMapDepth];
+		int result[rayMapDepth];
+		for ( int layer = 0; layer < rayMapDepth; layer++ ) raySumHits[layer] = rayMapSumView( iRay, jRay, layer );
+		for ( int layer = 0; layer < rayMapDepth; layer++ ) rayBonusHits[layer] = rayMapBonusView( iRay, jRay, layer );
+		// unify the intervals, save into result
+        int sumIndex = 0; // Pointer for raySumHits
+        int bonusIndex = 0; // Pointer for rayBonusHits
+        int resultIndex = 0; // Pointer for result
+        int currentStart = intMax;
+        int currentEnd = intMax;
+        int lastEnd = intMax;
+        while ( sumIndex < rayMapDepth || bonusIndex < rayMapDepth )
+        {
+			// if one of the arrays reached its end, we have no option than to advance the other one
+			if ( sumIndex >= rayMapDepth || bonusIndex >= rayMapDepth )
+			{
+				if ( sumIndex >= rayMapDepth ) // sum reached end -> pick bonus
+				{
+					currentStart = rayBonusHits[bonusIndex];
+					if ( currentStart == intMax ) break; // there are no intersections left
+					currentEnd = rayBonusHits[bonusIndex + 1];
+					bonusIndex = bonusIndex + 2;
+				}
+				else 
+				{
+					currentStart = raySumHits[sumIndex];
+					if ( currentStart == intMax ) break; // there are no intersections left
+					currentEnd = raySumHits[sumIndex + 1];
+					sumIndex = sumIndex + 2;
+				}
+			}
+			// pick the earlier start and advance its index
+			else if ( raySumHits[sumIndex] < rayBonusHits[bonusIndex] )	 // picking sum
+			{
+				currentStart = raySumHits[sumIndex];
+				currentEnd = raySumHits[sumIndex + 1];
+				sumIndex = sumIndex + 2;
+			}
+			else // picking bonus
+			{
+				currentStart = rayBonusHits[bonusIndex];
+				if ( currentStart == intMax ) break; // there are no intersections left
+				currentEnd = rayBonusHits[bonusIndex + 1];
+				bonusIndex = bonusIndex + 2;
+			}
+			// look at the current start and compare it to last written end
+			if ( resultIndex == 0 ) // there is no end before -> just write our start and end
+			{
+				result[resultIndex] = currentStart;
+				result[resultIndex+1] = currentEnd;
+				resultIndex = resultIndex + 2;
+			}
+			else
+			{
+				lastEnd = result[resultIndex - 1];
+				if ( currentStart > lastEnd ) // add new interval
+				{	
+					if ( resultIndex >= rayMapDepth ) // mark as overflow!
+					{
+						overflowCounterView( iRay, jRay ) = 1;
+						break;
+					}
+					result[resultIndex] = currentStart;
+					result[resultIndex+1] = currentEnd;
+					resultIndex = resultIndex + 2;
+				}
+				else 
+					// our start is early enough so that the intervals join 
+					// if our interval also ends later, extend the last written end up to our end
+					if ( currentEnd > result[resultIndex-1] ) result[resultIndex-1] = currentEnd;
+			if ( currentEnd == intMax ) break;
+			}
+		}
+		// fill rest of the result array with intMax
+		for ( ; resultIndex < rayMapDepth; resultIndex++ )
+		{
+			result[resultIndex] = intMax;
+		}
+		// write result
+		for ( int layer = 0; layer < rayMapDepth; layer++ ) rayMapSumView( iRay, jRay, layer ) = result[layer];
+	};
+	IntPairType startList{ 0, 0 };
+	IntPairType endList{ cellCountX, cellCountY };
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(startList, endList, rayLambda );	
+	// now check for overflow
+	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
+	{
+		const int iRay = singleIndex % cellCountX;
+		const int jRay = singleIndex / cellCountX;
+		return overflowCounterView( iRay, jRay );
+	};
+	auto reduction = [] __cuda_callable__( const int& a, const int& b )
+	{
+		return a + b;
+	};
+	const int start = 0;
+	const int end = cellCountX * cellCountY;
+	const int overflowCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
+	if ( overflowCount > 0 ) 
+	{
+		std::cout << "overflowCount: " << overflowCount << std::endl;
+		throw std::runtime_error("sumRayMaps failed. Summing the maps resulted in exceeding ray map depth. Static constexpr int rayMapDepth can be increased in include/types.h -> VoxelizerStruct");
+	}
 }

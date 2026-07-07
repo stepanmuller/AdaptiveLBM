@@ -104,7 +104,7 @@ voxelizeSTL with thread balancing -> hotovo!
 	Prohoď pointery rayMapTotal a rayMapBounceback
 	k rayMapTotal přičti rayMapMovingBounceback
 		
-sumRayMaps( rayMapSum, rayMap ) -> přičte rayMap do rayMapSum jako součet jejich intervalů solidu
+sumRayMaps( rayMapSum, rayMap ) -> přičte rayMap do rayMapSum jako součet jejich intervalů solidu -> hotovo!
 	depth = poslední prvek z getSizes(rayMapCummulative)
 	Paralelní loop přes I, J paprsky
 		result[depth] = intMax
