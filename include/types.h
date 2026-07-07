@@ -25,10 +25,11 @@
 //------------------------------------------------------------------------------------
 
 using BoolArrayType = TNL::Containers::Vector< bool, TNL::Devices::Cuda, size_t >;
+using BoolViewType = TNL::Containers::VectorView< bool, TNL::Devices::Cuda, size_t >;
 using BoolArrayTypeCPU = TNL::Containers::Vector< bool, TNL::Devices::Host, size_t >;
 												
 using IntArrayType = TNL::Containers::Vector< int, TNL::Devices::Cuda, size_t >;
-using IntArrayConstViewType = TNL::Containers::VectorView< const int, TNL::Devices::Cuda, size_t >;
+using IntConstViewType = TNL::Containers::VectorView< const int, TNL::Devices::Cuda, size_t >;
 using IntArrayTypeCPU = TNL::Containers::Vector< int, TNL::Devices::Host, size_t >;
 
 using IntArray2DType = TNL::Containers::NDArray< int, 
@@ -120,13 +121,13 @@ inline IJKArrayStruct::IJKArrayStruct(const IJKArrayStructCPU& IJKCPU) {
 // These 10 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus, iMinus, jMinus, kMinus
 struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
-						BoolArrayType geometricValidityMarkerArray[10]; }; 
+						BoolArrayType isGeometricMarkerArray[10]; }; 
 										
 struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
 					int iMinus; int jMinus; int kMinus;
-					int geometricValidityMarker[10]; }; 
+					int isGeometricMarker[10]; }; 
 
-struct TopMasterGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType markerBuffer; };	
+struct SkeletonGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType markerBuffer; };	
 
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
 					FloatArrayType fArray[27]; FloatArrayType fBuffer; 
@@ -139,7 +140,7 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
 					BoolArrayType willThereBeAfterMarkerArray; BoolArrayType wasThereBeforeMarkerArray;
 					BoolArrayType markerBuffer;
-					TopMasterGridStruct TopMasterGrid;
+					SkeletonGridStruct SkeletonGrid;
 					}; 		
 					
 struct STLStructCPU { 	int triangleCount;

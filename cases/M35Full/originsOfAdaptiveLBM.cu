@@ -1,5 +1,5 @@
 #include "../../include/types.h"
-
+#include "../../include/gridAdaptivityFunctions.h"
 #include "../../include/STLFunctions.h"
 #include "../../include/voxelizerFunctions.h"
 
@@ -24,13 +24,13 @@ int main(int argc, char **argv)
 	
 	Timer.reset();
 	Timer.start();
-	voxelizeSTL( STLMain, Voxelizer, Voxelizer.rayMapBounceback );
+	voxelizeSTL( Voxelizer.rayMapBounceback, STLMain, Voxelizer );
 	Timer.stop();
 	std::cout << "Voxelization 1 took " << Timer.getRealTime() << " s" << std::endl;
 	
 	Timer.reset();
 	Timer.start();
-	voxelizeSTL( STLImpeller, Voxelizer, Voxelizer.rayMapMovingBounceback );
+	voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLImpeller, Voxelizer );
 	Timer.stop();
 	std::cout << "Voxelization 2 took " << Timer.getRealTime() << " s" << std::endl;
 	

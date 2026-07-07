@@ -113,13 +113,13 @@ sumRayMaps( rayMapSum, rayMap ) -> přičte rayMap do rayMapSum jako součet jej
 		ten algoritmus sem celej psát nebudu vymyslim to v kódu nebo to vymyslí gemini
 		na konci se result napíše do rayMapSum[ij]		
 
-markFinestFluid( VirtualStructuredGrid, markerArray, rayMap, horní mez! )
+markFinestFluid( VirtualStructuredGrid, markerArray, rayMap ) -> hotovo!
 
 markFinestFluid( Grid, markerArray, rayMaps, horní mez! ) -> hotovo!
 
 markFinestBounceback( Grid, markerArray, rayMaps, horní mez! ) -> hotovo!
 
-markGeometricNBR( IJK, NBR, horní mez!, bool: mám dělat i minusové? )
+markGeometricNBR( IJK, NBR, horní mez!, bool: mám dělat i minusové? ) -> hotovo!
 	projeď všechny plusové (případně minusové) sousedy a koukni na jejich IJK
 	pokud IJK souseda odpovídá geometrickému sousedství, v NBR geometric validity napiš 1
 

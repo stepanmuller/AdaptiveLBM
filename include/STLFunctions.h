@@ -1,5 +1,7 @@
 #pragma once
 
+#include "./types.h"
+
 void checkSTLEdges( STLStruct &STL )
 // For every edge, counts number of triangles that share it. Must be always 2 for a closed STL.
 {

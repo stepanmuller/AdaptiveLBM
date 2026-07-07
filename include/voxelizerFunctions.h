@@ -1,5 +1,7 @@
 #pragma once
 
+#include "./types.h"
+
 __host__ __device__ bool getRayHitYesNo( 	const int &i, const int &j, 
 											const long long &wab, const long long &wbc, const long long &wca,
 											const int &axInt, const int &ayInt, 
@@ -62,7 +64,7 @@ __host__ __device__ bool getRayHitYesNo( 	const int &i, const int &j,
     return false; 
 }
 
-void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, rayMapStruct &rayMap )
+void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxelizer )
 {
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	// Result is saved into the rayMap which is a 3D array of size cellCountX * cellCountY * rayMapDepth
@@ -363,7 +365,7 @@ void voxelizeSTL( STLStruct &STL, VoxelizerStruct &Voxelizer, rayMapStruct &rayM
 		for ( int layer = 0; layer < hitCount; layer++ ) intersections[layer] = rayMapView( iRay, jRay, layer );
 		for ( int layer = hitCount; layer < rayMapDepth; layer++ ) intersections[layer] = std::numeric_limits<int>::max();
 		// sort
-		for ( int layer = 1; layer < rayMapDepth; layer++ ) 
+		for ( int layer = 1; layer < hitCount; layer++ ) 
 		{
 			int key = intersections[layer];
 			int slider = layer - 1;
@@ -512,12 +514,12 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 	}
 }
 
-void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const IJKArrayStruct &IJK, const int cellCount )
+void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
-	auto iView = IJK.iArray.getConstView();
-	auto jView = IJK.jArray.getConstView();
-	auto kView = IJK.kArray.getConstView();
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
 	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
 	auto markerView = markerArray.getView();
 	auto rayMapView = rayMapArray.getConstView();
@@ -542,19 +544,21 @@ void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &ray
 			}
 		}
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const IJKArrayStruct &IJK, const int cellCount, const int downsample )
+void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
-	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell would be 0 (fluid)
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
-	auto iView = IJK.iArray.getConstView();
-	auto jView = IJK.jArray.getConstView();
-	auto kView = IJK.kArray.getConstView();
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
 	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
 	auto markerView = markerArray.getView();
 	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / Grid.Info.cellCountX;
 	
 	markerArray.setValue( true );
 
@@ -587,19 +591,70 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 		}
 		markerView[ cell ] = false;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const IJKArrayStruct &IJK, const int cellCount, const int downsample )
+void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, SkeletonGridStruct &SkeletonGrid )
 {
-	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell would be 1 (bounceback)
+	// marks the top master grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
-	auto iView = IJK.iArray.getConstView();
-	auto jView = IJK.jArray.getConstView();
-	auto kView = IJK.kArray.getConstView();
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
+	const int cellCount = SkeletonGrid.Info.cellCount;
 	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
 	auto markerView = markerArray.getView();
 	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / cellCountX;
+	
+	markerArray.setValue( true );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int kCoarse = cell / (cellCountX * cellCountY);
+		const int remainder = cell % (cellCountX * cellCountY);
+		const int jCoarse = remainder / cellCountX;
+		const int iCoarse = remainder % cellCountX;
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				{
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd < kFineFirst ) continue;
+					else if ( kEnd >= kFineFirst && kEnd <= kFineLast ) return;
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart <= kFineFirst ) break;
+					else return;
+				}
+			}
+		}
+		markerView[ cell ] = false;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+}
+
+void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
+{
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
+	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / Grid.Info.cellCountX;
 	
 	markerArray.setValue( false );
 
@@ -639,5 +694,5 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 			}
 		}
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
