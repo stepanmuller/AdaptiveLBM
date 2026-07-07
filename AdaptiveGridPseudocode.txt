@@ -115,9 +115,9 @@ sumRayMaps( rayMapSum, rayMap ) -> přičte rayMap do rayMapSum jako součet jej
 
 markFinestFluid( VirtualStructuredGrid, markerArray, rayMap, horní mez! )
 
-markFinestFluid( Grid, markerArray, rayMaps, horní mez! )
+markFinestFluid( Grid, markerArray, rayMaps, horní mez! ) -> hotovo!
 
-markFinestBounceback( Grid, markerArray, rayMaps, horní mez! )
+markFinestBounceback( Grid, markerArray, rayMaps, horní mez! ) -> hotovo!
 
 markGeometricNBR( IJK, NBR, horní mez!, bool: mám dělat i minusové? )
 	projeď všechny plusové (případně minusové) sousedy a koukni na jejich IJK

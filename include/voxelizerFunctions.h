@@ -617,18 +617,15 @@ void markFinestBounceback( BoolArrayType &markerArray, const IntArray3DType &ray
 						return;
 					}
 					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
-					
-					
-					
-					if ( kEnd < kFineFirst ) continue;
-					else if ( kEnd >= kFineFirst && kEnd <= kFineLast ) return;
-					kStart = rayMapView( iFine, jFine, startIndex );
-					if ( kStart <= kFineFirst ) break;
-					else return;
+					if ( kEnd <= kFineFirst ) continue;
+					else 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
 				}
 			}
 		}
-		markerView[ cell ] = false;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
 }
