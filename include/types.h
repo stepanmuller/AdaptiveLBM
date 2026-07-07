@@ -168,12 +168,13 @@ struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
 					}
 				};
 
+struct rayMapStruct { IntArray3DType rayMapArray; IntArray2DType hitCounterArray; };
+
 struct VoxelizerStruct { 	static constexpr int rayMapDepth = 32; 
 							InfoStruct Info; 
-							IntArray3DType rayMapBouncebackArray; 
-							IntArray3DType rayMapMovingBouncebackArray; 
-							IntArray3DType rayMapTotalArray; 
-							IntArray2DType counterArray; };
+							rayMapStruct rayMapBounceback;
+							rayMapStruct rayMapMovingBounceback;
+							rayMapStruct rayMapTotal; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 
