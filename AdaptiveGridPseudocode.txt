@@ -183,7 +183,7 @@ markRefinementCells( Grid, rayMaps, horní mez! ) -> hotovo!
 		coarseToFineMarkerArray = coarseToFineMarkerArray * keepCellMarkerArray * !deepRefinementMarkerArray * !fineToCoarseMarkerArray
 	5)	refinementMarkerArray = deepRefinementMarkerArray + fineToCoarseMarkerArray + coarseToFineMarkerArray
 
-buildFinerGrid( GridCoarse, GridFine )
+buildFinerGrid( GridCoarse, GridFine ) -> hotovo!
 	Pomocí informací z GridCoarse sestaví IJK, NBR a parentMap GridFine a zároveň childMapArray pro GridCoarse
 	1)	intBuffer3 hrubé sítě = refinementMarker, inplaceExclusiveScan( bufferIntArray )
 	2)	Využiju intBuffer3 jemné sítě 4. Má osminásobnou velikost, tedy se do něj jistě vejde 5 "hrubých" polí. i-té pole bude začínat od indexu i*refinementCount.
