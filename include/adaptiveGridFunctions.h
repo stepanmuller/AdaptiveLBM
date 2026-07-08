@@ -3,7 +3,7 @@
 #include "./types.h"
 #include "./voxelizerFunctions.h"
 
-void markGeometricNBR( GridStruct &Grid, const int &upperBound, const bool markNegativeDirectionsToo )
+void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, const int &upperBound )
 {
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
@@ -50,6 +50,64 @@ void markGeometricNBR( GridStruct &Grid, const int &upperBound, const bool markN
 		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+int countZerosInBoolArray( const BoolArrayType &boolArray, const int &upperBound )
+{
+	auto boolView = boolArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int cell )
+	{
+		if ( !boolView[ cell ] ) return 1;
+		else return 0;
+	};
+	auto reduction = [] __cuda_callable__( const int& a, const int& b )
+	{
+		return a + b;
+	};
+	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
+}
+
+void skipOneUnmarkedNeighbour( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
+{
+	// For each cell, if its neighbour is not marked, travel one neighbour up (set our neighbour to the neighbour's neighbour)
+	auto nbrView = nbrArray.getView();
+	auto nbrOldView = nbrOldArray.getConstView();
+	auto markerView = markerArray.getConstView();
+	auto finishedMarkerView = finishedMarkerArray.getView();
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		if ( finishedMarkerView[ cell ] ) return;
+		int nbr = nbrOldView[ cell ];
+		if ( nbr == cell || markerView[ nbr ] ) // the first condition clicks if we already travelled a full closed unmarked loop
+		{
+			nbrView[ cell ] = nbr;
+			finishedMarkerView[ cell ] = true;
+			return;
+		}
+		int newNbr = nbrOldView[ nbr ]; // neighbour of our neighbour
+		nbrView[ cell ] = newNbr;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+void skipUnmarkedNeighbours( IntArrayType nbrArray, const BoolArrayType markerArray, IntArrayType intBuffer, BoolArrayType markerBuffer, const int &upperBound )
+{
+	// Receives nbrArray, which also points on cells that are not marked
+	// For each cell, while its neighbour is not marked, we want to travel up the neighbour list
+	// to find the first marked neighbour
+	IntArrayType &nbrOldArray = intBuffer;
+	BoolArrayType &finishedMarkerArray = markerBuffer;
+	
+	finishedMarkerArray.setValue( false );
+	int unfinishedCount = upperBound;
+	
+	while ( unfinishedCount > 0 )
+	{
+		nbrArray.swap( nbrOldArray ); // pointer swap without data travel
+		skipOneUnmarkedNeighbour( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
+		unfinishedCount = countZerosInBoolArray( finishedMarkerArray, upperBound );
+	}
 }
 
 void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
@@ -123,36 +181,34 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		bool marker = sourceMarkerView[ cell ];
-		if ( !marker ) // only continue if the marker is not already 1
+		if ( marker ) return; // only continue if the marker is not already 1
+		const int kCell = cell / (cellCountX * cellCountY);
+		const int remainder = cell % (cellCountX * cellCountY);
+		const int jCell = remainder / cellCountX;
+		const int iCell = remainder % cellCountX;
+		int nbr, iNbr, jNbr, kNbr;
+		for ( int kAdd = -1; kAdd <= 1; kAdd++ )
 		{
-			const int kCell = cell / (cellCountX * cellCountY);
-			const int remainder = cell % (cellCountX * cellCountY);
-			const int jCell = remainder / cellCountX;
-			const int iCell = remainder % cellCountX;
-			int nbr, iNbr, jNbr, kNbr;
-			for ( int kAdd = -1; kAdd <= 1; kAdd++ )
+			kNbr = kCell + kAdd;
+			if ( kNbr >= 0 && kNbr < cellCountZ )
 			{
-				kNbr = kCell + kAdd;
-				if ( kNbr >= 0 && kNbr < cellCountZ )
+				for ( int jAdd = -1; jAdd <= 1; jAdd++ )
 				{
-					for ( int jAdd = -1; jAdd <= 1; jAdd++ )
+					jNbr = jCell + jAdd;
+					if ( jNbr >= 0 && jNbr < cellCountY )
 					{
-						jNbr = jCell + jAdd;
-						if ( jNbr >= 0 && jNbr < cellCountY )
+						for ( int iAdd = -1; iAdd <= 1; iAdd++ )
 						{
-							for ( int iAdd = -1; iAdd <= 1; iAdd++ )
+							if ( kAdd!=0 || jAdd!=0 || iAdd!=0 )
 							{
-								if ( kAdd!=0 || jAdd!=0 || iAdd!=0 )
+								iNbr = iCell + iAdd;
+								if ( iNbr >= 0 && iNbr < cellCountX )
 								{
-									iNbr = iCell + iAdd;
-									if ( iNbr >= 0 && iNbr < cellCountX )
+									nbr = kNbr * (cellCountX * cellCountY) + jNbr * cellCountX + iNbr;
+									if ( sourceMarkerView[ nbr ] )
 									{
-										nbr = kNbr * (cellCountX * cellCountY) + jNbr * cellCountX + iNbr;
-										if ( sourceMarkerView[ nbr ] )
-										{
-											targetMarkerView[ cell ] = true;
-											return;
-										}
+										targetMarkerView[ cell ] = true;
+										return;
 									}
 								}
 							}
@@ -205,3 +261,27 @@ void markKeepCells( SkeletonGridStruct &SkeletonGrid, const VoxelizerStruct &Vox
 	SkeletonGrid.keepCellMarkerArray = SkeletonGrid.keepCellMarkerArray + SkeletonGrid.markerBuffer * SkeletonGrid.movingBouncebackMarkerArray;
 }
 
+void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const int &upperBound )
+{
+	markKeepCells( Grid, Voxelizer, upperBound );
+	// search deep refinement area
+	markFinestBounceback( Grid.deepRefinementMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
+	for ( int spread = 0; spread < WALL_REFINEMENT_COUNT; spread++ )
+	{
+		Grid.deepRefinementMarkerArray.swap( Grid.markerBuffer );
+		spreadMarkers( Grid.deepRefinementMarkerArray, Grid.markerBuffer, Grid, upperBound );
+	}
+	Grid.deepRefinementMarkerArray = Grid.deepRefinementMarkerArray * Grid.keepCellMarkerArray;
+	// search fine to coarse interface
+	Grid.fineToCoarseMarkerArray = Grid.deepRefinementMarkerArray;
+	Grid.fineToCoarseMarkerArray.swap( Grid.markerBuffer );
+	spreadMarkers( Grid.fineToCoarseMarkerArray, Grid.markerBuffer, Grid, upperBound );
+	Grid.fineToCoarseMarkerArray = Grid.fineToCoarseMarkerArray * Grid.keepCellMarkerArray * !Grid.deepRefinementMarkerArray;
+	// search coarse to fine interface
+	Grid.coarseToFineMarkerArray = Grid.fineToCoarseMarkerArray;
+	Grid.coarseToFineMarkerArray.swap( Grid.markerBuffer );
+	spreadMarkers( Grid.coarseToFineMarkerArray, Grid.markerBuffer, Grid, upperBound );
+	Grid.coarseToFineMarkerArray = Grid.coarseToFineMarkerArray * Grid.keepCellMarkerArray * !Grid.deepRefinementMarkerArray * !Grid.fineToCoarseMarkerArray;
+	// mark refinement all together
+	Grid.refinementMarkerArray = Grid.deepRefinementMarkerArray + Grid.fineToCoarseMarkerArray + Grid.coarseToFineMarkerArray;
+}

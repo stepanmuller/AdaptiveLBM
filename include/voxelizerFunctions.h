@@ -66,25 +66,24 @@ __host__ __device__ bool getRayHitYesNo( 	const int &i, const int &j,
 
 void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxelizer )
 {
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
-	// Result is saved into the rayMap which is a 3D array of size cellCountX * cellCountY * rayMapDepth
-	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to rayMapDepth is filled with int max
-	// If rayMapDepth is too low, throw error
+	// Result is saved into the rayMap which is a 3D array of size cellCountX * cellCountY * RAY_MAP_DEPTH
+	// K indexes of intersections with each I, J ray are saved in ascending order. The rest up to RAY_MAP_DEPTH is filled with int max
+	// If RAY_MAP_DEPTH is too low, throw error
 	InfoStruct &Info = Voxelizer.Info;
 	IntArray3DType &rayMapArray = rayMap.rayMapArray;
 	IntArray2DType &hitCounterArray = rayMap.hitCounterArray;
 	
 	if ( rayMapArray.getSizes()[0] < 1 )
 	{
-		rayMapArray.setSizes( Info.cellCountX, Info.cellCountY, rayMapDepth );
+		rayMapArray.setSizes( Info.cellCountX, Info.cellCountY, RAY_MAP_DEPTH );
 		hitCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
-		const int rayMapElementCount = Info.cellCountX * Info.cellCountY * (rayMapDepth + 1);
+		const int rayMapElementCount = Info.cellCountX * Info.cellCountY * (RAY_MAP_DEPTH + 1);
 		const int rayMapMemoryMB = (float)(rayMapElementCount * 4) / 1000000.f;
 		std::cout << "New rayMap allocated on GPU, it takes " << rayMapMemoryMB << " MB" << std::endl;
 	}
 	
 	hitCounterArray.setValue( 0 );
-	rayMapArray.setValue( std::numeric_limits<int>::max() );
+	rayMapArray.setValue( INT_MAX );
 	
 	auto rayMapView = rayMapArray.getView();
 	auto hitCounterView = hitCounterArray.getView();
@@ -303,7 +302,7 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 				if ( rayHit ) 
 				{
 					const int writePosition = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(hitCounterView(i, j), 1);
-					if ( writePosition < rayMapDepth )
+					if ( writePosition < RAY_MAP_DEPTH )
 					{
 						const float rayX = i * Info.res;
 						const float rayY = j * Info.res;
@@ -332,7 +331,7 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, threadCount, rayHitIndexLambda );
 	
-	// check if intersection count fits within rayMapDepth
+	// check if intersection count fits within RAY_MAP_DEPTH
 	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
 	{
 		const int i = singleIndex % Info.cellCountX;
@@ -346,11 +345,11 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 	const int start = 0;
 	const int end = Info.cellCountX * Info.cellCountY;
 	const int maxIntersectionCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
-	if ( maxIntersectionCount > rayMapDepth ) 
+	if ( maxIntersectionCount > RAY_MAP_DEPTH ) 
 	{
 		std::cout << "maxIntersectionCount: " << maxIntersectionCount << std::endl;
-		std::cout << "rayMapDepth: " << rayMapDepth << std::endl;
-		throw std::runtime_error("Voxelization failed, intersection count exceeded ray map depth. Static constexpr int rayMapDepth can be increased in include/types.h -> VoxelizerStruct");
+		std::cout << "RAY_MAP_DEPTH: " << RAY_MAP_DEPTH << std::endl;
+		throw std::runtime_error("Voxelization failed, intersection count exceeded RAY_MAP_DEPTH. RAY_MAP_DEPTH can be increased in the main file.");
 	}
 	
 	// sort the intersections in ascending order
@@ -361,9 +360,9 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 		// load hitCount
 		const int hitCount = hitCounterView( iRay, jRay );
 		// load intersections up to hitCount
-		int intersections[rayMapDepth];
+		int intersections[RAY_MAP_DEPTH];
 		for ( int layer = 0; layer < hitCount; layer++ ) intersections[layer] = rayMapView( iRay, jRay, layer );
-		for ( int layer = hitCount; layer < rayMapDepth; layer++ ) intersections[layer] = std::numeric_limits<int>::max();
+		for ( int layer = hitCount; layer < RAY_MAP_DEPTH; layer++ ) intersections[layer] = INT_MAX;
 		// sort
 		for ( int layer = 1; layer < hitCount; layer++ ) 
 		{
@@ -387,8 +386,6 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 {
 	// add rayMapBonus into rayMapSum as unification of all their solid intervals
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
-	constexpr int intMax = std::numeric_limits<int>::max();
 	const int cellCountX = rayMapSum.rayMapArray.getSizes()[0];
 	const int cellCountY = rayMapSum.rayMapArray.getSizes()[1];
 	auto rayMapSumView = rayMapSum.rayMapArray.getView();
@@ -403,36 +400,36 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 		// load all intersections
 		const int hitCountSum = hitCounterSumView( iRay, jRay );
 		const int hitCountBonus = hitCounterBonusView( iRay, jRay );
-		int raySumHits[rayMapDepth];
-		int rayBonusHits[rayMapDepth];
-		int result[rayMapDepth];
+		int raySumHits[RAY_MAP_DEPTH];
+		int rayBonusHits[RAY_MAP_DEPTH];
+		int result[RAY_MAP_DEPTH];
 		for ( int layer = 0; layer < hitCountSum; layer++ ) raySumHits[layer] = rayMapSumView( iRay, jRay, layer );
-		for ( int layer = hitCountSum; layer < rayMapDepth; layer++ ) raySumHits[layer] = std::numeric_limits<int>::max();
+		for ( int layer = hitCountSum; layer < RAY_MAP_DEPTH; layer++ ) raySumHits[layer] = INT_MAX;
 		for ( int layer = 0; layer < hitCountBonus; layer++ ) rayBonusHits[layer] = rayMapBonusView( iRay, jRay, layer );
-		for ( int layer = hitCountBonus; layer < rayMapDepth; layer++ ) rayBonusHits[layer] = std::numeric_limits<int>::max();
+		for ( int layer = hitCountBonus; layer < RAY_MAP_DEPTH; layer++ ) rayBonusHits[layer] = INT_MAX;
 		// unify the intervals, save into result
         int sumIndex = 0; // Pointer for raySumHits
         int bonusIndex = 0; // Pointer for rayBonusHits
         int resultIndex = 0; // Pointer for result
-        int currentStart = intMax;
-        int currentEnd = intMax;
-        int lastEnd = intMax;
-        while ( sumIndex < rayMapDepth || bonusIndex < rayMapDepth )
+        int currentStart = INT_MAX;
+        int currentEnd = INT_MAX;
+        int lastEnd = INT_MAX;
+        while ( sumIndex < RAY_MAP_DEPTH || bonusIndex < RAY_MAP_DEPTH )
         {
 			// if one of the arrays reached its end, we have no option than to advance the other one
-			if ( sumIndex >= rayMapDepth || bonusIndex >= rayMapDepth )
+			if ( sumIndex >= RAY_MAP_DEPTH || bonusIndex >= RAY_MAP_DEPTH )
 			{
-				if ( sumIndex >= rayMapDepth ) // sum reached end -> pick bonus
+				if ( sumIndex >= RAY_MAP_DEPTH ) // sum reached end -> pick bonus
 				{
 					currentStart = rayBonusHits[bonusIndex];
-					if ( currentStart == intMax ) break; // there are no intersections left
+					if ( currentStart == INT_MAX ) break; // there are no intersections left
 					currentEnd = rayBonusHits[bonusIndex + 1];
 					bonusIndex = bonusIndex + 2;
 				}
 				else 
 				{
 					currentStart = raySumHits[sumIndex];
-					if ( currentStart == intMax ) break; // there are no intersections left
+					if ( currentStart == INT_MAX ) break; // there are no intersections left
 					currentEnd = raySumHits[sumIndex + 1];
 					sumIndex = sumIndex + 2;
 				}
@@ -447,7 +444,7 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 			else // picking bonus
 			{
 				currentStart = rayBonusHits[bonusIndex];
-				if ( currentStart == intMax ) break; // there are no intersections left
+				if ( currentStart == INT_MAX ) break; // there are no intersections left
 				currentEnd = rayBonusHits[bonusIndex + 1];
 				bonusIndex = bonusIndex + 2;
 			}
@@ -463,7 +460,7 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 				lastEnd = result[resultIndex - 1];
 				if ( currentStart > lastEnd ) // add new interval
 				{	
-					if ( resultIndex >= rayMapDepth ) // mark as overflow!
+					if ( resultIndex >= RAY_MAP_DEPTH ) // mark as overflow!
 					{
 						hitCounterSumView( iRay, jRay ) = -1;
 						return;
@@ -476,15 +473,15 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 					// our start is early enough so that the intervals join 
 					// if our interval also ends later, extend the last written end up to our end
 					if ( currentEnd > result[resultIndex-1] ) result[resultIndex-1] = currentEnd;
-			if ( currentEnd == intMax ) break;
+			if ( currentEnd == INT_MAX ) break;
 			}
 		}
 		hitCounterSumView( iRay, jRay ) = resultIndex;
 		const int writeEnd = TNL::max( hitCountSum, resultIndex );
-		// fill rest of the result array with intMax
+		// fill rest of the result array with INT_MAX
 		for ( int index = resultIndex; index < writeEnd; index++ )
 		{
-			result[index] = intMax;
+			result[index] = INT_MAX;
 		}
 		// write result, only overwrite places that actually need to be changed
 		for ( int layer = 0; layer < writeEnd; layer++ ) rayMapSumView( iRay, jRay, layer ) = result[layer];
@@ -510,13 +507,12 @@ void sumRayMaps( rayMapStruct &rayMapSum, rayMapStruct &rayMapBonus )
 	if ( overflowCount > 0 ) 
 	{
 		std::cout << "overflowCount: " << overflowCount << std::endl;
-		throw std::runtime_error("sumRayMaps failed. Summing the maps resulted in exceeding ray map depth. Static constexpr int rayMapDepth can be increased in include/types.h -> VoxelizerStruct");
+		throw std::runtime_error("sumRayMaps failed. Summing the maps resulted in exceeding RAY_MAP_DEPTH. RAY_MAP_DEPTH can be increased in the main file.");
 	}
 }
 
 void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
@@ -532,7 +528,7 @@ void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &ray
 		const int jCell = jView[ cell ];
 		const int kCell = kView[ cell ];
 		int kStart, kEnd;
-		for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+		for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
 		{
 			kStart = rayMapView( iCell, jCell, startIndex );
 			if ( kStart > kCell ) break;
@@ -550,7 +546,6 @@ void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &ray
 void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
 	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
@@ -578,7 +573,7 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
 			{
 				iFine = iFineFirst + iAdd;
-				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
 				{
 					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
 					if ( kEnd < kFineFirst ) continue;
@@ -597,7 +592,6 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
 {
 	// marks the top master grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	const int cellCountX = SkeletonGrid.Info.cellCountX;
 	const int cellCountY = SkeletonGrid.Info.cellCountY;
 	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
@@ -627,7 +621,7 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
 			{
 				iFine = iFineFirst + iAdd;
-				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
 				{
 					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
 					if ( kEnd < kFineFirst ) continue;
@@ -646,7 +640,6 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
 	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
@@ -674,7 +667,7 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
 			{
 				iFine = iFineFirst + iAdd;
-				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
 				{
 					kStart = rayMapView( iFine, jFine, startIndex );
 					if ( kStart > kFineLast ) break;
@@ -700,7 +693,6 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
 {
 	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
-	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
 	const int cellCountX = SkeletonGrid.Info.cellCountX;
 	const int cellCountY = SkeletonGrid.Info.cellCountY;
 	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
@@ -730,7 +722,7 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
 			{
 				iFine = iFineFirst + iAdd;
-				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
 				{
 					kStart = rayMapView( iFine, jFine, startIndex );
 					if ( kStart > kFineLast ) break;

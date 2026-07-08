@@ -6,6 +6,7 @@
 #include <fstream> 
 #include <cstdlib>
 #include <limits>
+#include <climits>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -19,6 +20,12 @@
 #include <TNL/Containers/NDArray.h>
 #include <TNL/Containers/StaticArray.h>
 #include <TNL/Timer.h>
+
+//------------------------------------------------------------------------------------
+//------------------------------- CONSTANTS ------------------------------------------
+//------------------------------------------------------------------------------------
+
+
 
 //------------------------------------------------------------------------------------
 //--------------------------- ARRAYS, VECTORS  ---------------------------------------
@@ -171,8 +178,7 @@ struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
 
 struct rayMapStruct { IntArray3DType rayMapArray; IntArray2DType hitCounterArray; };
 
-struct VoxelizerStruct { 	static constexpr int rayMapDepth = 32; 
-							InfoStruct Info; 
+struct VoxelizerStruct { 	InfoStruct Info; 
 							rayMapStruct rayMapBounceback;
 							rayMapStruct rayMapMovingBounceback;
 							rayMapStruct rayMapTotal; };

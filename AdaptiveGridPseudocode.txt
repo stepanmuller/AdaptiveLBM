@@ -122,6 +122,28 @@ markFinestBounceback( Grid, markerArray, rayMaps, horní mez! ) -> hotovo!
 markGeometricNBR( IJK, NBR, horní mez!, bool: mám dělat i minusové? ) -> hotovo!
 	projeď všechny plusové (případně minusové) sousedy a koukni na jejich IJK
 	pokud IJK souseda odpovídá geometrickému sousedství, v NBR geometric validity napiš 1
+	
+skipUnmarkedNBR ( NBRArray, NBRArrayTemp, markerArray, markerBuffer, horní mez (je potřeba specifikovat)! ) -> hotovo!
+-> dostane NBR array, která ovšem ukazuje i na buňky, které chceme přeskočit
+-> cílem je opravit NBR array tak, aby ukazovala pouze na omarkované buňky
+-> přepíše NBRArray, temp používá pro přepisování
+1) 	invalidNeighbourMarkerArray inicializováno s jedničkami
+2)	invalidCount = cellCount
+3)	while invalidCount > 0: ALE zastropováno aby 2^it bylo menší než max(cellCountX, cellCountY, cellCountZ)
+		for cell in cells:
+			check invalidNeighbourMarkerArray[cell]. If valid already, skip cell.
+			load neighbour
+			if neighbour is invalid:
+				load neighbour of my neighbour
+				overwrite: neighbour = neighbour of my neighbour
+				overwrite in temp memory too
+				// to znamená že jsme změnili souseda -> zkontrolujeme jestli náhodou už není správný
+				if neighbour is valid:
+					invalidNeighbourMarkerArray[cell] = 0
+			else:
+				invalidNeighbourMarkerArray[cell] = 0
+		invalidCount = suma invalidNeighbourMarkerArray
+		pointer swap temp <-> NBRArray
 
 markerSpread ( Grid, markerArraySource, markerArrayTarget, horní mez! ) -> hotovo!
 	Pro každou buňku:
@@ -144,10 +166,10 @@ markKeepCells( Grid, rayMaps, horní mez! ) -> hotovo!
 		markerSpread od keepCellMarkerArray, výsledek do bufferu
 		keepCellMarkerArray = keepCellMarkerArray + buffer * movingBounceback
 		
-markKeepCells( SkeletonGrid, rayMaps )
+markKeepCells( SkeletonGrid, rayMaps ) -> hotovo!
 
-markRefinementCells( Grid, rayMaps, horní mez! )
-	1)	markKeepArea
+markRefinementCells( Grid, rayMaps, horní mez! ) -> hotovo!
+	1)	markKeepCells
 	2)	Hledám oblast zjemnění. Označím všechny, které mohou obsahovat nejjemnější solid -> markFinestBounceback( deepRefinementMarkerArray, rayMapAll )
 		Pustím Marker spread tolikrát, kolik chci přidat vrstev (wallRefinementCount?). 
 		deepRefinementMarkerArray = deepRefinementMarkerArray * keepCellMarkerArray
@@ -160,28 +182,6 @@ markRefinementCells( Grid, rayMaps, horní mez! )
 		markerSpread( coarseToFineMarkerArray )
 		coarseToFineMarkerArray = coarseToFineMarkerArray * keepCellMarkerArray * !deepRefinementMarkerArray * !fineToCoarseMarkerArray
 	5)	refinementMarkerArray = deepRefinementMarkerArray + fineToCoarseMarkerArray + coarseToFineMarkerArray
-
-skipUnmarkedNBR ( NBRArray, NBRArrayTemp, markerArray, markerBuffer, horní mez (je potřeba specifikovat)! )
--> dostane NBR array, která ovšem ukazuje i na buňky, které chceme přeskočit
--> cílem je opravit NBR array tak, aby ukazovala pouze na omarkované buňky
--> přepíše NBRArray, temp používá pro přepisování
-1) 	invalidNeighbourMarkerArray inicializováno s jedničkami
-2)	invalidCount = cellCount
-3)	while invalidCount > 0: ALE zastropováno aby 2^it bylo menší než max(cellCountX, cellCountY, cellCountZ)
-		for cell in cells:
-			check invalidNeighbourMarkerArray[cell]. If valid already, skip cell.
-			load neighbour
-			if neighbour is invalid:
-				load neighbour of my neighbour
-				overwrite: neighbour = neighbour of my neighbour
-				overwrite in temp memory too
-				// to znamená že jsme změnili souseda -> zkontrolujeme jestli náhodou už není správný
-				if neighbour is valid:
-					invalidNeighbourMarkerArray[cell] = 0
-			else:
-				invalidNeighbourMarkerArray[cell] = 0
-		invalidCount = suma invalidNeighbourMarkerArray
-		pointer swap temp <-> NBRArray
 
 buildFinerGrid( GridCoarse, GridFine )
 	Pomocí informací z GridCoarse sestaví IJK, NBR a parentMap GridFine a zároveň childMapArray pro GridCoarse

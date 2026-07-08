@@ -1,3 +1,6 @@
+static constexpr int RAY_MAP_DEPTH = 32;
+static constexpr int WALL_REFINEMENT_COUNT = 2;
+
 #include "../../include/types.h"
 #include "../../include/adaptiveGridFunctions.h"
 #include "../../include/STLFunctions.h"
