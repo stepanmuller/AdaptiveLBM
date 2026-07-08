@@ -123,19 +123,19 @@ markGeometricNBR( IJK, NBR, horní mez!, bool: mám dělat i minusové? ) -> hot
 	projeď všechny plusové (případně minusové) sousedy a koukni na jejich IJK
 	pokud IJK souseda odpovídá geometrickému sousedství, v NBR geometric validity napiš 1
 
-markerSpread ( Grid, markerArraySource, markerArrayTarget, horní mez! )
+markerSpread ( Grid, markerArraySource, markerArrayTarget, horní mez! ) -> hotovo!
 	Pro každou buňku:
 	Podívej se do všech 8 sousedů (já plus NBR)
 	Šířím oběma směry: Pokud já anebo kterýkoli soused je 1, přepisuju vše na 1, buď atomickou operací nebo je to možná jedno? Chci jen přidávat jedničky, nuly nepíšu
 	Ovšem, každý link při čtení i zápisu násobím geometrickou validitou linku definovanou v NBR
 	
-markerSpread ( SkeletonGrid, markerArraySource, markerArrayTarget )
+markerSpread ( SkeletonGrid, markerArraySource, markerArrayTarget ) -> hotovo!
 	Pro každou buňku:
 	Podívej se do všech 8 sousedů (já plus NBR)
 	Šířím oběma směry: Pokud já anebo kterýkoli soused je 1, přepisuju vše na 1, buď atomickou operací nebo je to možná jedno? Chci jen přidávat jedničky, nuly nepíšu
 	Ovšem, každý link při čtení i zápisu násobím geometrickou validitou linku definovanou v NBR
 
-markKeepArea( Grid, rayMaps, horní mez! )
+markKeepCells( Grid, rayMaps, horní mez! ) -> hotovo!
 	1)	Hledám oblast tekutiny -> markFinestFluid( keepCellMarkerArray, rayMapAll )
 		Pustím markerSpread jednou. Výsledek uložím do keepCellMarkerArray.
 		K tomu budu ještě chtít přidat tlustší region movingBouncebacku.
@@ -144,7 +144,9 @@ markKeepArea( Grid, rayMaps, horní mez! )
 		markerSpread od keepCellMarkerArray, výsledek do bufferu
 		keepCellMarkerArray = keepCellMarkerArray + buffer * movingBounceback
 		
-markRefinementArea( Grid, rayMaps, horní mez! )
+markKeepCells( SkeletonGrid, rayMaps )
+
+markRefinementCells( Grid, rayMaps, horní mez! )
 	1)	markKeepArea
 	2)	Hledám oblast zjemnění. Označím všechny, které mohou obsahovat nejjemnější solid -> markFinestBounceback( deepRefinementMarkerArray, rayMapAll )
 		Pustím Marker spread tolikrát, kolik chci přidat vrstev (wallRefinementCount?). 

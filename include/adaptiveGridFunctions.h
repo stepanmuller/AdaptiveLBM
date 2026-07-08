@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./types.h"
+#include "./voxelizerFunctions.h"
 
 void markGeometricNBR( GridStruct &Grid, const int &upperBound, const bool markNegativeDirectionsToo )
 {
@@ -62,6 +63,8 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 	
 	BoolViewType isGeometricMarkerView[7];
 	for ( int i = 0; i < 7; i++ ) isGeometricMarkerView[i] = Grid.NBR.isGeometricMarkerArray[i].getView();
+	
+	targetMarkerArray = sourceMarkerArray; // initialize as source
 
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
@@ -106,4 +109,99 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-// next: spreadMarkers for SkeletonGrid
+void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, SkeletonGridStruct &SkeletonGrid )
+{
+	auto targetMarkerView = targetMarkerArray.getView();
+	auto sourceMarkerView = sourceMarkerArray.getConstView();
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	const int cellCountZ = SkeletonGrid.Info.cellCountZ;
+	const int cellCount = SkeletonGrid.Info.cellCount;
+
+	targetMarkerArray = sourceMarkerArray; // initialize as source
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		bool marker = sourceMarkerView[ cell ];
+		if ( !marker ) // only continue if the marker is not already 1
+		{
+			const int kCell = cell / (cellCountX * cellCountY);
+			const int remainder = cell % (cellCountX * cellCountY);
+			const int jCell = remainder / cellCountX;
+			const int iCell = remainder % cellCountX;
+			int nbr, iNbr, jNbr, kNbr;
+			for ( int kAdd = -1; kAdd <= 1; kAdd++ )
+			{
+				kNbr = kCell + kAdd;
+				if ( kNbr >= 0 && kNbr < cellCountZ )
+				{
+					for ( int jAdd = -1; jAdd <= 1; jAdd++ )
+					{
+						jNbr = jCell + jAdd;
+						if ( jNbr >= 0 && jNbr < cellCountY )
+						{
+							for ( int iAdd = -1; iAdd <= 1; iAdd++ )
+							{
+								if ( kAdd!=0 || jAdd!=0 || iAdd!=0 )
+								{
+									iNbr = iCell + iAdd;
+									if ( iNbr >= 0 && iNbr < cellCountX )
+									{
+										nbr = kNbr * (cellCountX * cellCountY) + jNbr * cellCountX + iNbr;
+										if ( sourceMarkerView[ nbr ] )
+										{
+											targetMarkerView[ cell ] = true;
+											return;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+}
+
+
+void markKeepCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const int &upperBound )
+{
+	// the marking functions used here are defined in voxelizerFunctions.h
+	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );	
+	Grid.keepCellMarkerArray.swap( Grid.markerBuffer );
+	spreadMarkers( Grid.keepCellMarkerArray, Grid.markerBuffer, Grid, upperBound );
+	// the moving bounceback geometry can travel distance up to 2 cells before the grid is fully rebuild
+	// so we need to keep a 3-cell thick moving bounceback layer (2 layers may become fluid later)
+	// we do this by spreading the keepCell area by 2 more cells
+	// then find intersection of the spread with moving bounceback and add the intersection to original keepCell area
+	// right now the movingBouncebackMarkerArray is not needed -> we will use it as a second buffer to hold the spread
+	Grid.markerBuffer = Grid.keepCellMarkerArray;
+	for ( int spread = 0; spread < 2; spread++ )
+	{
+		Grid.movingBouncebackMarkerArray.swap( Grid.markerBuffer );
+		spreadMarkers( Grid.markerBuffer, Grid.movingBouncebackMarkerArray, Grid, upperBound );
+	}
+	// at this point result of the spread is in markerBuffer
+	// now we stop using the movingBouncebackMarkerArray as a buffer and write actual data into it
+	markFinestBounceback( Grid.movingBouncebackMarkerArray, Voxelizer.rayMapMovingBounceback, Grid, upperBound );
+	Grid.keepCellMarkerArray = Grid.keepCellMarkerArray + Grid.markerBuffer * Grid.movingBouncebackMarkerArray;
+}
+
+void markKeepCells( SkeletonGridStruct &SkeletonGrid, const VoxelizerStruct &Voxelizer )
+{
+	// version for SkeletonGrid, comments for this function are above in version for Grid
+	markFinestFluid( SkeletonGrid.keepCellMarkerArray, Voxelizer.rayMapTotal, SkeletonGrid );	
+	SkeletonGrid.keepCellMarkerArray.swap( SkeletonGrid.markerBuffer );
+	spreadMarkers( SkeletonGrid.keepCellMarkerArray, SkeletonGrid.markerBuffer, SkeletonGrid );
+	SkeletonGrid.markerBuffer = SkeletonGrid.keepCellMarkerArray;
+	for ( int spread = 0; spread < 2; spread++ )
+	{
+		SkeletonGrid.movingBouncebackMarkerArray.swap( SkeletonGrid.markerBuffer );
+		spreadMarkers( SkeletonGrid.markerBuffer, SkeletonGrid.movingBouncebackMarkerArray, SkeletonGrid );
+	}
+	markFinestBounceback( SkeletonGrid.movingBouncebackMarkerArray, Voxelizer.rayMapMovingBounceback, SkeletonGrid );
+	SkeletonGrid.keepCellMarkerArray = SkeletonGrid.keepCellMarkerArray + SkeletonGrid.markerBuffer * SkeletonGrid.movingBouncebackMarkerArray;
+}
+

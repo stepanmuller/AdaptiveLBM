@@ -1,5 +1,5 @@
 #include "../../include/types.h"
-#include "../../include/gridAdaptivityFunctions.h"
+#include "../../include/adaptiveGridFunctions.h"
 #include "../../include/STLFunctions.h"
 #include "../../include/voxelizerFunctions.h"
 

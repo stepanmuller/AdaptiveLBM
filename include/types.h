@@ -127,15 +127,15 @@ struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int
 					int iMinus; int jMinus; int kMinus;
 					int isGeometricMarker[10]; }; 
 
-struct SkeletonGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType markerBuffer; };	
+struct SkeletonGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
 					FloatArrayType fArray[27]; FloatArrayType fBuffer; 
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
 					IntArrayType intBuffer3;
-					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
 					BoolArrayType keepCellMarkerArray; 
+					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
 					BoolArrayType refinementMarkerArray; BoolArrayType deepRefinementMarkerArray;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
 					BoolArrayType willThereBeAfterMarkerArray; BoolArrayType wasThereBeforeMarkerArray;

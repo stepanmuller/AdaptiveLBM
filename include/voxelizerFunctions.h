@@ -594,7 +594,7 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, SkeletonGridStruct &SkeletonGrid )
+void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
 {
 	// marks the top master grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
 	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
@@ -695,4 +695,60 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
+{
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
+	constexpr int rayMapDepth = VoxelizerStruct::rayMapDepth;
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
+	const int cellCount = SkeletonGrid.Info.cellCount;
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / cellCountX;
+	
+	markerArray.setValue( false );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int kCoarse = cell / (cellCountX * cellCountY);
+		const int remainder = cell % (cellCountX * cellCountY);
+		const int jCoarse = remainder / cellCountX;
+		const int iCoarse = remainder % cellCountX;
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < rayMapDepth; startIndex = startIndex + 2 )
+				{
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart > kFineLast ) break;
+					else if ( kStart >= kFineFirst ) 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd <= kFineFirst ) continue;
+					else 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+				}
+			}
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
 }
