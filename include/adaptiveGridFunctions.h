@@ -272,7 +272,8 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	Grid.refinementMarkerArray = Grid.deepRefinementMarkerArray + Grid.fineToCoarseMarkerArray + Grid.coarseToFineMarkerArray;
 }
 
-__host__ __device__ int getFinerGridIndex( 	const int &firstInPlane, const int &lastInPlane, const int &firstInRow, const int &lastInRow, 
+__host__ __device__ int getFinerGridIndex( 	const int &refinedIndex,
+											const int &firstInPlane, const int &lastInPlane, const int &firstInRow, const int &lastInRow, 
 											const int &iAdd, const int &jAdd, const int &kAdd )
 {
 	const int fineIndex = firstInPlane * 8 						// previous Z layers
@@ -280,7 +281,8 @@ __host__ __device__ int getFinerGridIndex( 	const int &firstInPlane, const int &
 				+ (firstInRow - firstInPlane) * 4 				// previous YZ rows in the same Z plane
 				+ (lastInRow - firstInRow + 1) * 2 * jAdd 		// one more previous YZ row if jAdd == 1
 				+ (refinedIndex - firstInRow) * 2 				// previous part of our row
-				+ iAdd
+				+ iAdd;
+	return fineIndex;
 }
 
 void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
@@ -292,10 +294,12 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	const IntArrayType &iArrayCoarse = GridCoarse.IJK.iArray;
 	const IntArrayType &jArrayCoarse = GridCoarse.IJK.jArray;
 	const IntArrayType &kArrayCoarse = GridCoarse.IJK.kArray;
+	IntArrayType &childMapArrayCoarse = GridCoarse.childMapArray;
 	auto intBuffer3ViewCoarse = intBuffer3Coarse.getView();
 	auto iViewCoarse = iArrayCoarse.getConstView();
 	auto jViewCoarse = jArrayCoarse.getConstView();
 	auto kViewCoarse = kArrayCoarse.getConstView();
+	auto childMapViewCoarse = childMapArrayCoarse.getView();
 	auto refinementMarkerViewCoarse = GridCoarse.refinementMarkerArray.getConstView();
 	
 	// label stuff for GridFine
@@ -309,7 +313,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	auto jViewFine = jArrayFine.getView();
 	auto kViewFine = kArrayFine.getView();
 	auto parentMapViewFine = parentMapArrayFine.getView();
-	auto oldToFullViewFine = intBuffer2Coarse.getView();
+	auto oldToFullViewFine = oldToFullArrayFine.getView();
 	
 	// Because fine grid is 8x bigger than count of the refined coarse cells,
 	// we will be using its intBuffer as a multiField to temporarily save 5 coarse fields in a row, 
@@ -459,13 +463,13 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 		const int lastInPlane = multiFieldView[ 2*refinementCountCoarse + index ];
 		const int firstInRow = multiFieldView[ 3*refinementCountCoarse + index ];
 		const int lastInRow = multiFieldView[ 4*refinementCountCoarse + index ];
-		const int iFine = iViewFine[ cellFine ];
-		const int jFine = kViewFine[ cellFine ];
-		const int kFine = kViewFine[ cellFine ];
+		const int iFine = iViewFine[ cellFineOld ];
+		const int jFine = jViewFine[ cellFineOld ];
+		const int kFine = kViewFine[ cellFineOld ];
 		const int iAdd = iFine % 2;
 		const int jAdd = jFine % 2;
 		const int kAdd = kFine % 2;
-		const int cellFineNew = getFinerGridIndex( firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
+		const int cellFineNew = getFinerGridIndex( index, firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
 		oldToFullViewFine[ cellFineOld ] = cellFineNew;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountOldFine, cellLambda6 );
@@ -479,6 +483,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	// (2-3)*refinementCountCoarse = lastInPlane: Index of the last coarse cell that is in the same Z=const plane
 	// (3-4)*refinementCountCoarse = firstInRow: Index of the first coarse cell that is in the same Z,Y=const row
 	// (4-5)*refinementCountCoarse = lastInRow: Index of the last coarse cell that is in the same Z,Y=const row
+	childMapArrayCoarse.setValue( -1 );
 	auto cellLambda7 = [=] __cuda_callable__ ( const int index ) mutable
 	{	
 		const int cellCoarse = multiFieldView[ index ]; 
@@ -495,7 +500,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 			{
 				for ( int iAdd = 0; iAdd <= 1; iAdd++ )
 				{
-					const int cellFine = getFinerGridIndex( firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
+					const int cellFine = getFinerGridIndex( index, firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
 					const int iFine = 2 * iCoarse + iAdd;
 					const int jFine = 2 * jCoarse + jAdd;
 					const int kFine = 2 * kCoarse + kAdd;
@@ -503,6 +508,8 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 					jViewFine[ cellFine ] = jFine;
 					kViewFine[ cellFine ] = kFine;
 					parentMapViewFine[ cellFine ] = cellCoarse;
+					if ( iAdd == 0 && jAdd == 0 && kAdd == 0 ) // bottom left fine cell within the coarse cell
+						childMapViewCoarse[ cellCoarse ] = cellFine;
 				}
 			}
 		}

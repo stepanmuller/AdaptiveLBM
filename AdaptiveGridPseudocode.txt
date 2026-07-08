@@ -235,12 +235,12 @@ buildFinerGrid( GridCoarse, GridFine )
 		Zároveň childExistenceMarkerArrays trojky inicializuju na nuly, když existuju tak se tam přes parentIndex dostanu a zapíšu jedničku
 		Taky by se mohlo stát, že parentIndex je -1 (vůbec už tahle buňka neexistuje) 
 		-> potom do willThereBeAfter píšu nulu.
+		... TENTO POPIS 6) JE OUTDATED, sestavim oldToFull ROVNOU
 	
 	7)	Projíždím přes refinedParentList (do refinementCount trojky). Pro každou buňku načtu hrubé ijk. Loop pro 8 zjemněných buněk.
 		Pro každou určím jemné ijk z hrubého ijk a index v jemné síti pomocí funkce 5)
 		Zároveň do childMapArray[parentIndex] zapíšu index levé dolní (=nulté) zjemněné buňky.
 		Zároveň do parentMapArray[childIndex] zapíšu parentIndex
-		Zároveň vyplním wasThereBefore jemné sítě
 		
 	8)	Teď jdu stavět sousedy jemné sítě. To musím dělat po jednotlivých směrech, protože nemám dost místa v paměti, abych dělal všechny najednou.
 		Pro každý směr (jsou jen 3: j, k, jk):
