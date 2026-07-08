@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./types.h"
+#include "./genericArrayFunctions.h"
 #include "./voxelizerFunctions.h"
 
 void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, const int &upperBound )
@@ -50,21 +51,6 @@ void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, c
 		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
-}
-
-int countZerosInBoolArray( const BoolArrayType &boolArray, const int &upperBound )
-{
-	auto boolView = boolArray.getConstView();
-	auto fetch = [ = ] __cuda_callable__( const int cell )
-	{
-		if ( !boolView[ cell ] ) return 1;
-		else return 0;
-	};
-	auto reduction = [] __cuda_callable__( const int& a, const int& b )
-	{
-		return a + b;
-	};
-	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
 }
 
 void skipOneUnmarkedNeighbour( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
@@ -284,4 +270,42 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	Grid.coarseToFineMarkerArray = Grid.coarseToFineMarkerArray * Grid.keepCellMarkerArray * !Grid.deepRefinementMarkerArray * !Grid.fineToCoarseMarkerArray;
 	// mark refinement all together
 	Grid.refinementMarkerArray = Grid.deepRefinementMarkerArray + Grid.fineToCoarseMarkerArray + Grid.coarseToFineMarkerArray;
+}
+
+void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
+{
+	const int cellCountCoarse = GridCoarse.Info.cellCount;
+	const int refinementCountCoarse = GridCoarse.Info.refinementCount;
+	IntArrayType &intBufferCoarse = GridCoarse.intBuffer3;
+	// Because fine grid is 8x bigger than count of the refined coarse cells,
+	// we will be using this to temporarily save 5 coarse fields in a row, 
+	// i-th field starting from index i*refinementCountCoarse of the multiField
+	// multiField will contain:
+	// (0-1)*refinementCountCoarse = refinedParentList: Sorted indexes of refined coarse cells
+	// (1-2)*refinementCountCoarse = firstInPlane: Index of the first coarse cell that is in the same Z=const plane
+	// (2-3)*refinementCountCoarse = lastInPlane: Index of the last coarse cell that is in the same Z=const plane
+	// (3-4)*refinementCountCoarse = firstInRow: Index of the first coarse cell that is in the same Z,Y=const row
+	// (4-5)*refinementCountCoarse = lastInRow: Index of the last coarse cell that is in the same Z,Y=const row
+	IntArrayType &multiField = GridFine.intBuffer3;
+	
+	// fill multiField (0-1) = refinedParentList
+	intArrayFromBoolArray( intBufferCoarse, GridCoarse.refinementMarkerArray, cellCountCoarse );
+	TNL::Algorithms::inplaceExclusiveScan( intBufferCoarse, 0, cellCountCoarse, TNL::Plus{} );
+	auto refinementMarkerView = GridCoarse.refinementMarkerArray.getConstView();
+	auto intBufferCoarseView = intBufferCoarse.getView();
+	auto multiFieldView = multiField.getView();
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		if ( refinementMarkerView[ cell ] )
+		{
+			const int index = intBufferCoarseView[ cell ];
+			multiFieldView[ index ] = cell;
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, cellLambda );
+	
+	// fill multiField (1-2) = firstInPlane
+	
+	
+	
 }
