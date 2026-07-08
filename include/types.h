@@ -147,6 +147,7 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					BoolArrayType refinementMarkerArray; BoolArrayType deepRefinementMarkerArray;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
 					BoolArrayType willThereBeAfterMarkerArray; BoolArrayType wasThereBeforeMarkerArray;
+					BoolArrayType childExistenceMarkerArray[8];
 					BoolArrayType markerBuffer;
 					SkeletonGridStruct SkeletonGrid;
 					}; 		

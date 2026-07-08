@@ -272,14 +272,50 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	Grid.refinementMarkerArray = Grid.deepRefinementMarkerArray + Grid.fineToCoarseMarkerArray + Grid.coarseToFineMarkerArray;
 }
 
+__host__ __device__ int getFinerGridIndex( 	const int &firstInPlane, const int &lastInPlane, const int &firstInRow, const int &lastInRow, 
+											const int &iAdd, const int &jAdd, const int &kAdd )
+{
+	const int fineIndex = firstInPlane * 8 						// previous Z layers
+				+ (lastInPlane - firstInPlane + 1) * 4 * kAdd 	// one more previous Z layer if kAdd == 1
+				+ (firstInRow - firstInPlane) * 4 				// previous YZ rows in the same Z plane
+				+ (lastInRow - firstInRow + 1) * 2 * jAdd 		// one more previous YZ row if jAdd == 1
+				+ (refinedIndex - firstInRow) * 2 				// previous part of our row
+				+ iAdd
+}
+
 void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 {
+	// label stuff for GridCoarse
 	const int cellCountCoarse = GridCoarse.Info.cellCount;
 	const int refinementCountCoarse = GridCoarse.Info.refinementCount;
 	IntArrayType &intBufferCoarse = GridCoarse.intBuffer3;
+	const IntArrayType &iArrayCoarse = GridCoarse.IJK.iArray;
+	const IntArrayType &jArrayCoarse = GridCoarse.IJK.jArray;
+	const IntArrayType &kArrayCoarse = GridCoarse.IJK.kArray;
+	auto intBufferViewCoarse = intBufferCoarse.getView();
+	auto iViewCoarse = iArrayCoarse.getConstView();
+	auto jViewCoarse = jArrayCoarse.getConstView();
+	auto kViewCoarse = kArrayCoarse.getConstView();
+	auto refinementMarkerViewCoarse = GridCoarse.refinementMarkerArray.getConstView();
+	BoolViewType childExistenceMarkerView[8];
+	for ( int i = 0; i < 8; i++ ) childExistenceMarkerView[i] = GridCoarse.childExistenceMarkerArray[i].getView();
+	
+	// label stuff for GridFine
+	const int cellCountOldFine = GridFine.Info.cellCountOld;
+	const IntArrayType &iArrayFine = GridFine.IJK.iArray;
+	const IntArrayType &jArrayFine = GridFine.IJK.jArray;
+	const IntArrayType &kArrayFine = GridFine.IJK.kArray;
+	const IntArrayType &parentMapArrayFine = GridFine.parentMapArray;
+	IntArrayType &willThereBeAfterMarkerArray = GridFine.willThereBeAfterMarkerArray;
+	auto iViewFine = iArrayFine.getConstView();
+	auto jViewFine = jArrayFine.getConstView();
+	auto kViewFine = kArrayFine.getConstView();
+	auto parentMapViewFine = parentMapArrayFine.getConstView();
+	auto willThereBeAfterMarkerView = willThereBeAfterMarkerArray.getView();
+	
 	// Because fine grid is 8x bigger than count of the refined coarse cells,
-	// we will be using this to temporarily save 5 coarse fields in a row, 
-	// i-th field starting from index i*refinementCountCoarse of the multiField
+	// we will be using its intBuffer as a multiField to temporarily save 5 coarse fields in a row, 
+	// i-th field starts from index i*refinementCountCoarse of the multiField
 	// multiField will contain:
 	// (0-1)*refinementCountCoarse = refinedParentList: Sorted indexes of refined coarse cells
 	// (1-2)*refinementCountCoarse = firstInPlane: Index of the first coarse cell that is in the same Z=const plane
@@ -287,25 +323,130 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	// (3-4)*refinementCountCoarse = firstInRow: Index of the first coarse cell that is in the same Z,Y=const row
 	// (4-5)*refinementCountCoarse = lastInRow: Index of the last coarse cell that is in the same Z,Y=const row
 	IntArrayType &multiField = GridFine.intBuffer3;
+	multiField.setValue( 0 );
+	auto multiFieldView = multiField.getView();
 	
-	// fill multiField (0-1) = refinedParentList
+	// 1) fill multiField (0-1) = refinedParentList
 	intArrayFromBoolArray( intBufferCoarse, GridCoarse.refinementMarkerArray, cellCountCoarse );
 	TNL::Algorithms::inplaceExclusiveScan( intBufferCoarse, 0, cellCountCoarse, TNL::Plus{} );
-	auto refinementMarkerView = GridCoarse.refinementMarkerArray.getConstView();
-	auto intBufferCoarseView = intBufferCoarse.getView();
-	auto multiFieldView = multiField.getView();
-	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	auto cellLambda1 = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
-		if ( refinementMarkerView[ cell ] )
+		if ( refinementMarkerViewCoarse[ cell ] )
 		{
-			const int index = intBufferCoarseView[ cell ];
+			const int index = intBufferViewCoarse[ cell ];
 			multiFieldView[ index ] = cell;
 		}
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, cellLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, cellLambda1 );
 	
-	// fill multiField (1-2) = firstInPlane
+	// 2) fill multiField (1-2) = firstInPlane
+	auto cellLambda2 = [=] __cuda_callable__ ( const int index ) mutable
+	{	
+		if ( index == 0 )
+		{
+			// the first ever refined cell is definitely the first in its Z plane
+			multiFieldView[ 1*refinementCountCoarse + index ] = index;
+			return;
+		}
+		const int cell = multiFieldView[ index ];
+		const int previousCell = multiFieldView[ index - 1 ];
+		if ( kViewCoarse[ cell ] != kViewCoarse[ previousCell ] )
+		{
+			// our cell is first in its Z plane
+			multiFieldView[ 1*refinementCountCoarse + index ] = index;
+			return;
+		}
+		else multiFieldView[ 1*refinementCountCoarse + index ] = 0;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, cellLambda2 );
+	TNL::Algorithms::inplaceInclusiveScan( multiField, 1*refinementCountCoarse, 2*refinementCountCoarse, TNL::Max{} );
 	
+	// 3) fill multiField (2-3) = lastInPlane
+	auto cellLambda3 = [=] __cuda_callable__ ( const int index ) mutable
+	{	
+		const int firstInPlaneIndex = multiFieldView[ 1*refinementCountCoarse + index ];
+		if ( index == refinementCountCoarse - 1 )
+		{
+			// the last ever refined cell is definitely the last in its Z plane
+			multiFieldView[ 2*refinementCountCoarse + firstInPlaneIndex ] = index;
+			return;
+		}
+		const int nextCellfirstInPlaneIndex = multiFieldView[ 1*refinementCountCoarse + index + 1 ];
+		if ( firstInPlaneIndex != nextCellfirstInPlaneIndex )
+		{
+			// our cell is last in its Z plane
+			multiFieldView[ 2*refinementCountCoarse + firstInPlaneIndex ] = index;
+			return;
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, cellLambda3 );
+	TNL::Algorithms::inplaceInclusiveScan( multiField, 2*refinementCountCoarse, 3*refinementCountCoarse, TNL::Max{} );
 	
+	// 4) fill multiField (3-4) = firstInRow
+	auto cellLambda4 = [=] __cuda_callable__ ( const int index ) mutable
+	{	
+		if ( index == 0 )
+		{
+			// the first ever refined cell is definitely the first in its YZ row
+			multiFieldView[ 3*refinementCountCoarse + index ] = index;
+			return;
+		}
+		const int firstInPlaneIndex = multiFieldView[ 1*refinementCountCoarse + index ];
+		if ( firstInPlaneIndex == index )
+		{
+			// our cell is the first in its plane, so its definitely also first in its YZ row
+			multiFieldView[ 3*refinementCountCoarse + index ] = index;
+			return;
+		}
+		const int cell = multiFieldView[ index ];
+		const int previousCell = multiFieldView[ index - 1 ];
+		if ( jViewCoarse[ cell ] != jViewCoarse[ previousCell ] )
+		{
+			// our cell is first in its YZ row
+			multiFieldView[ 3*refinementCountCoarse + index ] = index;
+			return;
+		}
+		else multiFieldView[ 3*refinementCountCoarse + index ] = 0;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, cellLambda4 );
+	TNL::Algorithms::inplaceInclusiveScan( multiField, 3*refinementCountCoarse, 4*refinementCountCoarse, TNL::Max{} );
 	
+	// 5) fill multiField (4-5) = lastInRow
+	auto cellLambda5 = [=] __cuda_callable__ ( const int index ) mutable
+	{	
+		const int firstInRowIndex = multiFieldView[ 3*refinementCountCoarse + index ];
+		if ( index == refinementCountCoarse - 1 )
+		{
+			// the last ever refined cell is definitely the last in its YZ row
+			multiFieldView[ 4*refinementCountCoarse + firstInRowIndex ] = index;
+			return;
+		}
+		const int nextCellfirstInRowIndex = multiFieldView[ 3*refinementCountCoarse + index + 1 ];
+		if ( firstInRowIndex != nextCellfirstInRowIndex )
+		{
+			// our cell is last in its YZ row
+			multiFieldView[ 4*refinementCountCoarse + firstInRowIndex ] = index;
+			return;
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, cellLambda5 );
+	TNL::Algorithms::inplaceInclusiveScan( multiField, 4*refinementCountCoarse, 5*refinementCountCoarse, TNL::Max{} );
+	
+	// 6) extract information from parentMapArray of the fine grid
+	auto cellLambda6 = [=] __cuda_callable__ ( const int cellFine ) mutable
+	{	
+		const int cellCoarse = parentMapViewFine[ cellFine ];
+		if ( cellCoarse < 0 ) // this means the parent cell doesn't exist anymore
+		{
+			willThereBeAfterMarkerView[ cell ] = false;
+			return;
+		}
+		bool refinementMarkerCoarse = refinementMarkerViewCoarse[ cellCoarse ];
+		if ( refinementMarkerCoarse )
+		{
+			willThereBeAfterMarkerView[ cell ] = true;
+			
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountOldFine, cellLambda6 );
 }
