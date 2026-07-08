@@ -240,6 +240,7 @@ buildFinerGrid( GridCoarse, GridFine )
 		Pro každou určím jemné ijk z hrubého ijk a index v jemné síti pomocí funkce 5)
 		Zároveň do childMapArray[parentIndex] zapíšu index levé dolní (=nulté) zjemněné buňky.
 		Zároveň do parentMapArray[childIndex] zapíšu parentIndex
+		Zároveň vyplním wasThereBefore jemné sítě
 		
 	8)	Teď jdu stavět sousedy jemné sítě. To musím dělat po jednotlivých směrech, protože nemám dost místa v paměti, abych dělal všechny najednou.
 		Pro každý směr (jsou jen 3: j, k, jk):
@@ -341,6 +342,7 @@ rebuildGrid( Grid, rayMaps, Buffer )
 	
 	3)  Sestavení IJK a NBR jemné sítě 4 = buildFinerGrid( gridCoarse, gridFine ) -> odteď už musím držet IJK a NBR
 	
+	--- ZRUŠIT ČÁST 4 protože já dokážu oldToFull sestavit rovnou! Krok 6 v buildFinerGrid.
 	Pokud to nedělám poprvé:
 	4)	Teď mám vyplněné wasThereBefore and willThereBeAfter. Můžu sestavit převodník oldToFull.
 		Potřebuju dva int buffery - můžu klidně vzít dvě pole z NBRMinus.
@@ -357,7 +359,8 @@ rebuildGrid( Grid, rayMaps, Buffer )
 				oldToFull[cell] = afterScanToFull[ willThereBeAfterScan[cell] ]
 			else:
 				oldToFull[cell] = -1
-		-> mám převodník oldToFull v bufferu 2, buffer 1 a 3 můžu zapomenout
+		-> mám převodník oldToFull v bufferu 2, buffer 1 a 3 můžu zapomenout	
+	--- ZRUŠIT ČÁST 4 protože já dokážu oldToFull sestavit rovnou! Krok 6 v buildFinerGrid.
 	
 	5)	Teď se jdu osekat síť 4, aby tam nebyla zbytečně tlustá vrstva bounceback markeru.
 		Pustím na síť 4 markKeepArea, horní mez = cellCountFull

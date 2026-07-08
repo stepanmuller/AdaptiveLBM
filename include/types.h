@@ -141,15 +141,19 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					FloatArrayType fArray[27]; FloatArrayType fBuffer; 
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
+					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
+					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType intBuffer3;
 					BoolArrayType keepCellMarkerArray; 
 					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
 					BoolArrayType refinementMarkerArray; BoolArrayType deepRefinementMarkerArray;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
-					BoolArrayType willThereBeAfterMarkerArray; BoolArrayType wasThereBeforeMarkerArray;
-					BoolArrayType childExistenceMarkerArray[8];
 					BoolArrayType markerBuffer;
 					SkeletonGridStruct SkeletonGrid;
+					GridStruct()
+						: intBuffer1(NBR.jMinusArray),
+						  intBuffer2(NBR.kMinusArray)
+					{}
 					}; 		
 					
 struct STLStructCPU { 	int triangleCount;
