@@ -11,7 +11,6 @@ std::string STLPathImpeller = "M-Jet_35_impeller.STL";
 
 int main(int argc, char **argv)
 {
-	/*
 	// BuildFinerGrid test
 	GridStruct GridCoarse;
 	GridCoarse.Info.cellCount = 4;
@@ -59,8 +58,7 @@ int main(int argc, char **argv)
 	std::cout << "childMapArrayCoarse " << GridCoarse.childMapArray << std::endl;
 	std::cout << "parentMapArrayFine " << GridFine.parentMapArray << std::endl;
 	std::cout << "oldToFull " << GridFine.intBuffer1 << std::endl;
-	*/
-	/*
+
 	// STL tests
 	STLStruct STLMain;
 	readSTL( STLMain, STLPathMain );
@@ -95,7 +93,6 @@ int main(int argc, char **argv)
 	sumRayMaps( Voxelizer.rayMapTotal, Voxelizer.rayMapMovingBounceback );
 	Timer.stop();
 	std::cout << "Summing ray maps took " << Timer.getRealTime() << " s" << std::endl;
-	*/
 	
 	// STL tests
 	

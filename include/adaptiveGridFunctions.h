@@ -6,10 +6,10 @@
 
 void getNbrArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int kPlus, const SkeletonGridStruct &SkeletonGrid )
 {
-	const int cellCount = &SkeletonGrid.Info.cellCount;
-	const int cellCountX = &SkeletonGrid.Info.cellCountX;
-	const int cellCountY = &SkeletonGrid.Info.cellCountY;
-	const int cellCountZ = &SkeletonGrid.Info.cellCountZ; // not needed here
+	const int cellCount = SkeletonGrid.Info.cellCount;
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	const int cellCountZ = SkeletonGrid.Info.cellCountZ;
 	const int cellCountXY = cellCountX * cellCountY;
 	auto nbrView = nbrArray.getView();
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
@@ -22,11 +22,11 @@ void getNbrArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int 
 		int jNbr = jCell + jPlus;
 		int kNbr = kCell + kPlus;
 		if ( jNbr >= cellCountY ) jNbr = 0;
-		if ( kNbr >= cellCountZ ) jNbr = 0;
+		if ( kNbr >= cellCountZ ) kNbr = 0;
 		const int nbr = kNbr * cellCountXY + jNbr * cellCountX + iNbr;
-		jPlusView[ cell ] = nbr;
+		nbrView[ cell ] = nbr;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );
 }
 
 void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, const int &upperBound )
@@ -710,13 +710,13 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	const int cellCountSkeleton = SkeletonGrid.Info.cellCount;
 	const int cellCountXSkeleton = SkeletonGrid.Info.cellCountX;
 	const int cellCountYSkeleton = SkeletonGrid.Info.cellCountY;
-	const int cellCountZSkeleton = SkeletonGrid.Info.cellCountZ;
+	// const int cellCountZSkeleton = SkeletonGrid.Info.cellCountZ; // not needed here
 	const int cellCountXYSkeleton = cellCountXSkeleton * cellCountYSkeleton;
 	const int refinementCountSkeleton = SkeletonGrid.Info.refinementCount;
 	IntArrayType &intBuffer1Skeleton = SkeletonGrid.intBuffer1;
 	IntArrayType &intBuffer2Skeleton = SkeletonGrid.intBuffer2;
 	IntArrayType &intBuffer3Skeleton = SkeletonGrid.intBuffer3;
-	BoolArrayType &refinementMarkerArraySkeleton = SkeletonGrid.refinementMarkerArray;
+	BoolArrayType &refinementMarkerArraySkeleton = SkeletonGrid.keepCellMarkerArray;
 	BoolArrayType &markerBufferSkeleton = SkeletonGrid.markerBuffer;
 	// Some SkeletonGrid Views
 	auto refinementMarkerViewSkeleton = refinementMarkerArraySkeleton.getConstView();
@@ -973,8 +973,9 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	auto nbrSkippedView = nbrSkippedArray.getView();
 	// 8.1) Direction jPlus
 	// Skeleton does not hold neighbours, so here we must temporarily create jPlus for the Skeleton grid
-	getJPlusArrayForSkeleton( nbrSkippedArray, SkeletonGrid );
-	//nbrSkippedArray = SkeletonGrid.NBR.jPlusArray;
+	int jPlus, kPlus;
+	jPlus = 1; kPlus = 0;
+	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
 	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton jPlus neighbour to fill as many fine neighbours as possible
 	auto jPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
@@ -1031,7 +1032,8 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, jPlusLambda );
 	
 	// 8.2) Direction kPlus
-	nbrSkippedArray = SkeletonGrid.NBR.kPlusArray;
+	jPlus = 0; kPlus = 1;
+	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
 	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton kPlus neighbour to fill as many fine neighbours as possible
 	auto kPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
@@ -1073,7 +1075,8 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, kPlusLambda );
 	
 	// 8.3) Direction jkPlus
-	nbrSkippedArray = SkeletonGrid.NBR.jkPlusArray;
+	jPlus = 1; kPlus = 1;
+	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
 	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton jkPlus neighbour to fill remaining fine neighbours
 	auto jkPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
