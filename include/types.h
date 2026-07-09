@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <new>
 
 #include <TNL/Algorithms/parallelFor.h>
 #include <TNL/Algorithms/AtomicOperations.h>
@@ -32,7 +33,6 @@
 //------------------------------------------------------------------------------------
 
 using BoolArrayType = TNL::Containers::Vector< bool, TNL::Devices::Cuda, size_t >;
-using BoolViewType = TNL::Containers::VectorView< bool, TNL::Devices::Cuda, size_t >;
 using BoolArrayTypeCPU = TNL::Containers::Vector< bool, TNL::Devices::Host, size_t >;
 												
 using IntArrayType = TNL::Containers::Vector< int, TNL::Devices::Cuda, size_t >;
@@ -55,6 +55,11 @@ using IntArray3DType = TNL::Containers::NDArray< int,
 
 using FloatArrayType = TNL::Containers::Vector< float, TNL::Devices::Cuda, size_t >;
 using FloatArrayTypeCPU = TNL::Containers::Vector< float, TNL::Devices::Host, size_t >;
+
+using BoolArray2DType = TNL::Containers::NDArray< bool, 
+												TNL::Containers::SizesHolder< size_t, 0, 0 >,
+												std::index_sequence< 0, 1 >,
+												TNL::Devices::Cuda >;
 
 using FloatArray2DType = TNL::Containers::NDArray< float, 
 												TNL::Containers::SizesHolder< size_t, 0, 0 >,
@@ -129,7 +134,7 @@ inline IJKArrayStruct::IJKArrayStruct(const IJKArrayStructCPU& IJKCPU) {
 // These 10 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus, iMinus, jMinus, kMinus
 struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
-						BoolArrayType isGeometricMarkerArray[10]; }; 
+						BoolArray2DType isGeometricMarkerArray; }; 
 										
 struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
 					int iMinus; int jMinus; int kMinus;
@@ -138,7 +143,7 @@ struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int
 struct SkeletonGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
-					FloatArrayType fArray[27]; FloatArrayType fBuffer; 
+					FloatArray2DType fArray; 
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
