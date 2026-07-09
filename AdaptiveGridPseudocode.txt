@@ -216,6 +216,7 @@ buildFinerGrid( GridCoarse, GridFine ) -> hotovo!
 			
 	5)	Hledám funkci, která pro každé hrubé ijk najde 8 fine ijk a určí jejich indexy v jemné síti 4. K tomu se použijou 4 pole výše.
 			iFine = 2*iCoarse + iAdd, jFine = 2*jCoarse + jAdd, kFine = 2*kCoarse + kAdd, add jde od 0 do 1
+			
 			fineIndex(refinedIndex, iAdd, jAdd, kAdd) = 
 				firstInPlane[refinedIndex] * 8 // to jsou předchozí Z vrstvy
 				+ (lastInPlane[refinedIndex] - firstInPlane[refinedIndex] + 1) * 4 * kAdd // to je jedna předchozí Z vrstva
