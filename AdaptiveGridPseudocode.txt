@@ -5,11 +5,11 @@ Předpoklady:
 1) 	Hrubé buňky se nachází pouze uvnitř oblasti. Na okrajích i podél všech stěn je automaticky zjemnění, které se nedá vypnout. 
 	Tím zaniká problém s interfacem na stěně. Dále to znamená, že voxelizace se dělá pouze na nejjemnější úrovni, žádná jiná není potřeba.
 
-2) 	Oblast zjemnění se z hrubé sítě nemaže. Každá síť krom nejhrubší je řízena shora, sama síť ze sebe nikdy nic nemaže. 
-	Ukládáním hrubých dat i v oblasti zjemnění roste paměťová náročnost. Byla pokus mazat to, ale tolik rostla složitost a 
+2) 	Oblast zjemnění se z hrubé sítě nemaže. Každá síť krom nejhrubší je řízena shora. 
+	Ukládáním hrubých dat i v oblasti zjemnění roste paměťová náročnost. Byl pokus mazat to, ale tolik rostla složitost a 
 	přidávalo se množství nutných polí, že by se to nakonec možná ani nevyplatilo.
 	
-3)	Geometrie musí rotovat dostatečně pomalu na to, aby se oblast zjemnění posunula maximálně o jedinou hrubou vrstvu za update. 
+3)	Geometrie musí rotovat dostatečně pomalu na to, aby se u interfacu oblast zjemnění posunula maximálně o jedinou hrubou vrstvu za update. 
 	Díky tomu stačí po updatu sítě projet rozhraní, není třeba doplňovat informace uvnitř sítě, tam už jsou od předtím.
 	Posunutí maximálně o jedinou vrstvu není striktně zajištěno algoritmem zjemnění, je potřeba hlídat rychlost pohybu geometrie.
 	Nejspíš budu updatovat každou 16. iteraci - na jemné síti se interface posune o dvě buňky, na hrubé o jednu, což je vyhovující. 
@@ -40,15 +40,11 @@ Grid
 		movingBouncebackMarkerArray
 		parentMapArray - obsahuje index hrubší buňky, na které leží má buňka. Pokud hrubá už neexistuje, -1.
 		childMapArray - obsahuje index levé dolní jemnější buňky pod mou hrubou buňkou. Pokud tam žádná není, -1.
-		childExistenceMarkerArrays -> 	drží 8 bool polí, pro každou hrubou buňku informuje o existenci 8 odpovídajících jemných buněk. 
-										Řazeno konzistentně se sortováním: base, i, j, ij, k, ik, jk, ijk
 		keepCellMarkerArray -> to používám, abych mohl mazat buňky co jsou hluboko v solidu
 		refinementMarkerArray -> tady se nachází zjemnění
 		deepRefinementMarkerArray -> hluboká oblast zjemnění - neobsahuje interface
 		fineToCoarseMarkerArray -> interface směřující do jemnější sítě
 		coarseToFineMarkerArray -> interface směřující do jemnější sítě
-		willThereBeAfterMarkerArray -> během přepisování sítě drží informaci, jestli stará buňka bude znovu existovat
-		wasThereBeforeMarkerArray -> během přepisování sítě drží informaci, jestli nová buňka existovala i předtím
 		bufferMarkerArray
 	Pole o délce cellCount (+ rezerva v paměti):
 		fArray - musí být strukturován jako list of arrays, aby se dal prohodit pointer libovolné f s bufferem
@@ -69,9 +65,9 @@ Grid
 		cellCountZ
 		- to všechno se schová do infa
 	
-	Pokud jsem nejhrubší grid, asi si budu držet svého šéfa VirtualStructuredGrid	
+	Pokud jsem nejhrubší grid, asi si budu držet svého šéfa SkeletonGrid	
 
-VirtualStructuredGrid - přejmenovat na TopMasterGrid
+SkeletonGrid
 	Volám jí jako virtuální hrubou strukturovanou síť nad nejhrubším levelem sítě.
 	Má nějaké osekané info
 	Asi by měla mít dvě markerArray velikosti cellCount = cellCountX * cellCountY * cellCountZ (strukturovaná síť)
@@ -228,7 +224,8 @@ buildFinerGrid( GridCoarse, GridFine ) -> hotovo!
 				+ (refinedIndex - firstInRow[refinedIndex]) * 2 // to je předchozí půlřádek
 				+ iAdd
 	
-	6)	V příštím kroku budu přepisovat parentMapArray sítě 4. Musím jí teď využít k tomu co potřebuju dřív, než bude nadobro přepsaná.
+	6)	... TENTO POPIS 6) JE OUTDATED, sestavim oldToFull ROVNOU
+		V příštím kroku budu přepisovat parentMapArray sítě 4. Musím jí teď využít k tomu co potřebuju dřív, než bude nadobro přepsaná.
 		Projdu všechny buňky jemné sítě do cellCountOld a přečtu parentMapArray[cell] 
 		-> mám parentIndex buňky ze trojky. Podívám se, jestli je v plánu tuto hrubou buňku zjemnit. Pokud ano,
 		zapíšu 1 do willThereBeAfterMarkerArray[cell], jinak píšu nulu. 
