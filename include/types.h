@@ -140,7 +140,9 @@ struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int
 					int iMinus; int jMinus; int kMinus;
 					int isGeometricMarker[10]; }; 
 
-struct SkeletonGridStruct { InfoStruct Info; BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
+struct SkeletonGridStruct { InfoStruct Info; 
+							IntArrayType intBuffer1; IntArrayType intBuffer2; IntArrayType intBuffer3;
+							BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
 					FloatArray2DType fArray; 

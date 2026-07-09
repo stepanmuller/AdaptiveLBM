@@ -11,6 +11,8 @@ std::string STLPathImpeller = "M-Jet_35_impeller.STL";
 
 int main(int argc, char **argv)
 {
+	/*
+	// BuildFinerGrid test
 	GridStruct GridCoarse;
 	GridCoarse.Info.cellCount = 4;
 	GridCoarse.Info.refinementCount = 3;
@@ -57,49 +59,6 @@ int main(int argc, char **argv)
 	std::cout << "childMapArrayCoarse " << GridCoarse.childMapArray << std::endl;
 	std::cout << "parentMapArrayFine " << GridFine.parentMapArray << std::endl;
 	std::cout << "oldToFull " << GridFine.intBuffer1 << std::endl;
-	
-	/*
-	void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
-{
-	// label stuff for GridCoarse
-	const int cellCountCoarse = GridCoarse.Info.cellCount;
-	const int refinementCountCoarse = GridCoarse.Info.refinementCount;
-	const IntArrayType &iArrayCoarse = GridCoarse.IJK.iArray;
-	const IntArrayType &jArrayCoarse = GridCoarse.IJK.jArray;
-	const IntArrayType &kArrayCoarse = GridCoarse.IJK.kArray;
-	IntArrayType &childMapArrayCoarse = GridCoarse.childMapArray;
-	IntArrayType &intBuffer1Coarse = GridCoarse.intBuffer1;
-	IntArrayType &intBuffer2Coarse = GridCoarse.intBuffer2;
-	IntArrayType &intBuffer3Coarse = GridCoarse.intBuffer3;
-	BoolArrayType &refinementMarkerArrayCoarse = GridCoarse.refinementMarkerArray;
-	BoolArrayType &markerBufferCoarse = GridCoarse.markerBuffer;
-	// Some GridCoarse Views
-	auto iViewCoarse = iArrayCoarse.getConstView();
-	auto jViewCoarse = jArrayCoarse.getConstView();
-	auto kViewCoarse = kArrayCoarse.getConstView();
-	auto childMapViewCoarse = childMapArrayCoarse.getView();
-	auto refinementMarkerViewCoarse = refinementMarkerArrayCoarse.getConstView();
-	
-	// label stuff for GridFine
-	const int cellCountOldFine = GridFine.Info.cellCountOld;
-	const int cellCountFullFine = GridFine.Info.cellCountFull;
-	IntArrayType &iArrayFine = GridFine.IJK.iArray;
-	IntArrayType &jArrayFine = GridFine.IJK.jArray;
-	IntArrayType &kArrayFine = GridFine.IJK.kArray;
-	IntArrayType &jPlusArrayFine = GridFine.NBR.jPlusArray;
-	IntArrayType &kPlusArrayFine = GridFine.NBR.kPlusArray;
-	IntArrayType &jkPlusArrayFine = GridFine.NBR.jkPlusArray;
-	IntArrayType &parentMapArrayFine = GridFine.parentMapArray;
-	IntArrayType &intBuffer1Fine = GridFine.intBuffer1;
-	IntArrayType &intBuffer2Fine = GridFine.intBuffer2;
-	// Some GridFine Views
-	auto iViewFine = iArrayFine.getView();
-	auto jViewFine = jArrayFine.getView();
-	auto kViewFine = kArrayFine.getView();
-	auto jPlusViewFine = jPlusArrayFine.getView();
-	auto kPlusViewFine = kPlusArrayFine.getView();
-	auto jkPlusViewFine = jkPlusArrayFine.getView();
-	auto parentMapViewFine = parentMapArrayFine.getView();
 	*/
 	/*
 	// STL tests
