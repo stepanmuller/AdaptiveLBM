@@ -51,7 +51,7 @@ void applyLocalCellUpdate( DIADGridStruct &Grid )
 		float f[27];
 		int cellReadIndex[27];
 		int fReadIndex[27];
-		getEsotwistReadIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info );
+		getPreCollisionIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 		
 		float rho, ux, uy, uz;
@@ -87,7 +87,7 @@ void applyLocalCellUpdate( DIADGridStruct &Grid )
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
-		getEsotwistWriteIndex( cell, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipper, Info );
+		getPostCollisionIndex( cell, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipper, Info );
 		
 		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 		

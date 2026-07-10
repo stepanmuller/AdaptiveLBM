@@ -132,11 +132,12 @@ inline IJKArrayStruct::IJKArrayStruct(const IJKArrayStructCPU& IJKCPU) {
 // Then it holds 2 more neighbour indexes in the main negative directions jMinus, kMinus (iMinus would be self-1)
 // In addition to that it holds a list of 10 bool vectors which are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
 // These 10 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus, iMinus, jMinus, kMinus
-struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
+struct NbrArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
 						BoolArray2DType isGeometricMarkerArray; }; 
 										
-struct NBRStruct { 	int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
+struct NbrStruct { 	int self;
+					int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
 					int iMinus; int jMinus; int kMinus;
 					int isGeometricMarker[10]; }; 
 
@@ -144,7 +145,7 @@ struct SkeletonGridStruct { InfoStruct Info;
 							IntArrayType intBuffer1; IntArrayType intBuffer2; IntArrayType intBuffer3;
 							BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
-struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
+struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NbrArrayStruct NBR; 
 					FloatArray2DType fArray; 
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;

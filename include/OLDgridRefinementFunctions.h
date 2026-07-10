@@ -342,7 +342,7 @@ void writeToCoarseGridInterface( DIADGridStruct &GridCoarse, DIADGridStruct &Gri
 			float fFine[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getEsotwistWriteIndex( fine, cellReadIndex, fReadIndex, Nbr, esotwistFlipperFine, InfoFine );
+			getPostCollisionIndex( fine, cellReadIndex, fReadIndex, Nbr, esotwistFlipperFine, InfoFine );
 			for ( int direction = 0; direction < 27; direction++ )	fFine[direction] = fArrayViewFine(fReadIndex[direction], cellReadIndex[direction]);
 			for (int direction = 0; direction < 27; direction++) f[direction] += fFine[direction];	
 		}
@@ -360,7 +360,7 @@ void writeToCoarseGridInterface( DIADGridStruct &GridCoarse, DIADGridStruct &Gri
 		Nbr.ijk = ijkNbrViewCoarse( writeCell );
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
-		getEsotwistWriteIndex( writeCell, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipperCoarse, InfoCoarse );
+		getPostCollisionIndex( writeCell, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipperCoarse, InfoCoarse );
 		for ( int direction = 0; direction < 27; direction++ ) fArrayViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, GridCoarse.fineToCoarseWriteArray.getSize(), cellLambda );
@@ -421,7 +421,7 @@ void writeToFineGridInterface( DIADGridStruct &GridCoarse, DIADGridStruct &GridF
 		Nbr.ijk = ijkNbrViewCoarse( readCell );
 		int cellReadIndex[27];
 		int fReadIndex[27];
-		getEsotwistWriteIndex( readCell, cellReadIndex, fReadIndex, Nbr, esotwistFlipperCoarse, InfoCoarse );
+		getPostCollisionIndex( readCell, cellReadIndex, fReadIndex, Nbr, esotwistFlipperCoarse, InfoCoarse );
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayViewCoarse(fReadIndex[direction], cellReadIndex[direction]);
 		
 		rescaleF( f, true );
@@ -438,7 +438,7 @@ void writeToFineGridInterface( DIADGridStruct &GridCoarse, DIADGridStruct &GridF
 			Nbr.ijk = ijkNbrViewFine( fine );
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
-			getEsotwistWriteIndex( fine, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipperFine, InfoFine );
+			getPostCollisionIndex( fine, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipperFine, InfoFine );
 			for ( int direction = 0; direction < 27; direction++ ) fArrayViewFine( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 		}
 		

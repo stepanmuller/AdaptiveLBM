@@ -1113,6 +1113,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	markGeometricNBR( GridFine, markNegativeDirectionsToo, cellCountFullFine );
 }
 
+/*
 void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxelizer, const int level )
 // Consider grids 0, 1, 2, 3 where 3 is the finest. We want to rebuild grids 2, 3 -> we call this function on 2 (level=2) which recursively calls it on all levels below.
 {
@@ -1123,3 +1124,4 @@ void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeliz
 	
 	Info.cellCountOld = Info.cellCount;
 }
+*/
