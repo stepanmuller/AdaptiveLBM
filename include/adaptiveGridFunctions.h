@@ -100,6 +100,22 @@ void skipOneUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArra
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
+int countUnfinishedNBR( const BoolArrayType &markerArray, const BoolArrayType &finishedMarkerArray, const int &upperBound )
+{
+	auto markerView = markerArray.getConstView();
+	auto finishedMarkerView = finishedMarkerArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int cell )
+	{
+		if ( markerView[ cell ] && !finishedMarkerView[ cell ] ) return 1; // sum those who are marked but not finished - we only care about those
+		else return 0;
+	};
+	auto reduction = [] __cuda_callable__( const int& a, const int& b )
+	{
+		return a + b;
+	};
+	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
+}
+
 void skipAllUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArray, IntArrayType &intBuffer, BoolArrayType &markerBuffer, const int &upperBound )
 {
 	// Receives nbrArray, which also points on cells that are not marked
@@ -117,7 +133,7 @@ void skipAllUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArra
 	{
 		nbrArray.swap( nbrOldArray ); // pointer swap without data travel
 		skipOneUnmarkedNBR( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
-		unfinishedCount = countZerosInBoolArray( finishedMarkerArray, upperBound );
+		unfinishedCount = countUnfinishedNBR( markerArray, finishedMarkerArray, upperBound );
 	}
 }
 
@@ -234,7 +250,8 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 void markKeepCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const int &upperBound )
 {
 	// the marking functions used here are defined in voxelizerFunctions.h
-	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );	
+	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );	// <- this is currently not working, it doesnt mark any cells
+	/*
 	Grid.keepCellMarkerArray.swap( Grid.markerBuffer );
 	spreadMarkers( Grid.keepCellMarkerArray, Grid.markerBuffer, Grid, upperBound );
 	// the moving bounceback geometry can travel distance up to 2 cells before the grid is fully rebuild
@@ -252,6 +269,7 @@ void markKeepCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const in
 	// now we stop using the movingBouncebackMarkerArray as a buffer and write actual data into it
 	markFinestBounceback( Grid.movingBouncebackMarkerArray, Voxelizer.rayMapMovingBounceback, Grid, upperBound );
 	Grid.keepCellMarkerArray = Grid.keepCellMarkerArray + Grid.markerBuffer * Grid.movingBouncebackMarkerArray;
+	*/
 }
 
 void markKeepCells( SkeletonGridStruct &SkeletonGrid, const VoxelizerStruct &Voxelizer )
@@ -1273,6 +1291,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	if ( initPass )
 	{
 		Info.memoryCountFull = Info.cellCountFull + ( ( Info.cellCountFull * MEMORY_RESERVE_PERCENTAGE ) / 100 );
+		std::cout 	<< "Initial rebuildGrid level " << level << ", allocating memoryCountFull = " << Info.memoryCountFull << std::endl;
 		Grid.IJK.iArray.setSize( Info.memoryCountFull );
 		Grid.IJK.jArray.setSize( Info.memoryCountFull );
 		Grid.IJK.kArray.setSize( Info.memoryCountFull );
@@ -1302,19 +1321,20 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		std::cout << "rebuildGrid failed on level " << level << ", memoryCountFull = " << Info.memoryCountFull << ", cellCountFull = " << Info.cellCountFull << std::endl;
 		throw std::runtime_error("rebuildGrid failed, cellCountFull exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE in your main file.");
 	}
-	/*
+	
 	// 3) Build our grid (we are the "finer grid" with respect to the grid we are taking spatial information from)
 	if ( iAmCoarsest ) buildFinerGrid( SkeletonGrid, Grid );
 	else buildFinerGrid( GridCoarse, Grid );
 	IntArrayType &oldToFullArray = Grid.intBuffer1; // We cannot touch intBuffer1 now!
 	
 	// 4) Get rid of the cells that are deep inside solid. Only keep the necessary ones, mark them in keepCellMarkerArray
-	markKeepCells( Grid, Voxelizer, Info.cellCountFull );
+	markKeepCells( Grid, Voxelizer, Info.cellCountFull ); // <- problematic line
 	Info.cellCount = countOnesInBoolArray( Grid.keepCellMarkerArray, Info.cellCountFull );
 	
 	if ( initPass )
 	{
 		Info.memoryCount = Info.cellCount + ( ( Info.cellCount * MEMORY_RESERVE_PERCENTAGE ) / 100 );
+		std::cout 	<< "Initial rebuildGrid level " << level << ", allocating memoryCount = " << Info.memoryCount << std::endl;
 		Grid.fArray.setSizes( 28, Info.memoryCount );
 	}
 	else if ( Info.cellCount > Info.memoryCount )
@@ -1400,6 +1420,8 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		if ( initPass )
 		{
 			GridCoarse.Info.fineToCoarseMemoryCount = GridCoarse.Info.fineToCoarseCount + ( ( GridCoarse.Info.fineToCoarseCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			std::cout 	<< "Initial rebuildGrid level " << level << ", allocating fineToCoarseMemoryCount = " 
+						<< GridCoarse.Info.fineToCoarseMemoryCount << std::endl;
 			GridCoarse.fineToCoarseIndexArray.setSize( GridCoarse.Info.fineToCoarseMemoryCount );
 		}
 		else if ( GridCoarse.Info.fineToCoarseCount > GridCoarse.Info.fineToCoarseMemoryCount )
@@ -1428,6 +1450,8 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		if ( initPass )
 		{
 			GridCoarse.Info.coarseToFineMemoryCount = GridCoarse.Info.coarseToFineCount + ( ( GridCoarse.Info.coarseToFineCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			std::cout 	<< "Initial rebuildGrid level " << level << ", allocating coarseToFineMemoryCount = " 
+						<< GridCoarse.Info.coarseToFineMemoryCount << std::endl;
 			GridCoarse.coarseToFineIndexArray.setSize( GridCoarse.Info.coarseToFineMemoryCount );
 		}
 		else if ( GridCoarse.Info.coarseToFineCount > GridCoarse.Info.coarseToFineMemoryCount )
@@ -1470,7 +1494,6 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	
 	// 15) recursion
 	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
-	*/
 }
 
 void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds, const int level )
@@ -1497,6 +1520,7 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		SkeletonGrid.intBuffer2.setSize( SkeletonInfo.cellCount );
 		SkeletonGrid.intBuffer3.setSize( SkeletonInfo.cellCount );
 		SkeletonGrid.keepCellMarkerArray.setSize( SkeletonInfo.cellCount );
+		SkeletonGrid.movingBouncebackMarkerArray.setSize( SkeletonInfo.cellCount );
 		SkeletonGrid.markerBuffer.setSize( SkeletonInfo.cellCount );
 		
 		Info.cellCountX = SkeletonInfo.cellCountX * 2;

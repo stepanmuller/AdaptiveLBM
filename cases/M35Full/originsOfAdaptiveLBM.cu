@@ -2,7 +2,7 @@ static constexpr int RAY_MAP_DEPTH = 32;
 static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 20;
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 2;
 
 #include "../../include/types.h"
 #include "../../include/adaptiveGridFunctions.h"
@@ -20,8 +20,9 @@ int main(int argc, char **argv)
 	readSTL( STLImpeller, STLPathImpeller );
 	
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
-	grids[ 0 ].Info.res = 0.2f;
+	grids[ 0 ].Info.res = 10.0f;
 	initializeGrids( grids, STLMain.Bounds, 0 );
+	std::cout << "Skeleton cellCount = " << grids[0].SkeletonGrid.Info.cellCount << std::endl;
 	
 	// Voxelizer tests
 	VoxelizerStruct Voxelizer;
@@ -52,7 +53,13 @@ int main(int argc, char **argv)
 	Timer.start();
 	rebuildGrids( grids, Voxelizer, 0 );
 	Timer.stop();
-	std::cout << "Rebuild grids took " << Timer.getRealTime() << " s" << std::endl;
+	std::cout << "Initial rebuild grids took " << Timer.getRealTime() << " s" << std::endl;
+	
+	Timer.reset();
+	Timer.start();
+	rebuildGrids( grids, Voxelizer, 0 );
+	Timer.stop();
+	std::cout << "Second rebuild grids took " << Timer.getRealTime() << " s" << std::endl;
 	
 	return EXIT_SUCCESS;
 }
