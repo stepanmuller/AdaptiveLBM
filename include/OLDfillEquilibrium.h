@@ -9,26 +9,26 @@ void fillEquilibriumFromFunction( DIADGridStruct &Grid )
 	bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
 	auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
 	bool esotwistFlipper = Grid.esotwistFlipper;
-	auto iNbrView = Grid.EsotwistNbrArray.iNbrArray.getConstView();
-	auto jNbrView = Grid.EsotwistNbrArray.jNbrArray.getConstView();
-	auto kNbrView = Grid.EsotwistNbrArray.kNbrArray.getConstView();
-	auto ijNbrView = Grid.EsotwistNbrArray.ijNbrArray.getConstView();
-	auto ikNbrView = Grid.EsotwistNbrArray.ikNbrArray.getConstView();
-	auto jkNbrView = Grid.EsotwistNbrArray.jkNbrArray.getConstView();
-	auto ijkNbrView = Grid.EsotwistNbrArray.ijkNbrArray.getConstView();
+	auto iNBRView = Grid.EsotwistNBRArray.iNBRArray.getConstView();
+	auto jNBRView = Grid.EsotwistNBRArray.jNBRArray.getConstView();
+	auto kNBRView = Grid.EsotwistNBRArray.kNBRArray.getConstView();
+	auto ijNBRView = Grid.EsotwistNBRArray.ijNBRArray.getConstView();
+	auto ikNBRView = Grid.EsotwistNBRArray.ikNBRArray.getConstView();
+	auto jkNBRView = Grid.EsotwistNBRArray.jkNBRArray.getConstView();
+	auto ijkNBRView = Grid.EsotwistNBRArray.ijkNBRArray.getConstView();
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
 		const int iCell = iView( cell );
 		const int jCell = jView( cell );
 		const int kCell = kView( cell );
-		DIADEsotwistNbrStruct Nbr;
-		Nbr.i = iNbrView( cell );
-		Nbr.j = jNbrView( cell );
-		Nbr.k = kNbrView( cell );
-		Nbr.ij = ijNbrView( cell );
-		Nbr.ik = ikNbrView( cell );
-		Nbr.jk = jkNbrView( cell );
-		Nbr.ijk = ijkNbrView( cell );
+		DIADEsotwistNBRStruct NBR;
+		NBR.i = iNBRView( cell );
+		NBR.j = jNBRView( cell );
+		NBR.k = kNBRView( cell );
+		NBR.ij = ijNBRView( cell );
+		NBR.ik = ikNBRView( cell );
+		NBR.jk = jkNBRView( cell );
+		NBR.ijk = ijkNBRView( cell );
 		float feq[27];
 		float rho = 1.f;
 		float ux, uy, uz = 0.f;
@@ -40,7 +40,7 @@ void fillEquilibriumFromFunction( DIADGridStruct &Grid )
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
-		getPostCollisionIndex( cell, cellWriteIndex, fWriteIndex, Nbr, esotwistFlipper, Info );
+		getPostCollisionIndex( cell, cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = feq[direction];
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Grid.Info.cellCount, cellLambda );

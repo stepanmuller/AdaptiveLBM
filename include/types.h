@@ -92,7 +92,8 @@ struct InfoStruct { float gridID = 0;
 					int cellCountX = 0; int cellCountY = 0; int cellCountZ = 0; 
 					int cellCount = 0; int cellCountFull = 0; int cellCountOld = 0;
 					int refinementCount = 0; int deepRefinementCount = 0; 
-					int cellCountFineToCoarse = 0; int cellCountCoarseToFine = 0; 
+					int fineToCoarseCount = 0; int coarseToFineCount = 0; 
+					int memoryCount; int memoryCountFull;
 					bool esotwistFlipper = 0; 
 					float pRegulator = 0.f; float iRegulator = 0.f; };
 
@@ -132,11 +133,11 @@ inline IJKArrayStruct::IJKArrayStruct(const IJKArrayStructCPU& IJKCPU) {
 // Then it holds 2 more neighbour indexes in the main negative directions jMinus, kMinus (iMinus would be self-1)
 // In addition to that it holds a list of 10 bool vectors which are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
 // These 10 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus, iMinus, jMinus, kMinus
-struct NbrArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
+struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
 						BoolArray2DType isGeometricMarkerArray; }; 
 										
-struct NbrStruct { 	int self;
+struct NBRStruct { 	int self;
 					int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
 					int iMinus; int jMinus; int kMinus;
 					int isGeometricMarker[10]; }; 
@@ -145,8 +146,8 @@ struct SkeletonGridStruct { InfoStruct Info;
 							IntArrayType intBuffer1; IntArrayType intBuffer2; IntArrayType intBuffer3;
 							BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
-struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NbrArrayStruct NBR; 
-					FloatArray2DType fArray; 
+struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
+					FloatArray2DType fArray; bool esotwistFlipper = false;
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly

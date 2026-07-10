@@ -28,3 +28,18 @@ int countZerosInBoolArray( const BoolArrayType &boolArray, const int &upperBound
 	};
 	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
 }
+
+int countOnesInBoolArray( const BoolArrayType &boolArray, const int &upperBound )
+{
+	auto boolView = boolArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int cell )
+	{
+		if ( boolView[ cell ] ) return 1;
+		else return 0;
+	};
+	auto reduction = [] __cuda_callable__( const int& a, const int& b )
+	{
+		return a + b;
+	};
+	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
+}

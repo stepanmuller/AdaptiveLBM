@@ -99,13 +99,13 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 		auto kView = Grid.IJK.kArray.getConstView();
 		
 		bool esotwistFlipper = Grid.esotwistFlipper;
-		auto iNbrView = Grid.EsotwistNbrArray.iNbrArray.getConstView();
-		auto jNbrView = Grid.EsotwistNbrArray.jNbrArray.getConstView();
-		auto kNbrView = Grid.EsotwistNbrArray.kNbrArray.getConstView();
-		auto ijNbrView = Grid.EsotwistNbrArray.ijNbrArray.getConstView();
-		auto ikNbrView = Grid.EsotwistNbrArray.ikNbrArray.getConstView();
-		auto jkNbrView = Grid.EsotwistNbrArray.jkNbrArray.getConstView();
-		auto ijkNbrView = Grid.EsotwistNbrArray.ijkNbrArray.getConstView();
+		auto iNBRView = Grid.EsotwistNBRArray.iNBRArray.getConstView();
+		auto jNBRView = Grid.EsotwistNBRArray.jNBRArray.getConstView();
+		auto kNBRView = Grid.EsotwistNBRArray.kNBRArray.getConstView();
+		auto ijNBRView = Grid.EsotwistNBRArray.ijNBRArray.getConstView();
+		auto ikNBRView = Grid.EsotwistNBRArray.ikNBRArray.getConstView();
+		auto jkNBRView = Grid.EsotwistNBRArray.jkNBRArray.getConstView();
+		auto ijkNBRView = Grid.EsotwistNBRArray.ijkNBRArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -138,19 +138,19 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 				indexHorizontal = kCellScaled; 
 			}
 			
-			DIADEsotwistNbrStruct Nbr;
-			Nbr.i = iNbrView( cell );
-			Nbr.j = jNbrView( cell );
-			Nbr.k = kNbrView( cell );
-			Nbr.ij = ijNbrView( cell );
-			Nbr.ik = ikNbrView( cell );
-			Nbr.jk = jkNbrView( cell );
-			Nbr.ijk = ijkNbrView( cell );
+			DIADEsotwistNBRStruct NBR;
+			NBR.i = iNBRView( cell );
+			NBR.j = jNBRView( cell );
+			NBR.k = kNBRView( cell );
+			NBR.ij = ijNBRView( cell );
+			NBR.ik = ikNBRView( cell );
+			NBR.jk = jkNBRView( cell );
+			NBR.ijk = ijkNBRView( cell );
 			
 			float f[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getPostCollisionIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
+			getPostCollisionIndex( cell, cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info ); 
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;

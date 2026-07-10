@@ -573,42 +573,42 @@ void getDIADNeighbours( IJKArrayStruct &IJK, std::vector<IntArrayType> &nbrArray
 	}
 }
 
-void getDIADEsotwistNbrArray( DIADGridStruct &Grid )
+void getDIADEsotwistNBRArray( DIADGridStruct &Grid )
 {
 	InfoStruct Info = Grid.Info;
 	IJKArrayStruct IJK = Grid.IJK;
 	const int cellCount = Info.cellCount;
-	Grid.EsotwistNbrArray.iNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.jNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.kNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.ijNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.ikNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.jkNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.ijkNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.iMinNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.jMinNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.kMinNbrArray.setSize( cellCount );
-	Grid.EsotwistNbrArray.iNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.jNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.kNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.ijNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.ikNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.jkNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.ijkNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.iMinNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.jMinNbrArray.setValue( -1 );
-	Grid.EsotwistNbrArray.kMinNbrArray.setValue( -1 );
+	Grid.EsotwistNBRArray.iNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.jNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.kNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.ijNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.ikNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.jkNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.ijkNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.iMinNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.jMinNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.kMinNBRArray.setSize( cellCount );
+	Grid.EsotwistNBRArray.iNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.jNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.kNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.ijNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.ikNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.jkNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.ijkNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.iMinNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.jMinNBRArray.setValue( -1 );
+	Grid.EsotwistNBRArray.kMinNBRArray.setValue( -1 );
 	
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.iNbrArray,    1, 0, 0, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.jNbrArray,    0, 1, 0, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.kNbrArray,    0, 0, 1, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.ijNbrArray,   1, 1, 0, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.ikNbrArray,   1, 0, 1, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.jkNbrArray,   0, 1, 1, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.ijkNbrArray,  1, 1, 1, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.iMinNbrArray,-1, 0, 0, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.jMinNbrArray, 0,-1, 0, Info );
-	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNbrArray.kMinNbrArray, 0, 0,-1, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.iNBRArray,    1, 0, 0, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.jNBRArray,    0, 1, 0, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.kNBRArray,    0, 0, 1, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.ijNBRArray,   1, 1, 0, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.ikNBRArray,   1, 0, 1, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.jkNBRArray,   0, 1, 1, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.ijkNBRArray,  1, 1, 1, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.iMinNBRArray,-1, 0, 0, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.jMinNBRArray, 0,-1, 0, Info );
+	findPeriodicNeighbourIJKIndex( IJK, Grid.EsotwistNBRArray.kMinNBRArray, 0, 0,-1, Info );
 }
 
 // Mark target cell as 1 if at least one of its neighbours in source is 1
@@ -692,7 +692,7 @@ void buildDIADGrids( std::vector<DIADGridStruct> &grids, std::vector<STLStruct> 
 		Grid.IJK.kArray.resize(Info.cellCount);
 		Grid.bouncebackMarkerArray.resize(Info.cellCount);
 		
-		getDIADEsotwistNbrArray( Grid );
+		getDIADEsotwistNBRArray( Grid );
 		
 		// ALLOCATE fArray and initialize
 		Grid.fArray.setSizes( 27, Info.cellCount );
@@ -938,7 +938,7 @@ void buildDIADGrids( std::vector<DIADGridStruct> &grids, std::vector<STLStruct> 
 	} // bouncebackInverseMarkerArray runs out of scope
 	
 	// BUILD ESOTWIST CONNECTIONS
-	getDIADEsotwistNbrArray( Grid );
+	getDIADEsotwistNBRArray( Grid );
 	
 	// BUILD OUTLET CELL ARRAY TO STORE INDEXES OF NON REFLECTIVE OUTLET BC CELLS
 	{

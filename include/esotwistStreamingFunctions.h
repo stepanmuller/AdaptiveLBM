@@ -9,35 +9,35 @@ void applyStreaming( GridStruct& Grid )
 	Grid.esotwistFlipper = !Grid.esotwistFlipper;
 }
 
-__cuda_callable__ void getPreCollisionIndex( int (&cellIndex)[27], int (&fIndex)[27], const NbrStruct &Nbr, const bool &esotwistFlipper, const InfoStruct &Info )
+__cuda_callable__ void getPreCollisionIndex( int (&cellIndex)[27], int (&fIndex)[27], const NBRStruct &NBR, const bool &esotwistFlipper, const InfoStruct &Info )
 {
-    cellIndex[0]  = Nbr.self;
-    cellIndex[1]  = Nbr.self;
-    cellIndex[2]  = Nbr.iPlus;
-    cellIndex[3]  = Nbr.kPlus;
-    cellIndex[4]  = Nbr.self;
-    cellIndex[5]  = Nbr.jPlus;
-    cellIndex[6]  = Nbr.self;
-    cellIndex[7]  = Nbr.kPlus;
-    cellIndex[8]  = Nbr.iPlus;
-    cellIndex[9]  = Nbr.self;
-    cellIndex[10] = Nbr.ikPlus;
-    cellIndex[11] = Nbr.ijPlus;
-    cellIndex[12] = Nbr.self;
-    cellIndex[13] = Nbr.kPlus;
-    cellIndex[14] = Nbr.jPlus;
-    cellIndex[15] = Nbr.iPlus;
-    cellIndex[16] = Nbr.jPlus;
-    cellIndex[17] = Nbr.self;
-    cellIndex[18] = Nbr.jkPlus;
-    cellIndex[19] = Nbr.ikPlus;
-    cellIndex[20] = Nbr.jPlus;
-    cellIndex[21] = Nbr.ijPlus;
-    cellIndex[22] = Nbr.kPlus;
-    cellIndex[23] = Nbr.jkPlus;
-    cellIndex[24] = Nbr.iPlus;
-    cellIndex[25] = Nbr.ijkPlus;
-    cellIndex[26] = Nbr.self;
+    cellIndex[0]  = NBR.self;
+    cellIndex[1]  = NBR.self;
+    cellIndex[2]  = NBR.iPlus;
+    cellIndex[3]  = NBR.kPlus;
+    cellIndex[4]  = NBR.self;
+    cellIndex[5]  = NBR.jPlus;
+    cellIndex[6]  = NBR.self;
+    cellIndex[7]  = NBR.kPlus;
+    cellIndex[8]  = NBR.iPlus;
+    cellIndex[9]  = NBR.self;
+    cellIndex[10] = NBR.ikPlus;
+    cellIndex[11] = NBR.ijPlus;
+    cellIndex[12] = NBR.self;
+    cellIndex[13] = NBR.kPlus;
+    cellIndex[14] = NBR.jPlus;
+    cellIndex[15] = NBR.iPlus;
+    cellIndex[16] = NBR.jPlus;
+    cellIndex[17] = NBR.self;
+    cellIndex[18] = NBR.jkPlus;
+    cellIndex[19] = NBR.ikPlus;
+    cellIndex[20] = NBR.jPlus;
+    cellIndex[21] = NBR.ijPlus;
+    cellIndex[22] = NBR.kPlus;
+    cellIndex[23] = NBR.jkPlus;
+    cellIndex[24] = NBR.iPlus;
+    cellIndex[25] = NBR.ijkPlus;
+    cellIndex[26] = NBR.self;
 
     if ( esotwistFlipper )
     {
@@ -65,35 +65,35 @@ __cuda_callable__ void getPreCollisionIndex( int (&cellIndex)[27], int (&fIndex)
     }
 }
 
-__cuda_callable__ void getPostCollisionIndex( int (&cellIndex)[27], int (&fIndex)[27], const NbrStruct &Nbr, const bool &esotwistFlipper, const InfoStruct &Info )
+__cuda_callable__ void getPostCollisionIndex( int (&cellIndex)[27], int (&fIndex)[27], const NBRStruct &NBR, const bool &esotwistFlipper, const InfoStruct &Info )
 {
-    cellIndex[0]  = Nbr.self;
-    cellIndex[1]  = Nbr.iPlus;
-    cellIndex[2]  = Nbr.self;
-    cellIndex[3]  = Nbr.self;
-    cellIndex[4]  = Nbr.kPlus;
-    cellIndex[5]  = Nbr.self;
-    cellIndex[6]  = Nbr.jPlus;
-    cellIndex[7]  = Nbr.iPlus;
-    cellIndex[8]  = Nbr.kPlus;
-    cellIndex[9]  = Nbr.ikPlus;
-    cellIndex[10] = Nbr.self;
-    cellIndex[11] = Nbr.self;
-    cellIndex[12] = Nbr.ijPlus;
-    cellIndex[13] = Nbr.jPlus;
-    cellIndex[14] = Nbr.kPlus;
-    cellIndex[15] = Nbr.jPlus;
-    cellIndex[16] = Nbr.iPlus;
-    cellIndex[17] = Nbr.jkPlus;
-    cellIndex[18] = Nbr.self;
-    cellIndex[19] = Nbr.jPlus;
-    cellIndex[20] = Nbr.ikPlus;
-    cellIndex[21] = Nbr.kPlus;
-    cellIndex[22] = Nbr.ijPlus;
-    cellIndex[23] = Nbr.iPlus;
-    cellIndex[24] = Nbr.jkPlus;
-    cellIndex[25] = Nbr.self;
-    cellIndex[26] = Nbr.ijkPlus;
+    cellIndex[0]  = NBR.self;
+    cellIndex[1]  = NBR.iPlus;
+    cellIndex[2]  = NBR.self;
+    cellIndex[3]  = NBR.self;
+    cellIndex[4]  = NBR.kPlus;
+    cellIndex[5]  = NBR.self;
+    cellIndex[6]  = NBR.jPlus;
+    cellIndex[7]  = NBR.iPlus;
+    cellIndex[8]  = NBR.kPlus;
+    cellIndex[9]  = NBR.ikPlus;
+    cellIndex[10] = NBR.self;
+    cellIndex[11] = NBR.self;
+    cellIndex[12] = NBR.ijPlus;
+    cellIndex[13] = NBR.jPlus;
+    cellIndex[14] = NBR.kPlus;
+    cellIndex[15] = NBR.jPlus;
+    cellIndex[16] = NBR.iPlus;
+    cellIndex[17] = NBR.jkPlus;
+    cellIndex[18] = NBR.self;
+    cellIndex[19] = NBR.jPlus;
+    cellIndex[20] = NBR.ikPlus;
+    cellIndex[21] = NBR.kPlus;
+    cellIndex[22] = NBR.ijPlus;
+    cellIndex[23] = NBR.iPlus;
+    cellIndex[24] = NBR.jkPlus;
+    cellIndex[25] = NBR.self;
+    cellIndex[26] = NBR.ijkPlus;
 
     if ( esotwistFlipper )
     {
