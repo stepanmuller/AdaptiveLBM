@@ -93,7 +93,8 @@ struct InfoStruct { float gridID = 0;
 					int cellCount = 0; int cellCountFull = 0; int cellCountOld = 0;
 					int refinementCount = 0; int deepRefinementCount = 0; 
 					int fineToCoarseCount = 0; int coarseToFineCount = 0; 
-					int memoryCount; int memoryCountFull;
+					int memoryCount = 0; int memoryCountFull = 0; 
+					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0;
 					bool esotwistFlipper = 0; 
 					float pRegulator = 0.f; float iRegulator = 0.f; };
 

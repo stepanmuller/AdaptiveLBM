@@ -1162,28 +1162,103 @@ void pullFArrayIntoCells( GridStruct &Grid )
 	for ( int direction = 26; direction >= 0; direction-- ) pullSingleFArrayIntoCells( Grid, direction, postCollisionLocation[ direction ] );
 }
 
+void oldToKeepSingleTransform( GridStruct &Grid, const int direction, const int postCollisionLocation )
+{
+	auto oldToKeepView = Grid.intBuffer3.getConstView();
+	auto fView  = Grid.fArray.getView();
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+	const int cellCountOld = Grid.Info.cellCountOld;
+	const int cellCount = Grid.Info.cellCount;
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cellOld ) mutable
+	{	
+		const int cellNew = oldToKeepView[ cellOld ];
+		if ( cellNew < 0 ) return;
+		const float f = fView( direction + 1, cellOld );
+		int writeIndex;
+		if      ( postCollisionLocation == 0 ) writeIndex = cellNew;
+		else if ( postCollisionLocation == 1 ) writeIndex = cellNew + 1; 
+		else if ( postCollisionLocation == 2 ) writeIndex = jPlusView( cellNew ); 
+		else if ( postCollisionLocation == 3 ) writeIndex = jPlusView( cellNew ) + 1;
+		else if ( postCollisionLocation == 4 ) writeIndex = kPlusView( cellNew ); 
+		else if ( postCollisionLocation == 5 ) writeIndex = kPlusView( cellNew ) + 1; 
+		else if ( postCollisionLocation == 6 ) writeIndex = jkPlusView( cellNew ); 
+		else    							   writeIndex = jkPlusView( cellNew ) + 1;		
+		if ( writeIndex >= cellCount ) writeIndex = 0;
+		fView( direction, writeIndex ) = f;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountOld, cellLambda );
+}
+
+void oldToKeepTransform( GridStruct &Grid )
+{
+	// old to keep transformation of the fArray (which we pulled into our cells previously)
+	// At the same time, move all distribution functions from their own cells into cells given by esotwist streaming
+	if ( Grid.esotwistFlipper )
+	{
+		throw std::runtime_error("pullFArrayIntoCells failed, bool esotwistFlipper is 1. This function can only be called when esotwistFlipper is 0.");
+	}
+	// 						  List of post collision memory locations
+	// 						  0 = self
+	// 						  1 = iPlus 
+	// 						  2 = jPlus
+	// 						  3 = ijPlus
+	// 						  4 = kPlus
+	// 						  5 = ikPlus
+	// 						  6 = jkPlus
+	// 						  7 = ijkPlus
+	//						  direction   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26}
+	const int postCollisionLocation[27] = { 0, 1, 0, 0, 4, 0, 2, 1, 4, 5, 0, 0, 3, 2, 4, 2, 1, 6, 0, 2, 5, 4, 3, 1, 6, 0, 7 };	
+	for ( int direction = 0; direction < 27; direction++ ) oldToKeepSingleTransform( Grid, direction, postCollisionLocation[ direction ] );
+}
+
+void fullToKeepTransform( IntArrayType &dataArray, const BoolArrayType &keepCellMarkerArray, const IntArrayType &fullToKeepArray, IntArrayType &intBuffer, const int &upperBound )
+{
+	auto dataView = dataArray.getView();
+	auto keepCellMarkerView = keepCellMarkerArray.getConstView();
+	auto fullToKeepView = fullToKeepArray.getConstView();
+	auto intBufferView = intBuffer.getView();
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		if ( keepCellMarkerView[ cell ] )
+		{
+			const int writeIndex = fullToKeepView[ cell ];
+			intBufferView[ writeIndex ] = dataView[ cell ];
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );
+	dataArray.swap( intBuffer );
+}
+
 void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxelizer, const int level )
 // Consider grids 0, 1, 2, 3 where 3 is the finest. We want to rebuild grids 2, 3 -> we call this function on 2 (level=2) which recursively calls it on all levels below.
 {
 	const bool iAmCoarsest = ( level == 0 );
+	const bool iAmFinest = ( level == GRID_LEVEL_COUNT - 1 );
 	
 	GridStruct &Grid = grids[ level ];
 	InfoStruct &Info = Grid.Info;
+	Info.cellCountOld = Info.cellCount;
 	
 	const bool initPass = ( Grid.fArray.getSizes()[0] < 1 );
 	
-	if ( iAmCoarsest ) SkeletonGridStruct &GridCoarse = Grid.SkeletonGrid;
-	else GridStruct &GridCoarse = grids[ level - 1 ];
+	SkeletonGridStruct &SkeletonGrid = Grid.SkeletonGrid;
+	InfoStruct &SkeletonInfo = SkeletonGrid.Info;
+	
+	static GridStruct dummyGrid; // if I am the coarsest grid myself, here Im fooling C++ to think there is a coarser grid than me, muhehe
+    GridStruct &GridCoarse = iAmCoarsest ? dummyGrid : grids[ level - 1 ];
 	InfoStruct &InfoCoarse = GridCoarse.Info;
 	
-	Info.cellCountOld = Info.cellCount;
-	
+	// 1) Pull fArray into the correct cells to be able to forget NBR
 	if ( !initPass ) pullFArrayIntoCells( Grid );
 	
+	// 2) Mark refinement area
 	if ( iAmCoarsest )
 	{
-		markKeepCells( GridCoarse, Voxelizer );
-		Info.cellCountFull = 8 * countOnesInBoolArray( GridCoarse.keepCellMarkerArray, InfoCoarse.cellCount );
+		markKeepCells( SkeletonGrid, Voxelizer );
+		Info.cellCountFull = 8 * countOnesInBoolArray( SkeletonGrid.keepCellMarkerArray, SkeletonInfo.cellCount );
 	}
 	else
 	{
@@ -1208,17 +1283,191 @@ void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeliz
 		Grid.NBR.kMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.isGeometricMarkerArray.setSizes( 10, Info.memoryCountFull );
 		Grid.parentMapArray.setSize( Info.memoryCountFull );
-		Grid.childMapArray.setSize( Info.memoryCountFull );
 		Grid.intBuffer3.setSize( Info.memoryCountFull );
 		Grid.keepCellMarkerArray.setSize( Info.memoryCountFull );
 		Grid.bouncebackMarkerArray.setSize( Info.memoryCountFull );
 		Grid.movingBouncebackMarkerArray.setSize( Info.memoryCountFull );
-		Grid.refinementMarkerArray.setSize( Info.memoryCountFull );
-		Grid.deepRefinementMarkerArray.setSize( Info.memoryCountFull );
-		Grid.fineToCoarseMarkerArray.setSize( Info.memoryCountFull );
-		Grid.coarseToFineMarkerArray.setSize( Info.memoryCountFull );
 		Grid.markerBuffer.setSize( Info.memoryCountFull );
+		if ( !iAmFinest )
+		{
+			Grid.childMapArray.setSize( Info.memoryCountFull );
+			Grid.refinementMarkerArray.setSize( Info.memoryCountFull );
+			Grid.deepRefinementMarkerArray.setSize( Info.memoryCountFull );
+			Grid.fineToCoarseMarkerArray.setSize( Info.memoryCountFull );
+			Grid.coarseToFineMarkerArray.setSize( Info.memoryCountFull );
+		}
+	}
+	else if ( Info.cellCountFull > Info.memoryCountFull )
+	{
+		std::cout << "rebuildGrid failed on level " << level << ", memoryCountFull = " << Info.memoryCountFull << ", cellCountFull = " << Info.cellCountFull << std::endl;
+		throw std::runtime_error("rebuildGrid failed, cellCountFull exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE in your main file.");
 	}
 	
+	// 3) Build our grid (we are the "finer grid" with respect to the grid we are taking spatial information from)
+	if ( iAmCoarsest ) buildFinerGrid( SkeletonGrid, Grid );
+	else buildFinerGrid( GridCoarse, Grid );
+	IntArrayType &oldToFullArray = Grid.intBuffer1; // We cannot touch intBuffer1 now!
 	
+	// 4) Get rid of the cells that are deep inside solid. Only keep the necessary ones, mark them in keepCellMarkerArray
+	markKeepCells( Grid, Voxelizer, Info.cellCountFull );
+	Info.cellCount = countOnesInBoolArray( Grid.keepCellMarkerArray, Info.cellCountFull );
+	
+	if ( initPass )
+	{
+		Info.memoryCount = Info.cellCount + ( ( Info.cellCount * MEMORY_RESERVE_PERCENTAGE ) / 100 );
+		Grid.fArray.setSizes( 28, Info.memoryCount );
+	}
+	else if ( Info.cellCount > Info.memoryCount )
+	{
+		std::cout << "rebuildGrid failed on level " << level << ", memoryCount = " << Info.memoryCount << ", cellCount = " << Info.cellCount << std::endl;
+		throw std::runtime_error("rebuildGrid failed, cellCount exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE in your main file.");
+	}
+	
+	// 5) Now we know which cells to keep, skip the unmarked ones in NBR arrays
+	skipAllUnmarkedNBR( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
+	skipAllUnmarkedNBR( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
+	skipAllUnmarkedNBR( Grid.NBR.jkPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
+	
+	// 6) We already have oldToFullArray from step 3, now let's build fullToKeepArray map
+	IntArrayType &fullToKeepArray = Grid.intBuffer2;
+	intArrayFromBoolArray( fullToKeepArray, Grid.keepCellMarkerArray, Info.cellCountFull );
+	TNL::Algorithms::inplaceExclusiveScan( fullToKeepArray, 0, Info.cellCountFull, TNL::Plus{} );
+	
+	// 7) IJK, NBR full to keep transformation
+	fullToKeepTransform( Grid.IJK.iArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.IJK.jArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.IJK.kArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.NBR.jkPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	fullToKeepTransform( Grid.parentMapArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
+	
+	// 8) transform childMapArray of the coarser grid
+	if ( !iAmCoarsest )
+	{
+		auto childMapView = GridCoarse.childMapArray.getView();
+		auto keepCellMarkerView = Grid.keepCellMarkerArray.getConstView();
+		auto fullToKeepView = fullToKeepArray.getConstView();
+		auto cellLambda = [=] __cuda_callable__ ( const int cellCoarse ) mutable
+		{	
+			const int cellFine = childMapView[ cellCoarse ];
+			if ( cellFine < 0 ) return;
+			if ( keepCellMarkerView[ cellFine ] )
+			{
+				const int newIndex = fullToKeepView[ cellFine ];
+				childMapView[ cellCoarse ] = newIndex;
+			}
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, GridCoarse.Info.cellCount, cellLambda );
+	}
+	
+	if ( !initPass )
+	{
+		// 9) build oldToKeepArray map
+		IntArrayType &oldToKeepArray = Grid.intBuffer3;
+		auto oldToFullView = oldToFullArray.getConstView(); // we have been holding this since step 3
+		auto fullToKeepView = fullToKeepArray.getConstView();
+		auto oldToKeepView = oldToKeepArray.getView();
+		auto cellLambda = [=] __cuda_callable__ ( const int cellOld ) mutable
+		{	
+			oldToKeepView[ cellOld ] = fullToKeepView[ oldToFullView[ cellOld ] ];
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCountOld, cellLambda );
+		
+		// 10) fArray old to keep transformation
+		oldToKeepTransform( Grid );
+		
+		// 11) we changed our indexes, so we want to repair parentMapArray of the next finer grid
+		if ( !iAmFinest )
+		{
+			auto parentMapView = grids[level+1].parentMapArray.getView();
+			auto oldToKeepView = oldToKeepArray.getView();
+			auto cellLambda = [=] __cuda_callable__ ( const int cellFine ) mutable
+			{	
+				const int cellCoarseOld = parentMapView[ cellFine ];
+				const int cellCoarseNew = oldToKeepView[ cellCoarseOld ];
+				parentMapView[ cellFine ] = cellCoarseNew;
+			};
+			TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, grids[level+1].Info.cellCount, cellLambda );
+		}
+	}
+	
+	// 12) build interface lists of the coarse grid
+	if ( !iAmCoarsest )
+	{
+		// fine to coarse
+		GridCoarse.Info.fineToCoarseCount = countOnesInBoolArray( GridCoarse.fineToCoarseMarkerArray, GridCoarse.Info.cellCount );
+		if ( initPass )
+		{
+			GridCoarse.Info.fineToCoarseMemoryCount = GridCoarse.Info.fineToCoarseCount + ( ( GridCoarse.Info.fineToCoarseCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			GridCoarse.fineToCoarseIndexArray.setSize( GridCoarse.Info.fineToCoarseMemoryCount );
+		}
+		else if ( GridCoarse.Info.fineToCoarseCount > GridCoarse.Info.fineToCoarseMemoryCount )
+		{
+			std::cout 	<< "rebuildGrid failed on level " << level << ", fineToCoarseMemoryCount = " << GridCoarse.Info.fineToCoarseMemoryCount 
+						<< ", fineToCoarseCount = " << GridCoarse.Info.fineToCoarseCount << std::endl;
+			throw std::runtime_error("rebuildGrid failed, fineToCoarseCount exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE_INTERFACE in your main file.");
+		}
+		intArrayFromBoolArray( GridCoarse.intBuffer1, GridCoarse.fineToCoarseMarkerArray, GridCoarse.Info.cellCount );
+		TNL::Algorithms::inplaceExclusiveScan( GridCoarse.intBuffer1, 0, GridCoarse.Info.cellCount, TNL::Plus{} );
+		auto fineToCoarseMarkerView = GridCoarse.fineToCoarseMarkerArray.getConstView();
+		auto intBuffer1View = GridCoarse.intBuffer1.getView();
+		auto fineToCoarseIndexView = GridCoarse.fineToCoarseIndexArray.getView();
+		auto cellLambdaFineToCoarse = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			if ( fineToCoarseMarkerView[ cell ] )
+			{
+				const int index = intBuffer1View[ cell ];
+				fineToCoarseIndexView[ index ] = cell;
+			}
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, GridCoarse.Info.cellCount, cellLambdaFineToCoarse );
+		
+		// coarse to fine
+		GridCoarse.Info.coarseToFineCount = countOnesInBoolArray( GridCoarse.coarseToFineMarkerArray, GridCoarse.Info.cellCount );
+		if ( initPass )
+		{
+			GridCoarse.Info.coarseToFineMemoryCount = GridCoarse.Info.coarseToFineCount + ( ( GridCoarse.Info.coarseToFineCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			GridCoarse.coarseToFineIndexArray.setSize( GridCoarse.Info.coarseToFineMemoryCount );
+		}
+		else if ( GridCoarse.Info.coarseToFineCount > GridCoarse.Info.coarseToFineMemoryCount )
+		{
+			std::cout 	<< "rebuildGrid failed on level " << level << ", coarseToFineMemoryCount = " << GridCoarse.Info.coarseToFineMemoryCount 
+						<< ", coarseToFineCount = " << GridCoarse.Info.coarseToFineCount << std::endl;
+			throw std::runtime_error("rebuildGrid failed, coarseToFineCount exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE_INTERFACE in your main file.");
+		}
+		intArrayFromBoolArray( GridCoarse.intBuffer1, GridCoarse.coarseToFineMarkerArray, GridCoarse.Info.cellCount );
+		TNL::Algorithms::inplaceExclusiveScan( GridCoarse.intBuffer1, 0, GridCoarse.Info.cellCount, TNL::Plus{} );
+		auto coarseToFineMarkerView = GridCoarse.coarseToFineMarkerArray.getConstView();
+		// auto intBuffer1View = GridCoarse.intBuffer1.getView(); // already declared
+		auto coarseToFineIndexView = GridCoarse.coarseToFineIndexArray.getView();
+		auto cellLambdaCoarseToFine = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			if ( coarseToFineMarkerView[ cell ] )
+			{
+				const int index = intBuffer1View[ cell ];
+				coarseToFineIndexView[ index ] = cell;
+			}
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, GridCoarse.Info.cellCount, cellLambdaCoarseToFine );
+	}
+	
+	// 13) fill NBR minus
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jMinusView = Grid.NBR.jMinusArray.getView();
+	auto kMinusView = Grid.NBR.kMinusArray.getView();
+	auto NBRMinusLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		jMinusView[ jPlusView[ cell ] ] = cell;
+		kMinusView[ kPlusView[ cell ] ] = cell;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusLambda );
+	
+	// 14) mark NBR geometric validity
+	const bool markNegativeDirectionsToo = true;
+	markGeometricNBR( Grid, markNegativeDirectionsToo, Info.cellCount );
+	
+	// 15) recursion
+	if ( !iAmFinest ) rebuildGrid( grids, Voxelizer, level-1 );
 }

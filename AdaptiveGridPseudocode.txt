@@ -360,7 +360,7 @@ rebuildGrid( Grid, rayMaps )
 		-> mám převodník oldToFull v bufferu 2, buffer 1 a 3 můžu zapomenout	
 	--- ZRUŠIT ČÁST 4 protože já dokážu oldToFull sestavit rovnou! Krok 6 v buildFinerGrid.
 	
-	5)	Teď se jdu osekat síť 4, aby tam nebyla zbytečně tlustá vrstva bounceback markeru.
+	4)	Teď se jdu osekat síť 4, aby tam nebyla zbytečně tlustá vrstva bounceback markeru.
 		Pustím na síť 4 markKeepArea, horní mez = cellCountFull
 		Teď víme které necháme
 		-> cellCount = suma(keepCellMarkerArray) do cellCountFull
@@ -369,12 +369,12 @@ rebuildGrid( Grid, rayMaps )
 		Jinak:
 			Kontrola paměti na cellCount!
 	
-	6)	Už vím zachovávanou oblast, tedy na své NBR pustím skipUnmarkedNBR(NBRArray, intBufferArray1, keepCellMarkerArray, horní mez = cellCountFull)
+	5)	Už vím zachovávanou oblast, tedy na své NBR pustím skipUnmarkedNBR(NBRArray, intBufferArray1, keepCellMarkerArray, horní mez = cellCountFull)
 	
-	7)	Zavedu fullToKeepIndexMap = intBufferArray1. Markuju zde všechny keep buňky (ty co nejsou hluboko ve zdi) jako 1. Projedu exkluzivní sumační sken do cellCountFull. 
+	6)	Zavedu fullToKeepIndexMap = intBufferArray1. Markuju zde všechny keep buňky (ty co nejsou hluboko ve zdi) jako 1. Projedu exkluzivní sumační sken do cellCountFull. 
 		Výsledek mi říká, kam se přesouvají aktivní buňky.
 	
-	8)	Pomocí intBufferArray3 a fullToKeepIndexMap přeskládám IJK a NBR, aby odpovídal aktivní oblasti:
+	7)	Pomocí intBufferArray3 a fullToKeepIndexMap přeskládám IJK a NBR, aby odpovídal aktivní oblasti:
 		for every arrayFull from IJK, NBR:
 			for cell in cellCountFull:
 				if cell is kept:
@@ -382,7 +382,7 @@ rebuildGrid( Grid, rayMaps )
 					buffer[index] = arrayFull[cell]
 			swap pointer of buffer and array
 		
-	9)	Taky teď vím, kam se přesunou indexy buněk v rozhraní trojky
+	8)	Taky teď vím, kam se přesunou indexy buněk v rozhraní trojky
 		Pokud nejsem nejhrubší:
 		for coarseCell in cellCount trojky:
 			fineIndex = childMapArray[coarseCell]
@@ -391,22 +391,22 @@ rebuildGrid( Grid, rayMaps )
 					childMapArray[coarseCell] = fullToKeepIndexMap[fineIndex]
 
 	Pokud to nedělám poprvé:
-		10)	Teď chci sestavit převodník oldToKeep. Mám převodníky oldToFull a fullToKeep. Tedy zavedu oldToKeep jako intBufferArray 3
+		9)	Teď chci sestavit převodník oldToKeep. Mám převodníky oldToFull a fullToKeep. Tedy zavedu oldToKeep jako intBufferArray 3
 			for cellOld in cellCountOld:
 				oldToKeep[cellOld] = fullToKeep[oldToFull[cellOld]]
 			
-		11)	Mám převodník oldToKeep. Zbylé intBufferArray 1 a 2 můžu zapomenout. Převodníkem oldToKeep převedu geometricky zachovávané data, tedy:
+		10)	Mám převodník oldToKeep. Zbylé intBufferArray 1 a 2 můžu zapomenout. Převodníkem oldToKeep převedu geometricky zachovávané data, tedy:
 				fArray pošlu na nová místa a zároveň je už i rozestrkám do sousedů NBR.
 				Mohl bych převádět i řadu dalších polí, ale to nemá cenu, protože hned vzápětí pošlu rebuild na síť pod sebou a ta mi to stejně přepíše.
 		
-		12)	Pokud nejsem nejjemnější:
+		11)	Pokud nejsem nejjemnější:
 			Přeindexoval jsem sebe, tedy potřebuju o tom informovat síť 5. Pomocí oldToKeep spravím parentMapArray pětky.
 			for fineCell in cellCount pětky:
 				parent = parentMapArray[fineCell]
 				if parent not -1:
 					parentMapArray[fineCell] = oldToKeep[parent]
 	
-	13)	Poslední krok - potřebuju sestavit list buněk trojky, které leží v rozhraní mezi trojkou a čtyřkou.
+	12)	Poslední krok - potřebuju sestavit list buněk trojky, které leží v rozhraní mezi trojkou a čtyřkou.
 		Pokud nejsem nejhrubší:
 		fineToCoarseCount = suma fineToCoarseMarkerArray do cellCount
 		Pokud to dělám poprvé:
@@ -420,12 +420,12 @@ rebuildGrid( Grid, rayMaps )
 				fineToCoarseIndexList[index] = cell
 		Stejně tak naplním coarseToFineIndexList.
 		
-	14)	Teď už nepotřebuju používat NBR minus jako buffery -> sestavím platné NBR minus:
+	13)	Teď už nepotřebuju používat NBR minus jako buffery -> sestavím platné NBR minus:
 		Loop přes plusové sousedy do cellCount. Do indexu souseda zapíšu sebe jakožto záporného souseda.
 	
-	15)	Na finální NBR pustím geometric validity. Horní mez=cellCount. Dělej i minusové.
+	14)	Na finální NBR pustím geometric validity. Horní mez=cellCount. Dělej i minusové.
 		
-	16)	Pokud nejsem nejjemnější: Zavolám rebuild na síť pod sebou!
+	15)	Pokud nejsem nejjemnější: Zavolám rebuild na síť pod sebou!
 
 Inicializace?
 1) 	Sestavím nejjemnější voxelizaci pro bounceback. Ten se dál nemění a budu ho držet celou dobu.
