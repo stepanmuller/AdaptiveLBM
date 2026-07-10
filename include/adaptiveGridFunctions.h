@@ -1232,7 +1232,7 @@ void fullToKeepTransform( IntArrayType &dataArray, const BoolArrayType &keepCell
 	dataArray.swap( intBuffer );
 }
 
-void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxelizer, const int level )
+void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxelizer, const int level )
 // Consider grids 0, 1, 2, 3 where 3 is the finest. We want to rebuild grids 2, 3 -> we call this function on 2 (level=2) which recursively calls it on all levels below.
 {
 	const bool iAmCoarsest = ( level == 0 );
@@ -1302,7 +1302,7 @@ void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeliz
 		std::cout << "rebuildGrid failed on level " << level << ", memoryCountFull = " << Info.memoryCountFull << ", cellCountFull = " << Info.cellCountFull << std::endl;
 		throw std::runtime_error("rebuildGrid failed, cellCountFull exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE in your main file.");
 	}
-	
+	/*
 	// 3) Build our grid (we are the "finer grid" with respect to the grid we are taking spatial information from)
 	if ( iAmCoarsest ) buildFinerGrid( SkeletonGrid, Grid );
 	else buildFinerGrid( GridCoarse, Grid );
@@ -1469,5 +1469,55 @@ void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeliz
 	markGeometricNBR( Grid, markNegativeDirectionsToo, Info.cellCount );
 	
 	// 15) recursion
-	if ( !iAmFinest ) rebuildGrid( grids, Voxelizer, level-1 );
+	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
+	*/
+}
+
+void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds, const int level )
+{
+	const bool iAmCoarsest = ( level == 0 );
+	const bool iAmFinest = ( level == GRID_LEVEL_COUNT - 1 );
+	
+	GridStruct &Grid = grids[ level ];
+	InfoStruct &Info = Grid.Info;
+	
+	if ( iAmCoarsest )
+	{
+		SkeletonGridStruct &SkeletonGrid = Grid.SkeletonGrid;
+		InfoStruct &SkeletonInfo = SkeletonGrid.Info;
+		SkeletonInfo.res = Info.res * 2.f;
+		SkeletonInfo.cellCountX = static_cast<int>((Bounds.xmax - Bounds.xmin) / SkeletonInfo.res);
+		SkeletonInfo.cellCountY = static_cast<int>((Bounds.ymax - Bounds.ymin) / SkeletonInfo.res);
+		SkeletonInfo.cellCountZ = static_cast<int>((Bounds.zmax - Bounds.zmin) / SkeletonInfo.res);
+		SkeletonInfo.cellCount = SkeletonInfo.cellCountX * SkeletonInfo.cellCountY * SkeletonInfo.cellCountZ;
+		SkeletonInfo.ox = Bounds.xmin + ((Bounds.xmax - Bounds.xmin) - (SkeletonInfo.cellCountX * SkeletonInfo.res) + SkeletonInfo.res) / 2.0f;
+		SkeletonInfo.oy = Bounds.ymin + ((Bounds.ymax - Bounds.ymin) - (SkeletonInfo.cellCountY * SkeletonInfo.res) + SkeletonInfo.res) / 2.0f;
+		SkeletonInfo.oz = Bounds.zmin + ((Bounds.zmax - Bounds.zmin) - (SkeletonInfo.cellCountZ * SkeletonInfo.res) + SkeletonInfo.res) / 2.0f;
+		SkeletonGrid.intBuffer1.setSize( SkeletonInfo.cellCount );
+		SkeletonGrid.intBuffer2.setSize( SkeletonInfo.cellCount );
+		SkeletonGrid.intBuffer3.setSize( SkeletonInfo.cellCount );
+		SkeletonGrid.keepCellMarkerArray.setSize( SkeletonInfo.cellCount );
+		SkeletonGrid.markerBuffer.setSize( SkeletonInfo.cellCount );
+		
+		Info.cellCountX = SkeletonInfo.cellCountX * 2;
+		Info.cellCountY = SkeletonInfo.cellCountX * 2;
+		Info.cellCountZ = SkeletonInfo.cellCountX * 2;
+		Info.ox = SkeletonInfo.ox - Info.res * 0.5f;
+		Info.oy = SkeletonInfo.oy - Info.res * 0.5f;
+		Info.oz = SkeletonInfo.oz - Info.res * 0.5f;
+	}
+	
+	else
+	{
+		GridStruct &GridCoarse = grids[ level-1 ];
+		Info.res = GridCoarse.Info.res * 0.5f;
+		Info.cellCountX = GridCoarse.Info.cellCountX * 2;
+		Info.cellCountY = GridCoarse.Info.cellCountX * 2;
+		Info.cellCountZ = GridCoarse.Info.cellCountX * 2;
+		Info.ox = GridCoarse.Info.ox - Info.res * 0.5f;
+		Info.oy = GridCoarse.Info.oy - Info.res * 0.5f;
+		Info.oz = GridCoarse.Info.oz - Info.res * 0.5f;
+	}
+	
+	if ( !iAmFinest ) initializeGrids( grids, Bounds, level+1 );
 }
