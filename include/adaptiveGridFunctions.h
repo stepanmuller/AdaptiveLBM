@@ -76,7 +76,7 @@ void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, c
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-void skipOneUnmarkedNeighbour( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
+void skipOneUnmarkedNbr( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
 {
 	// For each cell, if its neighbour is not marked, travel one neighbour up (set our neighbour to the neighbour's neighbour)
 	auto nbrView = nbrArray.getView();
@@ -100,7 +100,7 @@ void skipOneUnmarkedNeighbour( IntArrayType &nbrArray, const BoolArrayType &mark
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
-void skipUnmarkedNeighbours( IntArrayType &nbrArray, const BoolArrayType &markerArray, IntArrayType &intBuffer, BoolArrayType &markerBuffer, const int &upperBound )
+void skipAllUnmarkedNbr( IntArrayType &nbrArray, const BoolArrayType &markerArray, IntArrayType &intBuffer, BoolArrayType &markerBuffer, const int &upperBound )
 {
 	// Receives nbrArray, which also points on cells that are not marked
 	// For each cell, while its neighbour is not marked, we want to travel up the neighbour list
@@ -116,7 +116,7 @@ void skipUnmarkedNeighbours( IntArrayType &nbrArray, const BoolArrayType &marker
 	while ( unfinishedCount > 0 )
 	{
 		nbrArray.swap( nbrOldArray ); // pointer swap without data travel
-		skipOneUnmarkedNeighbour( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
+		skipOneUnmarkedNbr( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
 		unfinishedCount = countZerosInBoolArray( finishedMarkerArray, upperBound );
 	}
 }
@@ -569,7 +569,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	auto nbrSkippedView = nbrSkippedArray.getView();
 	// 8.1) Direction jPlus
 	nbrSkippedArray = GridCoarse.NBR.jPlusArray;
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
 	// We use the coarse jPlus neighbour to fill as many fine neighbours as possible
 	auto jPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -626,7 +626,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	
 	// 8.2) Direction kPlus
 	nbrSkippedArray = GridCoarse.NBR.kPlusArray;
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
 	// We use the coarse kPlus neighbour to fill as many fine neighbours as possible
 	auto kPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -668,7 +668,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	
 	// 8.3) Direction jkPlus
 	nbrSkippedArray = GridCoarse.NBR.jkPlusArray;
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArrayCoarse, nbrBuffer, markerBufferCoarse, cellCountCoarse );
 	// We use the coarse jkPlus neighbour to fill remaining fine neighbours
 	auto jkPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -976,7 +976,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	int jPlus, kPlus;
 	jPlus = 1; kPlus = 0;
 	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton jPlus neighbour to fill as many fine neighbours as possible
 	auto jPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -1034,7 +1034,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	// 8.2) Direction kPlus
 	jPlus = 0; kPlus = 1;
 	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton kPlus neighbour to fill as many fine neighbours as possible
 	auto kPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -1077,7 +1077,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	// 8.3) Direction jkPlus
 	jPlus = 1; kPlus = 1;
 	getNbrArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
-	skipUnmarkedNeighbours( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
+	skipAllUnmarkedNbr( nbrSkippedArray, refinementMarkerArraySkeleton, nbrBuffer, markerBufferSkeleton, cellCountSkeleton );
 	// We use the skeleton jkPlus neighbour to fill remaining fine neighbours
 	auto jkPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
@@ -1111,4 +1111,15 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	// 9) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
 	const bool markNegativeDirectionsToo = false;
 	markGeometricNBR( GridFine, markNegativeDirectionsToo, cellCountFullFine );
+}
+
+void rebuildGrid( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxelizer, const int level )
+// Consider grids 0, 1, 2, 3 where 3 is the finest. We want to rebuild grids 2, 3 -> we call this function on 2 (level=2) which recursively calls it on all levels below.
+{
+	GridStruct &Grid = grids[ level ];
+	InfoStruct &Info = Grid.Info;
+	if ( level == 0 ) SkeletonGridStruct GridCoarse = Grid.SkeletonGrid;
+	else GridCoarse = grids[ level - 1 ];
+	
+	Info.cellCountOld = Info.cellCount;
 }

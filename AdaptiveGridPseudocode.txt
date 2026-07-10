@@ -256,7 +256,7 @@ buildFinerGrid( GridCoarse, GridFine ) -> hotovo!
 	
 buildFinerGrid( VirtualStructuredGridCoarse, GridFine ) -> verze pro nejhrubší síť, achich ouvej to je tolik psaní -> hotovo!
 
-rebuildGrid( Grid, rayMaps, Buffer )
+rebuildGrid( Grid, rayMaps )
 	- představme si gridy 1, 2, 3, 4, 5 kde 5 je nejjemnější. Chci přestavět gridy 4, 5 -> tuto funkci postupně zavolám na 4, 5. 
 	Nejprve volám rebuildGrid na grid 4.
 	Co mění rebuild čtyřky na gridu 5:
