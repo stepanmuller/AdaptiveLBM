@@ -33,6 +33,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	IntArrayType &childMapArrayCoarse = GridCoarse.childMapArray;
 	IntArrayType &intBuffer1Coarse = GridCoarse.intBuffer1;
 	IntArrayType &intBuffer2Coarse = GridCoarse.intBuffer2;
+	IntArrayType &intBuffer3Coarse = GridCoarse.intBuffer3;
 	BoolArrayType &refinementMarkerArrayCoarse = GridCoarse.refinementMarkerArray;
 	// Some GridCoarse Views
 	auto iViewCoarse = iArrayCoarse.getConstView();
@@ -229,7 +230,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountOldFine, cellLambda6 );
 	
-	// 7) write new IJK for the fine grid in already sorted order thanks to knowing firstInPlane...lastInRow information
+	// 8) Build IJK, jPlus and kPlus for the fine grid in a single big step
 	// also fill the parentMapArray of the fine grid (which coarse cell created the fine cell)
 	// also fill the childMapArray of the coarse grid (which fine cell is in bottom left corner of the coarse cell)
 	// multiField contains:
@@ -238,71 +239,47 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	// (2-3)*refinementCountCoarse = lastInPlane: Index of the last coarse cell that is in the same Z=const plane
 	// (3-4)*refinementCountCoarse = firstInRow: Index of the first coarse cell that is in the same Z,Y=const row
 	// (4-5)*refinementCountCoarse = lastInRow: Index of the last coarse cell that is in the same Z,Y=const row
+	// Use coarse buffer 2, 3, then we need to repair the jkPlus array for the coarse grid because thats the same as buffer 3!
+	
 	childMapArrayCoarse.setValue( -1 );
-	auto cellLambda7 = [=] __cuda_callable__ ( const int index ) mutable
-	{	
-		const int cellCoarse = multiFieldView[ index ]; 
-		const int firstInPlane = multiFieldView[ 1*refinementCountCoarse + index ];
-		const int lastInPlane = multiFieldView[ 2*refinementCountCoarse + index ];
-		const int firstInRow = multiFieldView[ 3*refinementCountCoarse + index ];
-		const int lastInRow = multiFieldView[ 4*refinementCountCoarse + index ];
-		const int iCoarse = iViewCoarse[ cellCoarse ];
-		const int jCoarse = jViewCoarse[ cellCoarse ];
-		const int kCoarse = kViewCoarse[ cellCoarse ];
-		for ( int kAdd = 0; kAdd <= 1; kAdd++ )
-		{
-			for ( int jAdd = 0; jAdd <= 1; jAdd++ )
-			{
-				for ( int iAdd = 0; iAdd <= 1; iAdd++ )
-				{
-					const int cellFine = getFinerGridIndex( index, firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
-					const int iFine = 2 * iCoarse + iAdd;
-					const int jFine = 2 * jCoarse + jAdd;
-					const int kFine = 2 * kCoarse + kAdd;
-					iViewFine[ cellFine ] = iFine;
-					jViewFine[ cellFine ] = jFine;
-					kViewFine[ cellFine ] = kFine;
-					parentMapViewFine[ cellFine ] = cellCoarse;
-					if ( iAdd == 0 && jAdd == 0 && kAdd == 0 ) // bottom left fine cell within the coarse cell
-						childMapViewCoarse[ cellCoarse ] = cellFine;
-				}
-			}
-		}
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, cellLambda7 );
 	
-	// 8) Now we want to assemble neighbours of the fine grid
-	// For that we will use neighbours on the coarse grid. 
-	// However, not all cells of the coarse grid get refined, and so some coarse cells point to neighbours outside of the refinement area
-	// To fine cells under those cells we wouldn't be able to assign a neighbour.
-	// And so we run a correction. We take copy of each coarse neighbour array and skip unrefined cells so that the refinement cells
-	// only point to neighbours that also belong to the refinement area. This way, every refined coarse cell will have a uniquely defined
-	// refined neighbour, and on top of this we can assemble neighbours for the fine cells
-	// Use coarse buffer 2, 3, then we need to repair the jkPlus array for the coarse grid because thats same as buffer 3!
-	IntArrayType &nbrSkippedArray = intBuffer2Coarse;
-	auto nbrSkippedView = nbrSkippedArray.getView();
+	IntArrayType &jPlusSkippedArray = intBuffer2Coarse;
+	IntArrayType &kPlusSkippedArray = intBuffer3Coarse;
+	jPlusSkippedArray = GridCoarse.NBR.jPlusArray;
+	kPlusSkippedArray = GridCoarse.NBR.kPlusArray;
 	int jPlus, kPlus;
-	
-	// 8.1) Direction jPlus
-	nbrSkippedArray = GridCoarse.NBR.jPlusArray;
 	jPlus = 1; kPlus = 0;
-	skipUnmarkedNBRArray( nbrSkippedArray, refinementMarkerArrayCoarse, jPlus, kPlus, GridCoarse, cellCountCoarse ); 
-	// We use the coarse jPlus neighbour to fill as many fine neighbours as possible
-	auto jPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
+	skipUnmarkedNBRArray( jPlusSkippedArray, refinementMarkerArrayCoarse, jPlus, kPlus, GridCoarse, cellCountCoarse ); 
+	jPlus = 0; kPlus = 1;
+	skipUnmarkedNBRArray( kPlusSkippedArray, refinementMarkerArrayCoarse, jPlus, kPlus, GridCoarse, cellCountCoarse );
+	auto jPlusSkippedView = jPlusSkippedArray.getView();
+	auto kPlusSkippedView = kPlusSkippedArray.getView();
+
+	auto IJKNBRLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
 		// coarse cell information
 		const int cellCoarse = multiFieldView[ index ]; 
+		const int iCoarse = iViewCoarse[ cellCoarse ];
+		const int jCoarse = jViewCoarse[ cellCoarse ];
+		const int kCoarse = kViewCoarse[ cellCoarse ];
 		const int fip = multiFieldView[ 1*refinementCountCoarse + index ];  // first in plane
 		const int lip = multiFieldView[ 2*refinementCountCoarse + index ];  // last in plane
 		const int fir = multiFieldView[ 3*refinementCountCoarse + index ];  // first in row
 		const int lir = multiFieldView[ 4*refinementCountCoarse + index ];	// last in row
 		// jPlus coarse neighbour information
-		const int jPlusCoarse = nbrSkippedView[ cellCoarse ];
+		const int jPlusCoarse = jPlusSkippedView[ cellCoarse ];
 		const int jPlusIndex = refinedIndexView[ jPlusCoarse ];
 		const int jPFip = multiFieldView[ 1*refinementCountCoarse + jPlusIndex ];  // first in plane
 		const int jPLip = multiFieldView[ 2*refinementCountCoarse + jPlusIndex ];  // last in plane
 		const int jPFir = multiFieldView[ 3*refinementCountCoarse + jPlusIndex ];  // first in row
 		const int jPLir = multiFieldView[ 4*refinementCountCoarse + jPlusIndex ];  // last in row
+		// kPlus coarse neighbour information
+		const int kPlusCoarse = kPlusSkippedView[ cellCoarse ];
+		const int kPlusIndex = refinedIndexView[ kPlusCoarse ];
+		const int kPFip = multiFieldView[ 1*refinementCountCoarse + kPlusIndex ];  // first in plane
+		const int kPLip = multiFieldView[ 2*refinementCountCoarse + kPlusIndex ];  // last in plane
+		const int kPFir = multiFieldView[ 3*refinementCountCoarse + kPlusIndex ];  // first in row
+		const int kPLir = multiFieldView[ 4*refinementCountCoarse + kPlusIndex ];  // last in row
 		// Now calculate indexes of all relevant fine cells
 		int iAdd, jAdd, kAdd;
 		// First, fine cells that lie in coarse cell
@@ -319,7 +296,33 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 		iAdd = 1; jAdd = 0; kAdd = 0; const int fine120 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
 		iAdd = 0; jAdd = 0; kAdd = 1; const int fine021 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
 		iAdd = 1; jAdd = 0; kAdd = 1; const int fine121 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
-		// Fill all jPlusFine neighbours
+		// Next, left 4 fine cells (kAdd=0) that lie in kPlus coarse neighbour
+		iAdd = 0; jAdd = 0; kAdd = 0; const int fine002 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 1; jAdd = 0; kAdd = 0; const int fine102 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 0; jAdd = 1; kAdd = 0; const int fine012 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 1; jAdd = 1; kAdd = 0; const int fine112 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		// Fill childMap
+		childMapViewCoarse[ cellCoarse ] = fine000;
+		// Fill parentMap
+		parentMapViewFine[ fine000 ] = cellCoarse;
+		parentMapViewFine[ fine100 ] = cellCoarse;
+		parentMapViewFine[ fine010 ] = cellCoarse;
+		parentMapViewFine[ fine110 ] = cellCoarse;
+		parentMapViewFine[ fine001 ] = cellCoarse;
+		parentMapViewFine[ fine101 ] = cellCoarse;
+		parentMapViewFine[ fine011 ] = cellCoarse;
+		parentMapViewFine[ fine111 ] = cellCoarse;
+		// Fill IJK
+		const int iFine0 = 2 * iCoarse; const int jFine0 = 2 * jCoarse; const int kFine0 = 2 * kCoarse;
+		iViewFine[ fine000 ] = iFine0  ;	jViewFine[ fine000 ] = jFine0  ; kViewFine[ fine000 ] = kFine0  ;
+		iViewFine[ fine100 ] = iFine0+1;	jViewFine[ fine100 ] = jFine0  ; kViewFine[ fine100 ] = kFine0  ;
+		iViewFine[ fine010 ] = iFine0  ;	jViewFine[ fine010 ] = jFine0+1; kViewFine[ fine010 ] = kFine0  ;
+		iViewFine[ fine110 ] = iFine0+1;	jViewFine[ fine110 ] = jFine0+1; kViewFine[ fine110 ] = kFine0  ;
+		iViewFine[ fine001 ] = iFine0  ;	jViewFine[ fine001 ] = jFine0  ; kViewFine[ fine001 ] = kFine0+1;
+		iViewFine[ fine101 ] = iFine0+1;	jViewFine[ fine101 ] = jFine0  ; kViewFine[ fine101 ] = kFine0+1;
+		iViewFine[ fine011 ] = iFine0  ;	jViewFine[ fine011 ] = jFine0+1; kViewFine[ fine011 ] = kFine0+1;
+		iViewFine[ fine111 ] = iFine0+1;	jViewFine[ fine111 ] = jFine0+1; kViewFine[ fine111 ] = kFine0+1;
+		// Fill jPlusFine neighbours
 		jPlusViewFine[ fine000 ] = fine010;
 		jPlusViewFine[ fine100 ] = fine110;
 		jPlusViewFine[ fine010 ] = fine020;
@@ -328,69 +331,34 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 		jPlusViewFine[ fine101 ] = fine111;
 		jPlusViewFine[ fine011 ] = fine021;
 		jPlusViewFine[ fine111 ] = fine121;
-		// Fill all kPlusFine neighbours we can -> here we can fill 4
+		// Fill kPlusFine neighbours
 		kPlusViewFine[ fine000 ] = fine001;
 		kPlusViewFine[ fine100 ] = fine101;
 		kPlusViewFine[ fine010 ] = fine011;
 		kPlusViewFine[ fine110 ] = fine111;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, jPlusLambda );
-	
-	// 8.2) Direction kPlus
-	nbrSkippedArray = GridCoarse.NBR.kPlusArray;
-	jPlus = 0; kPlus = 1;
-	skipUnmarkedNBRArray( nbrSkippedArray, refinementMarkerArrayCoarse, jPlus, kPlus, GridCoarse, cellCountCoarse ); 
-	// We use the coarse kPlus neighbour to fill as many fine neighbours as possible
-	auto kPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{	
-		// coarse cell information
-		const int cellCoarse = multiFieldView[ index ]; 
-		const int fip = multiFieldView[ 1*refinementCountCoarse + index ];  // first in plane
-		const int lip = multiFieldView[ 2*refinementCountCoarse + index ];  // last in plane
-		const int fir = multiFieldView[ 3*refinementCountCoarse + index ];  // first in row
-		const int lir = multiFieldView[ 4*refinementCountCoarse + index ];	// last in row
-		// jPlus coarse neighbour information
-		const int kPlusCoarse = nbrSkippedView[ cellCoarse ];
-		const int kPlusIndex = refinedIndexView[ kPlusCoarse ];
-		const int kPFip = multiFieldView[ 1*refinementCountCoarse + kPlusIndex ];  // first in plane
-		const int kPLip = multiFieldView[ 2*refinementCountCoarse + kPlusIndex ];  // last in plane
-		const int kPFir = multiFieldView[ 3*refinementCountCoarse + kPlusIndex ];  // first in row
-		const int kPLir = multiFieldView[ 4*refinementCountCoarse + kPlusIndex ];  // last in row
-		// Now calculate indexes of all relevant fine cells
-		int iAdd, jAdd, kAdd;
-		// First, fine cells that lie in coarse cell
-		iAdd = 0; jAdd = 0; kAdd = 1; const int fine001 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 0; kAdd = 1; const int fine101 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 0; jAdd = 1; kAdd = 1; const int fine011 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 1; kAdd = 1; const int fine111 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		// Next, left 4 fine cells (kAdd=0) that lie in kPlus coarse neighbour
-		iAdd = 0; jAdd = 0; kAdd = 0; const int fine002 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 0; kAdd = 0; const int fine102 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 0; jAdd = 1; kAdd = 0; const int fine012 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 1; kAdd = 0; const int fine112 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		// Fill remaining kPlusFine neighbours
 		kPlusViewFine[ fine001 ] = fine002;
 		kPlusViewFine[ fine101 ] = fine102;
 		kPlusViewFine[ fine011 ] = fine012;
 		kPlusViewFine[ fine111 ] = fine112;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, kPlusLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, IJKNBRLambda );
 	
-	// 8.3) repair coarse jkPlus from jPlus and kPlus
+	
+	// 9) repair coarse jkPlus from jPlus and kPlus, because we broke it using intBuffer3!
 	auto jkPlusCoarseLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		jkPlusViewCoarse[ cell ] = jPlusViewCoarse[ kPlusViewCoarse[ cell ] ];
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, jkPlusCoarseLambda );
 	
-	// 8.3) fill jkPlus from jPlus and kPlus
+	// 10) fill jkPlus from jPlus and kPlus
 	auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		jkPlusViewFine[ cell ] = jPlusViewFine[ kPlusViewFine[ cell ] ];
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
 	
-	// 9) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
+	// 11) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
 	const bool markNegativeDirectionsToo = false;
 	markGeometricNBR( GridFine, markNegativeDirectionsToo, cellCountFullFine );
 }
@@ -406,6 +374,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	const int refinementCountSkeleton = SkeletonGrid.Info.refinementCount;
 	IntArrayType &intBuffer1Skeleton = SkeletonGrid.intBuffer1;
 	IntArrayType &intBuffer2Skeleton = SkeletonGrid.intBuffer2;
+	IntArrayType &intBuffer3Skeleton = SkeletonGrid.intBuffer3;
 	BoolArrayType &refinementMarkerArraySkeleton = SkeletonGrid.keepCellMarkerArray;
 	// Some SkeletonGrid Views
 	auto refinementMarkerViewSkeleton = refinementMarkerArraySkeleton.getConstView();
@@ -605,86 +574,58 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountOldFine, cellLambda6 );
 	
-	// 7) write new IJK for the fine grid in already sorted order thanks to knowing firstInPlane...lastInRow information
-	// also fill the parentMapArray of the fine grid (which skeleton cell created the fine cell)
-	// skeleton grid does not need the childMapArray
+	// 8) Build IJK, jPlus and kPlus for the fine grid in a single big step
+	// also fill the parentMapArray of the fine grid (which coarse cell created the fine cell)
+	// also fill the childMapArray of the coarse grid (which fine cell is in bottom left corner of the coarse cell)
 	// multiField contains:
-	// (0-1)*refinementCountSkeleton = refinedParentList: Sorted indexes of refined skeleton cells
-	// (1-2)*refinementCountSkeleton = firstInPlane: Index of the first skeleton cell that is in the same Z=const plane
-	// (2-3)*refinementCountSkeleton = lastInPlane: Index of the last skeleton cell that is in the same Z=const plane
-	// (3-4)*refinementCountSkeleton = firstInRow: Index of the first skeleton cell that is in the same Z,Y=const row
-	// (4-5)*refinementCountSkeleton = lastInRow: Index of the last skeleton cell that is in the same Z,Y=const row
-	auto cellLambda7 = [=] __cuda_callable__ ( const int index ) mutable
+	// (0-1)*refinementCountCoarse = refinedParentList: Sorted indexes of refined coarse cells
+	// (1-2)*refinementCountCoarse = firstInPlane: Index of the first coarse cell that is in the same Z=const plane
+	// (2-3)*refinementCountCoarse = lastInPlane: Index of the last coarse cell that is in the same Z=const plane
+	// (3-4)*refinementCountCoarse = firstInRow: Index of the first coarse cell that is in the same Z,Y=const row
+	// (4-5)*refinementCountCoarse = lastInRow: Index of the last coarse cell that is in the same Z,Y=const row
+	// Use skeleton buffer 2, 3
+	
+	IntArrayType &jPlusSkippedArray = intBuffer2Skeleton;
+	IntArrayType &kPlusSkippedArray = intBuffer3Skeleton;
+	int jPlus, kPlus;
+	jPlus = 1; kPlus = 0;
+	getNBRArrayForSkeleton( jPlusSkippedArray, jPlus, kPlus, SkeletonGrid );
+	skipUnmarkedNBRArray( jPlusSkippedArray, refinementMarkerArraySkeleton, jPlus, kPlus, SkeletonGrid ); 
+	jPlus = 0; kPlus = 1;
+	getNBRArrayForSkeleton( kPlusSkippedArray, jPlus, kPlus, SkeletonGrid );
+	skipUnmarkedNBRArray( kPlusSkippedArray, refinementMarkerArraySkeleton, jPlus, kPlus, SkeletonGrid );
+	auto jPlusSkippedView = jPlusSkippedArray.getView();
+	auto kPlusSkippedView = kPlusSkippedArray.getView();
+
+	auto IJKNBRLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{	
+		// coarse cell information
 		const int cellSkeleton = multiFieldView[ index ]; 
-		const int firstInPlane = multiFieldView[ 1*refinementCountSkeleton + index ];
-		const int lastInPlane = multiFieldView[ 2*refinementCountSkeleton + index ];
-		const int firstInRow = multiFieldView[ 3*refinementCountSkeleton + index ];
-		const int lastInRow = multiFieldView[ 4*refinementCountSkeleton + index ];
 		const int kSkeleton = cellSkeleton / cellCountXYSkeleton;
 		const int remainder = cellSkeleton % cellCountXYSkeleton;
 		const int jSkeleton = remainder / cellCountXSkeleton;
 		const int iSkeleton = remainder % cellCountXSkeleton;
-		for ( int kAdd = 0; kAdd <= 1; kAdd++ )
-		{
-			for ( int jAdd = 0; jAdd <= 1; jAdd++ )
-			{
-				for ( int iAdd = 0; iAdd <= 1; iAdd++ )
-				{
-					const int cellFine = getFinerGridIndex( index, firstInPlane, lastInPlane, firstInRow, lastInRow, iAdd, jAdd, kAdd );
-					const int iFine = 2 * iSkeleton + iAdd;
-					const int jFine = 2 * jSkeleton + jAdd;
-					const int kFine = 2 * kSkeleton + kAdd;
-					iViewFine[ cellFine ] = iFine;
-					jViewFine[ cellFine ] = jFine;
-					kViewFine[ cellFine ] = kFine;
-					parentMapViewFine[ cellFine ] = cellSkeleton;
-					/* commenting out: skeleton grid does not need the childMapArray
-					if ( iAdd == 0 && jAdd == 0 && kAdd == 0 ) // bottom left fine cell within the skeleton cell
-						childMapViewSkeleton[ cellSkeleton ] = cellFine;
-					*/
-				}
-			}
-		}
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, cellLambda7 );
-	
-	// 8) Now we want to assemble neighbours of the fine grid
-	// For that we will use neighbours on the skeleton grid. 
-	// However, not all cells of the skeleton grid get refined, and so some skeleton cells point to neighbours outside of the refinement area
-	// To fine cells under those cells we wouldn't be able to assign a neighbour.
-	// And so we run a correction. We take copy of each skeleton neighbour array and skip unrefined cells so that the refinement cells
-	// only point to neighbours that also belong to the refinement area. This way, every refined skeleton cell will have a uniquely defined
-	// refined neighbour, and on top of this we can assemble neighbours for the fine cells
-	// Use skeleton buffers 2 and 3
-	IntArrayType &nbrSkippedArray = intBuffer2Skeleton;
-	auto nbrSkippedView = nbrSkippedArray.getView();
-	int jPlus, kPlus;
-	
-	// 8.1) Direction jPlus
-	// Skeleton does not hold neighbours, so here we must temporarily create jPlus for the Skeleton grid
-	jPlus = 1; kPlus = 0;
-	getNBRArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
-	skipUnmarkedNBRArray( nbrSkippedArray, refinementMarkerArraySkeleton, jPlus, kPlus, SkeletonGrid ); 
-	// We use the skeleton jPlus neighbour to fill as many fine neighbours as possible
-	auto jPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{	
-		// skeleton cell information
-		const int cellSkeleton = multiFieldView[ index ]; 
 		const int fip = multiFieldView[ 1*refinementCountSkeleton + index ];  // first in plane
 		const int lip = multiFieldView[ 2*refinementCountSkeleton + index ];  // last in plane
 		const int fir = multiFieldView[ 3*refinementCountSkeleton + index ];  // first in row
 		const int lir = multiFieldView[ 4*refinementCountSkeleton + index ];	// last in row
-		// jPlus skeleton neighbour information
-		const int jPlusSkeleton = nbrSkippedView[ cellSkeleton ];
+		// jPlus coarse neighbour information
+		const int jPlusSkeleton = jPlusSkippedView[ cellSkeleton ];
 		const int jPlusIndex = refinedIndexView[ jPlusSkeleton ];
 		const int jPFip = multiFieldView[ 1*refinementCountSkeleton + jPlusIndex ];  // first in plane
 		const int jPLip = multiFieldView[ 2*refinementCountSkeleton + jPlusIndex ];  // last in plane
 		const int jPFir = multiFieldView[ 3*refinementCountSkeleton + jPlusIndex ];  // first in row
 		const int jPLir = multiFieldView[ 4*refinementCountSkeleton + jPlusIndex ];  // last in row
+		// kPlus coarse neighbour information
+		const int kPlusSkeleton = kPlusSkippedView[ cellSkeleton ];
+		const int kPlusIndex = refinedIndexView[ kPlusSkeleton ];
+		const int kPFip = multiFieldView[ 1*refinementCountSkeleton + kPlusIndex ];  // first in plane
+		const int kPLip = multiFieldView[ 2*refinementCountSkeleton + kPlusIndex ];  // last in plane
+		const int kPFir = multiFieldView[ 3*refinementCountSkeleton + kPlusIndex ];  // first in row
+		const int kPLir = multiFieldView[ 4*refinementCountSkeleton + kPlusIndex ];  // last in row
 		// Now calculate indexes of all relevant fine cells
 		int iAdd, jAdd, kAdd;
-		// First, fine cells that lie in skeleton cell
+		// First, fine cells that lie in coarse cell
 		iAdd = 0; jAdd = 0; kAdd = 0; const int fine000 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
 		iAdd = 1; jAdd = 0; kAdd = 0; const int fine100 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
 		iAdd = 0; jAdd = 1; kAdd = 0; const int fine010 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
@@ -693,12 +634,36 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 		iAdd = 1; jAdd = 0; kAdd = 1; const int fine101 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
 		iAdd = 0; jAdd = 1; kAdd = 1; const int fine011 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
 		iAdd = 1; jAdd = 1; kAdd = 1; const int fine111 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		// Next, bottom 4 fine cells (jAdd=0) that lie in jPlus skeleton neighbour
+		// Next, bottom 4 fine cells (jAdd=0) that lie in jPlus coarse neighbour
 		iAdd = 0; jAdd = 0; kAdd = 0; const int fine020 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
 		iAdd = 1; jAdd = 0; kAdd = 0; const int fine120 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
 		iAdd = 0; jAdd = 0; kAdd = 1; const int fine021 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
 		iAdd = 1; jAdd = 0; kAdd = 1; const int fine121 = getFinerGridIndex( jPlusIndex, jPFip, jPLip, jPFir, jPLir, iAdd, jAdd, kAdd );
-		// Fill all jPlusFine neighbours we can -> here we can fill all 8
+		// Next, left 4 fine cells (kAdd=0) that lie in kPlus coarse neighbour
+		iAdd = 0; jAdd = 0; kAdd = 0; const int fine002 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 1; jAdd = 0; kAdd = 0; const int fine102 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 0; jAdd = 1; kAdd = 0; const int fine012 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		iAdd = 1; jAdd = 1; kAdd = 0; const int fine112 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
+		// Fill parentMap
+		parentMapViewFine[ fine000 ] = cellSkeleton;
+		parentMapViewFine[ fine100 ] = cellSkeleton;
+		parentMapViewFine[ fine010 ] = cellSkeleton;
+		parentMapViewFine[ fine110 ] = cellSkeleton;
+		parentMapViewFine[ fine001 ] = cellSkeleton;
+		parentMapViewFine[ fine101 ] = cellSkeleton;
+		parentMapViewFine[ fine011 ] = cellSkeleton;
+		parentMapViewFine[ fine111 ] = cellSkeleton;
+		// Fill IJK
+		const int iFine0 = 2 * iSkeleton; const int jFine0 = 2 * jSkeleton; const int kFine0 = 2 * kSkeleton;
+		iViewFine[ fine000 ] = iFine0  ;	jViewFine[ fine000 ] = jFine0  ; kViewFine[ fine000 ] = kFine0  ;
+		iViewFine[ fine100 ] = iFine0+1;	jViewFine[ fine100 ] = jFine0  ; kViewFine[ fine100 ] = kFine0  ;
+		iViewFine[ fine010 ] = iFine0  ;	jViewFine[ fine010 ] = jFine0+1; kViewFine[ fine010 ] = kFine0  ;
+		iViewFine[ fine110 ] = iFine0+1;	jViewFine[ fine110 ] = jFine0+1; kViewFine[ fine110 ] = kFine0  ;
+		iViewFine[ fine001 ] = iFine0  ;	jViewFine[ fine001 ] = jFine0  ; kViewFine[ fine001 ] = kFine0+1;
+		iViewFine[ fine101 ] = iFine0+1;	jViewFine[ fine101 ] = jFine0  ; kViewFine[ fine101 ] = kFine0+1;
+		iViewFine[ fine011 ] = iFine0  ;	jViewFine[ fine011 ] = jFine0+1; kViewFine[ fine011 ] = kFine0+1;
+		iViewFine[ fine111 ] = iFine0+1;	jViewFine[ fine111 ] = jFine0+1; kViewFine[ fine111 ] = kFine0+1;
+		// Fill jPlusFine neighbours
 		jPlusViewFine[ fine000 ] = fine010;
 		jPlusViewFine[ fine100 ] = fine110;
 		jPlusViewFine[ fine010 ] = fine020;
@@ -707,53 +672,17 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 		jPlusViewFine[ fine101 ] = fine111;
 		jPlusViewFine[ fine011 ] = fine021;
 		jPlusViewFine[ fine111 ] = fine121;
-		// Fill all kPlusFine neighbours we can -> here we can fill 4
+		// Fill kPlusFine neighbours
 		kPlusViewFine[ fine000 ] = fine001;
 		kPlusViewFine[ fine100 ] = fine101;
 		kPlusViewFine[ fine010 ] = fine011;
 		kPlusViewFine[ fine110 ] = fine111;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, jPlusLambda );
-	
-	// 8.2) Direction kPlus
-	jPlus = 0; kPlus = 1;
-	getNBRArrayForSkeleton( nbrSkippedArray, jPlus, kPlus, SkeletonGrid );
-	skipUnmarkedNBRArray( nbrSkippedArray, refinementMarkerArraySkeleton, jPlus, kPlus, SkeletonGrid ); 
-	// We use the skeleton kPlus neighbour to fill as many fine neighbours as possible
-	auto kPlusLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{	
-		// skeleton cell information
-		const int cellSkeleton = multiFieldView[ index ]; 
-		const int fip = multiFieldView[ 1*refinementCountSkeleton + index ];  // first in plane
-		const int lip = multiFieldView[ 2*refinementCountSkeleton + index ];  // last in plane
-		const int fir = multiFieldView[ 3*refinementCountSkeleton + index ];  // first in row
-		const int lir = multiFieldView[ 4*refinementCountSkeleton + index ];	// last in row
-		// jPlus skeleton neighbour information
-		const int kPlusSkeleton = nbrSkippedView[ cellSkeleton ];
-		const int kPlusIndex = refinedIndexView[ kPlusSkeleton ];
-		const int kPFip = multiFieldView[ 1*refinementCountSkeleton + kPlusIndex ];  // first in plane
-		const int kPLip = multiFieldView[ 2*refinementCountSkeleton + kPlusIndex ];  // last in plane
-		const int kPFir = multiFieldView[ 3*refinementCountSkeleton + kPlusIndex ];  // first in row
-		const int kPLir = multiFieldView[ 4*refinementCountSkeleton + kPlusIndex ];  // last in row
-		// Now calculate indexes of all relevant fine cells
-		int iAdd, jAdd, kAdd;
-		// First, fine cells that lie in skeleton cell
-		iAdd = 0; jAdd = 0; kAdd = 1; const int fine001 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 0; kAdd = 1; const int fine101 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 0; jAdd = 1; kAdd = 1; const int fine011 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 1; kAdd = 1; const int fine111 = getFinerGridIndex( index, fip, lip, fir, lir, iAdd, jAdd, kAdd );
-		// Next, left 4 fine cells (kAdd=0) that lie in kPlus skeleton neighbour
-		iAdd = 0; jAdd = 0; kAdd = 0; const int fine002 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 0; kAdd = 0; const int fine102 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 0; jAdd = 1; kAdd = 0; const int fine012 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		iAdd = 1; jAdd = 1; kAdd = 0; const int fine112 = getFinerGridIndex( kPlusIndex, kPFip, kPLip, kPFir, kPLir, iAdd, jAdd, kAdd );
-		// Fill remaining kPlusFine neighbours
 		kPlusViewFine[ fine001 ] = fine002;
 		kPlusViewFine[ fine101 ] = fine102;
 		kPlusViewFine[ fine011 ] = fine012;
 		kPlusViewFine[ fine111 ] = fine112;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, kPlusLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, IJKNBRLambda );
 	
 	// 8.3) fill jkPlus from jPlus and kPlus
 	auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable

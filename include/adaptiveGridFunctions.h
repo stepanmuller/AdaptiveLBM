@@ -207,7 +207,6 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Grid.NBR.kMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.isGeometricMarkerArray.setSizes( 10, Info.memoryCountFull );
 		Grid.parentMapArray.setSize( Info.memoryCountFull );
-		Grid.intBuffer3.setSize( Info.memoryCountFull );
 		Grid.keepCellMarkerArray.setSize( Info.memoryCountFull );
 		Grid.bouncebackMarkerArray.setSize( Info.memoryCountFull );
 		Grid.movingBouncebackMarkerArray.setSize( Info.memoryCountFull );
@@ -502,6 +501,7 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 	
 	else
 	{
+		Info.gridID = level;
 		GridStruct &GridCoarse = grids[ level-1 ];
 		Info.res = GridCoarse.Info.res * 0.5f;
 		Info.cellCountX = GridCoarse.Info.cellCountX * 2;

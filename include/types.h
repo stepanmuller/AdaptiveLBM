@@ -100,7 +100,7 @@ struct InfoStruct { float gridID = 0;
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
 						bool BCRho = 0; bool BCUxUyUz = 0; bool BCNonReflectiveOutlet = 0; 
-						bool deepRefinement = 0; };
+						bool refinement = 0; bool deepRefinement = 0; };
 
 struct BoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 
 					

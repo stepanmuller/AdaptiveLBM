@@ -1,13 +1,25 @@
 static constexpr int RAY_MAP_DEPTH = 32;
 static constexpr int WALL_REFINEMENT_COUNT = 2;
-static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
-static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 20;
+static constexpr int MEMORY_RESERVE_PERCENTAGE = 5;
+static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int GRID_LEVEL_COUNT = 3;
+
+
+constexpr float resGlobal = 0.28f; 
+constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
+constexpr float nuPhys = 1e-6;															// m2/s water
+constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
+constexpr float uzInletPhys = 4.5986f; 													// m/s
+constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
+constexpr float invSqrt3 = 0.577350269f; 
+constexpr float soundspeedPhys = invSqrt3 * (resGlobal/1000) / dtPhysGlobal; 			// m/s
+
 
 #include "../../include/types.h"
 #include "../../include/adaptiveGridFunctions.h"
 #include "../../include/STLFunctions.h"
 #include "../../include/voxelizerFunctions.h"
+#include "../../include/plotter/OLDexportSectionCutPlot.h"
 
 std::string STLPathMain = "M-Jet_35_pump_main.STL";
 std::string STLPathImpeller = "M-Jet_35_impeller.STL";
@@ -20,7 +32,7 @@ int main(int argc, char **argv)
 	readSTL( STLImpeller, STLPathImpeller );
 	
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
-	grids[ 0 ].Info.res = 0.3f;
+	grids[ 0 ].Info.res = resGlobal;
 	initializeGrids( grids, STLMain.Bounds, 0 );
 	
 	// Voxelizer tests
@@ -57,6 +69,15 @@ int main(int argc, char **argv)
 	Timer.stop();
 	std::cout << "Initial rebuild grids took " << Timer.getRealTime() << " s" << std::endl;
 	std::cout << std::endl;	
+	
+	std::cout << "Total cell count " << grids[0].Info.cellCount + grids[1].Info.cellCount + grids[2].Info.cellCount << std::endl; 
+	
+	applyMarkersFromRayMap( grids[GRID_LEVEL_COUNT-1].bouncebackMarkerArray, Voxelizer.rayMapBounceback, grids[GRID_LEVEL_COUNT-1], grids[GRID_LEVEL_COUNT-1].Info.cellCount );
+	applyMarkersFromRayMap( grids[GRID_LEVEL_COUNT-1].movingBouncebackMarkerArray, Voxelizer.rayMapMovingBounceback, grids[GRID_LEVEL_COUNT-1], grids[GRID_LEVEL_COUNT-1].Info.cellCount );
+	
+	const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX / 2;
+	exportSectionCutPlotZY( grids, iCut, 0 );
+	system("python3 ../../include/plotter/plotterGridID.py");
 	
 	/*
 	Timer.reset();

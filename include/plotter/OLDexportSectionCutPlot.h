@@ -1,6 +1,8 @@
+#include "../OLDcellFunctions.h"
 enum PlaneEnum { XY, ZY, ZX };
 
-void exportSectionCutPlotGeneral( DIADGridStruct &Grid, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
+/*
+void exportSectionCutPlotGeneral( GridStruct &Grid, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
 {
 	InfoStruct Info = Grid.Info;
 	int cellCountHorizontal, cellCountVertical;
@@ -17,13 +19,13 @@ void exportSectionCutPlotGeneral( DIADGridStruct &Grid, const int &cutIndex, con
 	auto kView = Grid.IJK.kArray.getConstView();
 	
 	bool esotwistFlipper = Grid.esotwistFlipper;
-	auto iNbrView = Grid.EsotwistNbrArray.iNbrArray.getConstView();
-	auto jNbrView = Grid.EsotwistNbrArray.jNbrArray.getConstView();
-	auto kNbrView = Grid.EsotwistNbrArray.kNbrArray.getConstView();
-	auto ijNbrView = Grid.EsotwistNbrArray.ijNbrArray.getConstView();
-	auto ikNbrView = Grid.EsotwistNbrArray.ikNbrArray.getConstView();
-	auto jkNbrView = Grid.EsotwistNbrArray.jkNbrArray.getConstView();
-	auto ijkNbrView = Grid.EsotwistNbrArray.ijkNbrArray.getConstView();
+	auto iPlusView = Grid.NBR.iPlusArray.getConstView();
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto ijPlusView = Grid.NBR.ijPlusArray.getConstView();
+	auto ikPlusView = Grid.NBR.ikPlusArray.getConstView();
+	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+	auto ijkPlusView = Grid.NBR.ijkPlusArray.getConstView();
 	
 	SectionCutStruct SectionCut;
 	SectionCut.rhoArray.setSizes( cellCountVertical, cellCountHorizontal );
@@ -51,13 +53,13 @@ void exportSectionCutPlotGeneral( DIADGridStruct &Grid, const int &cutIndex, con
 		int kCell = kView[ cell ];
 		
 		DIADEsotwistNbrStruct Nbr;
-		Nbr.i = iNbrView( cell );
-		Nbr.j = jNbrView( cell );
-		Nbr.k = kNbrView( cell );
-		Nbr.ij = ijNbrView( cell );
-		Nbr.ik = ikNbrView( cell );
-		Nbr.jk = jkNbrView( cell );
-		Nbr.ijk = ijkNbrView( cell );
+		Nbr.i = iPlusView( cell );
+		Nbr.j = jPlusView( cell );
+		Nbr.k = kPlusView( cell );
+		Nbr.ij = ijPlusView( cell );
+		Nbr.ik = ikPlusView( cell );
+		Nbr.jk = jkPlusView( cell );
+		Nbr.ijk = ijkPlusView( cell );
 		
 		int indexHorizontal = 0;
 		int indexVertical = 0;
@@ -137,24 +139,25 @@ void exportSectionCutPlotGeneral( DIADGridStruct &Grid, const int &cutIndex, con
 	fclose(fp);
 }
 
-void exportSectionCutPlotXY( DIADGridStruct &Grid, const int &kCell, const int &plotNumber )
+void exportSectionCutPlotXY( GridStruct &Grid, const int &kCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD XY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( Grid, kCell, plotNumber, XY );
 }
-void exportSectionCutPlotZY( DIADGridStruct &Grid, const int &iCell, const int &plotNumber )
+void exportSectionCutPlotZY( GridStruct &Grid, const int &iCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD ZY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( Grid, iCell, plotNumber, ZY );
 }
-void exportSectionCutPlotZX( DIADGridStruct &Grid, const int &jCell, const int &plotNumber )
+void exportSectionCutPlotZX( GridStruct &Grid, const int &jCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD ZX section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( Grid, jCell, plotNumber, ZX );
 }
+*/
 
 // DIAD Version that dynamically downsamples finest grids to fit VRAM
-void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
+void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
 {
 	const int levelCount = grids.size();
 	
@@ -207,7 +210,7 @@ void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int 
 	// 2. Loop through ALL grids (none are dropped)
 	for ( int level = 0; level < levelCount; level++ )
 	{
-		DIADGridStruct &Grid = grids[level];
+		GridStruct &Grid = grids[level];
 		InfoStruct Info = Grid.Info;
 		
 		// cellScale is relative to the absolute finest grid (levelCount)
@@ -215,20 +218,21 @@ void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int 
 		
 		auto fArrayView  = Grid.fArray.getConstView();
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
+		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
+		bool useRefinementMarkerArray = ( Grid.refinementMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
+		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
+		auto refinementMarkerArrayView = Grid.refinementMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
 		auto kView = Grid.IJK.kArray.getConstView();
 		
 		bool esotwistFlipper = Grid.esotwistFlipper;
-		auto iNbrView = Grid.EsotwistNbrArray.iNbrArray.getConstView();
-		auto jNbrView = Grid.EsotwistNbrArray.jNbrArray.getConstView();
-		auto kNbrView = Grid.EsotwistNbrArray.kNbrArray.getConstView();
-		auto ijNbrView = Grid.EsotwistNbrArray.ijNbrArray.getConstView();
-		auto ikNbrView = Grid.EsotwistNbrArray.ikNbrArray.getConstView();
-		auto jkNbrView = Grid.EsotwistNbrArray.jkNbrArray.getConstView();
-		auto ijkNbrView = Grid.EsotwistNbrArray.ijkNbrArray.getConstView();
+		
+		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -237,14 +241,15 @@ void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int 
 			int jCell = jView[ cell ] * cellScale;
 			int kCell = kView[ cell ] * cellScale;
 			
-			DIADEsotwistNbrStruct Nbr;
-			Nbr.i = iNbrView( cell );
-			Nbr.j = jNbrView( cell );
-			Nbr.k = kNbrView( cell );
-			Nbr.ij = ijNbrView( cell );
-			Nbr.ik = ikNbrView( cell );
-			Nbr.jk = jkNbrView( cell );
-			Nbr.ijk = ijkNbrView( cell );
+			NBRStruct Nbr;
+			Nbr.self = cell;
+			Nbr.iPlus = cell + 1; if ( Nbr.iPlus >= Info.cellCount ) Nbr.iPlus = 0;
+			Nbr.jPlus = jPlusView( cell );
+			Nbr.kPlus = kPlusView( cell );
+			Nbr.ijPlus = Nbr.jPlus + 1; if ( Nbr.jPlus >= Info.cellCount ) Nbr.jPlus = 0;
+			Nbr.ikPlus = Nbr.kPlus + 1; if ( Nbr.kPlus >= Info.cellCount ) Nbr.kPlus = 0;
+			Nbr.jkPlus = jkPlusView( cell );
+			Nbr.ijkPlus = Nbr.jkPlus + 1; if ( Nbr.jkPlus > Info.cellCount ) Nbr.jkPlus = 0;
 			
 			int indexHorizontal = 0;
 			int indexVertical = 0;
@@ -270,17 +275,19 @@ void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int 
 			}
 			
 			float f[27];
-			int cellReadIndex[27];
-			int fReadIndex[27];
-			getEsotwistWriteIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
-			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
+			//int cellReadIndex[27];
+			//int fReadIndex[27];
+			//getEsotwistWriteIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
+			for ( int direction = 0; direction < 27; direction++ )	f[direction] = 1.f/27.f;//fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
 			getRhoUxUyUz(rho, ux, uy, uz, f);
 
 			MarkerStruct Marker;
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
-			const float marker = Marker.bounceback;
+			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
+			if ( useRefinementMarkerArray ) Marker.refinement = refinementMarkerArrayView( cell );
+			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.refinement;
 			
 			// 3. Mapping coordinates to the scaled-down output array
 			int outYStart = indexVertical / targetScale;
@@ -352,24 +359,25 @@ void exportSectionCutPlotGeneral( std::vector<DIADGridStruct> &grids, const int 
 	fclose(fp);
 }
 
-void exportSectionCutPlotXY( std::vector<DIADGridStruct> &grids, const int &kCell, const int &plotNumber )
+void exportSectionCutPlotXY( std::vector<GridStruct> &grids, const int &kCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD XY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, kCell, plotNumber, XY );
 }
-void exportSectionCutPlotZY( std::vector<DIADGridStruct> &grids, const int &iCell, const int &plotNumber )
+void exportSectionCutPlotZY( std::vector<GridStruct> &grids, const int &iCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD ZY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, iCell, plotNumber, ZY );
 }
-void exportSectionCutPlotZX( std::vector<DIADGridStruct> &grids, const int &jCell, const int &plotNumber )
+void exportSectionCutPlotZX( std::vector<GridStruct> &grids, const int &jCell, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD ZX section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, jCell, plotNumber, ZX );
 }
 
+/*
 // DIAD Version of Toilet Paper Plot that dynamically downsamples finest grids to fit VRAM
-void exportSectionCutPlotToiletPaperZ( std::vector<DIADGridStruct> &grids, const float &r, const int &plotNumber )
+void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const float &r, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD Toilet Paper Z section cut plot " << plotNumber << " at radius " << r << " mm" << std::endl;
 
@@ -431,7 +439,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<DIADGridStruct> &grids, const
 	// 2. Loop through ALL grids (coarse to fine, allowing fine to overwrite coarse)
 	for ( int level = 0; level < levelCount; level++ )
 	{
-		DIADGridStruct &Grid = grids[level];
+		GridStruct &Grid = grids[level];
 		InfoStruct Info = Grid.Info;
 		
 		// cellScale is relative to the absolute finest grid
@@ -446,13 +454,13 @@ void exportSectionCutPlotToiletPaperZ( std::vector<DIADGridStruct> &grids, const
 		auto kView = Grid.IJK.kArray.getConstView();
 		
 		bool esotwistFlipper = Grid.esotwistFlipper;
-		auto iNbrView = Grid.EsotwistNbrArray.iNbrArray.getConstView();
-		auto jNbrView = Grid.EsotwistNbrArray.jNbrArray.getConstView();
-		auto kNbrView = Grid.EsotwistNbrArray.kNbrArray.getConstView();
-		auto ijNbrView = Grid.EsotwistNbrArray.ijNbrArray.getConstView();
-		auto ikNbrView = Grid.EsotwistNbrArray.ikNbrArray.getConstView();
-		auto jkNbrView = Grid.EsotwistNbrArray.jkNbrArray.getConstView();
-		auto ijkNbrView = Grid.EsotwistNbrArray.ijkNbrArray.getConstView();
+		auto iPlusView = Grid.NBR.iPlusArray.getConstView();
+		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+		auto ijPlusView = Grid.NBR.ijPlusArray.getConstView();
+		auto ikPlusView = Grid.NBR.ikPlusArray.getConstView();
+		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+		auto ijkPlusView = Grid.NBR.ijkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -481,8 +489,8 @@ void exportSectionCutPlotToiletPaperZ( std::vector<DIADGridStruct> &grids, const
 
 			// Extract f populations and compute macroscopic fields
 			DIADEsotwistNbrStruct Nbr;
-			Nbr.i = iNbrView( cell ); Nbr.j = jNbrView( cell ); Nbr.k = kNbrView( cell );
-			Nbr.ij = ijNbrView( cell ); Nbr.ik = ikNbrView( cell ); Nbr.jk = jkNbrView( cell ); Nbr.ijk = ijkNbrView( cell );
+			Nbr.i = iPlusView( cell ); Nbr.j = jPlusView( cell ); Nbr.k = kPlusView( cell );
+			Nbr.ij = ijPlusView( cell ); Nbr.ik = ikPlusView( cell ); Nbr.jk = jkPlusView( cell ); Nbr.ijk = ijkPlusView( cell );
 			
 			float f[27];
 			int cellReadIndex[27], fReadIndex[27];
@@ -582,3 +590,4 @@ void exportHistoryData( const std::vector<float>& historyVector, const int &curr
     fwrite(historyVector.data(), sizeof(float), count, fp);
     fclose(fp);
 }
+*/
