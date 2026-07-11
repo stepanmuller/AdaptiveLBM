@@ -555,8 +555,6 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 	
 	const int downsample = rayMapArray.getSizes()[0] / Grid.Info.cellCountX;
 	
-	std::cout << "downsample is " << downsample << std::endl;
-	
 	markerArray.setValue( true );
 
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable

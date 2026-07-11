@@ -20,9 +20,8 @@ int main(int argc, char **argv)
 	readSTL( STLImpeller, STLPathImpeller );
 	
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
-	grids[ 0 ].Info.res = 10.0f;
+	grids[ 0 ].Info.res = 2.f;
 	initializeGrids( grids, STLMain.Bounds, 0 );
-	std::cout << "Skeleton cellCount = " << grids[0].SkeletonGrid.Info.cellCount << std::endl;
 	
 	// Voxelizer tests
 	VoxelizerStruct Voxelizer;
