@@ -154,6 +154,7 @@ struct NBRHoleMapStruct { IntArray3DType holeStartArray; IntArray2DType startCou
 
 struct SkeletonGridStruct { InfoStruct Info; 
 							IntArrayType intBuffer1; IntArrayType intBuffer2; IntArrayType intBuffer3;
+							NBRHoleMapStruct NBRHoleMap;
 							BoolArrayType keepCellMarkerArray; BoolArrayType movingBouncebackMarkerArray; BoolArrayType markerBuffer; };	
 
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
@@ -162,7 +163,7 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
-					IntArrayType intBuffer3;
+					IntArrayType &intBuffer3; // This will point to NBR.jkPlusArray which we temporarily use as a buffer and then refill it correctly
 					NBRHoleMapStruct NBRHoleMap;
 					BoolArrayType keepCellMarkerArray; 
 					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
@@ -172,7 +173,8 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					SkeletonGridStruct SkeletonGrid;
 					GridStruct()
 						: intBuffer1(NBR.jMinusArray),
-						  intBuffer2(NBR.kMinusArray)
+						  intBuffer2(NBR.kMinusArray),
+						  intBuffer3(NBR.jkPlusArray)
 					{}
 					}; 		
 					

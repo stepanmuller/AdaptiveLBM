@@ -284,3 +284,66 @@ void skipUnmarkedNBRArray( IntArrayType &nbrArray, const BoolArrayType &markerAr
 	if ( jPlus == 1 && kPlus == 0 )	connectNBRHoles( nbrArray, Grid.NBRHoleMap, cellCountX, cellCountZ );
 	else if ( jPlus == 0 && kPlus == 1 ) connectNBRHoles( nbrArray, Grid.NBRHoleMap, cellCountX, cellCountY );
 }
+
+void skipUnmarkedNBRArray( IntArrayType &nbrArray, const BoolArrayType &markerArray, const int &jPlus, const int &kPlus, SkeletonGridStruct &SkeletonGrid )
+{
+	const int cellCount = SkeletonGrid.Info.cellCount;
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	const int cellCountZ = SkeletonGrid.Info.cellCountZ;
+	const int cellCountXY = cellCountX * cellCountY;
+	IntArray2DType &startCounterArray = SkeletonGrid.NBRHoleMap.startCounterArray;
+	IntArray2DType &endCounterArray = SkeletonGrid.NBRHoleMap.endCounterArray;
+	startCounterArray.setValue( 0 );
+	endCounterArray.setValue( 0 );
+	
+	auto nbrView = nbrArray.getView();
+	auto markerView = markerArray.getConstView();
+	auto holeStartView = SkeletonGrid.NBRHoleMap.holeStartArray.getView();
+	auto holeEndView = SkeletonGrid.NBRHoleMap.holeEndArray.getView();
+	auto startCounterView = startCounterArray.getView();
+	auto endCounterView = endCounterArray.getView();
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int nbr = nbrView[ cell ];
+		const bool cellMarker = markerView[ cell ];
+		const bool nbrMarker = markerView[ nbr ];
+		if ( cellMarker && nbrMarker ) return;
+		if ( !cellMarker && !nbrMarker ) return;
+		const int kCell = cell / cellCountXY;
+		const int remainder = cell % cellCountXY;
+		const int jCell = remainder / cellCountX;
+		const int iCell = remainder % cellCountX;
+		if ( jPlus == 1 && kPlus == 0 ) // jPlus version
+		{
+			if ( cellMarker && !nbrMarker ) // NBR hole start
+			{
+				const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, kCell), 1);
+				if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, kCell, holeStartOrder ) = cell;
+			}
+			else if ( !cellMarker && nbrMarker ) // NBR hole end
+			{
+				const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, kCell), 1);
+				if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, kCell, holeEndOrder ) = nbr;
+			}
+		}
+		else if ( jPlus == 0 && kPlus == 1 ) // kPlus version
+		{
+			if ( cellMarker && !nbrMarker ) // NBR hole start
+			{
+				const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, jCell), 1);
+				if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, jCell, holeStartOrder ) = cell;
+			}
+			else if ( !cellMarker && nbrMarker ) // NBR hole end
+			{
+				const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, jCell), 1);
+				if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, jCell, holeEndOrder ) = nbr;
+			}
+		}
+	};	
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+	
+	if ( jPlus == 1 && kPlus == 0 )	connectNBRHoles( nbrArray, SkeletonGrid.NBRHoleMap, cellCountX, cellCountZ );
+	else if ( jPlus == 0 && kPlus == 1 ) connectNBRHoles( nbrArray, SkeletonGrid.NBRHoleMap, cellCountX, cellCountY );
+}

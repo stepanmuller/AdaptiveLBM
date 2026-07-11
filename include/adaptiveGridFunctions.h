@@ -244,7 +244,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	Timer.start();
 	
 	// 4) Get rid of the cells that are deep inside solid. Only keep the necessary ones, mark them in keepCellMarkerArray
-	markKeepCells( Grid, Voxelizer, Info.cellCountFull ); // <- problematic line
+	markKeepCells( Grid, Voxelizer, Info.cellCountFull );
 	Info.cellCount = countOnesInBoolArray( Grid.keepCellMarkerArray, Info.cellCountFull );
 	
 	if ( initPass )
@@ -292,7 +292,6 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	fullToKeepTransform( Grid.IJK.kArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
 	fullToKeepTransformWithIndexRepair( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
 	fullToKeepTransformWithIndexRepair( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
-	fullToKeepTransformWithIndexRepair( Grid.NBR.jkPlusArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
 	fullToKeepTransform( Grid.parentMapArray, Grid.keepCellMarkerArray, fullToKeepArray, Grid.intBuffer3, Info.cellCountFull );
 	
 	Timer.stop();
@@ -488,6 +487,11 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		SkeletonGrid.movingBouncebackMarkerArray.setSize( SkeletonInfo.cellCount );
 		SkeletonGrid.markerBuffer.setSize( SkeletonInfo.cellCount );
 		
+		SkeletonGrid.NBRHoleMap.holeStartArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ), RAY_MAP_DEPTH / 2 );
+		SkeletonGrid.NBRHoleMap.holeEndArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ), RAY_MAP_DEPTH / 2 );
+		SkeletonGrid.NBRHoleMap.startCounterArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) );
+		SkeletonGrid.NBRHoleMap.endCounterArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) );
+			
 		Info.cellCountX = SkeletonInfo.cellCountX * 2;
 		Info.cellCountY = SkeletonInfo.cellCountY * 2;
 		Info.cellCountZ = SkeletonInfo.cellCountZ * 2;
