@@ -221,47 +221,66 @@ void connectNBRHoles( IntArrayType &nbrArray, const NBRHoleMapStruct &NBRHoleMap
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(startList, endList, holeLambda );
 }
 
-void skipUnmarkedJPlusArray( IntArrayType &jPlusArray, const BoolArrayType &markerArray, GridStruct &Grid, const int &upperBound )
+void skipUnmarkedNBRArray( IntArrayType &nbrArray, const BoolArrayType &markerArray, const int &jPlus, const int &kPlus, GridStruct &Grid, const int &upperBound )
 {
 	const int cellCountX = Grid.Info.cellCountX;
-	// const int cellCountY = Grid.Info.cellCountY; // not needed here
+	const int cellCountY = Grid.Info.cellCountY;
 	const int cellCountZ = Grid.Info.cellCountZ;
 	IntArray2DType &startCounterArray = Grid.NBRHoleMap.startCounterArray;
 	IntArray2DType &endCounterArray = Grid.NBRHoleMap.endCounterArray;
 	startCounterArray.setValue( 0 );
 	endCounterArray.setValue( 0 );
 	
-	auto jPlusView = jPlusArray.getView();
+	auto nbrView = nbrArray.getView();
 	auto markerView = markerArray.getConstView();
 	auto holeStartView = Grid.NBRHoleMap.holeStartArray.getView();
 	auto holeEndView = Grid.NBRHoleMap.holeEndArray.getView();
 	auto startCounterView = startCounterArray.getView();
 	auto endCounterView = endCounterArray.getView();
 	auto iView = Grid.IJK.iArray.getConstView();
-	// auto jView = Grid.IJK.jArray.getConstView(); // not needed here
+	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
-		const int nbr = jPlusView[ cell ];
+		const int nbr = nbrView[ cell ];
 		const bool cellMarker = markerView[ cell ];
 		const bool nbrMarker = markerView[ nbr ];
 		if ( cellMarker && nbrMarker ) return;
 		if ( !cellMarker && !nbrMarker ) return;
-		const int iCell = iView[ cell ];
-		const int kCell = kView[ cell ];
-		if ( cellMarker && !nbrMarker ) // NBR hole start
+		if ( jPlus == 1 && kPlus == 0 ) // jPlus version
 		{
-			const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, kCell), 1);
-			if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, kCell, holeStartOrder ) = cell;
+			const int iCell = iView[ cell ];
+			const int kCell = kView[ cell ];
+			if ( cellMarker && !nbrMarker ) // NBR hole start
+			{
+				const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, kCell), 1);
+				if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, kCell, holeStartOrder ) = cell;
+			}
+			else if ( !cellMarker && nbrMarker ) // NBR hole end
+			{
+				const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, kCell), 1);
+				if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, kCell, holeEndOrder ) = nbr;
+			}
 		}
-		else if ( !cellMarker && nbrMarker ) // NBR hole end
+		else if ( jPlus == 0 && kPlus == 1 ) // kPlus version
 		{
-			const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, kCell), 1);
-			if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, kCell, holeEndOrder ) = nbr;
+			const int iCell = iView[ cell ];
+			const int jCell = jView[ cell ];
+			if ( cellMarker && !nbrMarker ) // NBR hole start
+			{
+				const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, jCell), 1);
+				if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, jCell, holeStartOrder ) = cell;
+			}
+			else if ( !cellMarker && nbrMarker ) // NBR hole end
+			{
+				const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, jCell), 1);
+				if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, jCell, holeEndOrder ) = nbr;
+			}
 		}
 	};	
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 	
-	connectNBRHoles( jPlusArray, Grid.NBRHoleMap, cellCountX, cellCountZ ); // the second span is be either cellCountZ (jPlus, jkPlus) or cellCountY (kPlus)
+	if ( jPlus == 1 && kPlus == 0 )	connectNBRHoles( nbrArray, Grid.NBRHoleMap, cellCountX, cellCountZ );
+	else if ( jPlus == 0 && kPlus == 1 ) connectNBRHoles( nbrArray, Grid.NBRHoleMap, cellCountX, cellCountY );
 }

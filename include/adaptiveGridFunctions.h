@@ -264,34 +264,12 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	Timer.reset();
 	Timer.start();
 	
-	// 5) Now we know which cells to keep, skip the unmarked ones in NBR arrays
-	
-	// TESTING NEW NBR SKIP ALGORITHM
-	
-	Grid.intBuffer3 = Grid.NBR.jPlusArray; 
-	skipUnmarkedJPlusArray( Grid.intBuffer3, Grid.keepCellMarkerArray, Grid, Info.cellCountFull ); // NEW VERSION
-	skipAllUnmarkedNBR( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull ); // OLD VERSION
-	
-	// now we would like those to match for all marked cells
-	std::cout << "testing match of two NBR skip methods " << std::endl;
-	IntArrayTypeCPU nbr1;
-	IntArrayTypeCPU nbr2;
-	BoolArrayTypeCPU markers;
-	nbr1 = Grid.intBuffer3;
-	nbr2 = Grid.NBR.jPlusArray;
-	markers = Grid.keepCellMarkerArray;
-	for ( int i = 0; i < Info.cellCountFull; i++ )
-	{
-		if ( markers[i] && (nbr1[i] != nbr2[i]) )
-		{
-			std::cout << "mismatch of element " << i << ", nbr1 " << nbr1[i] << ", nbr2 " << nbr2[i] << std::endl;
-		}
-	}
-	std::cout << "finished testing match of two NBR skip methods " << std::endl;
-	
-	
-	skipAllUnmarkedNBR( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
-	skipAllUnmarkedNBR( Grid.NBR.jkPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
+	// 5) Now we know which cells to keep, skip the unmarked ones in main NBR arrays
+	int jPlus, kPlus;
+	jPlus = 1; kPlus = 0;
+	skipUnmarkedNBRArray( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, jPlus, kPlus, Grid, Info.cellCountFull ); 
+	jPlus = 0; kPlus = 1;
+	skipUnmarkedNBRArray( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, jPlus, kPlus, Grid, Info.cellCountFull ); 
 	
 	Timer.stop();
 	std::cout << "Step 5 NBR Skip on level " << level << " took " << Timer.getRealTime() << " s" << std::endl;
@@ -451,17 +429,19 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	Timer.reset();
 	Timer.start();
 	
-	// 13) fill NBR minus
+	// 13) fill jkPlus and NBR minus
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jkPlusView = Grid.NBR.jkPlusArray.getView();
 	auto jMinusView = Grid.NBR.jMinusArray.getView();
 	auto kMinusView = Grid.NBR.kMinusArray.getView();
-	auto NBRMinusLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	auto NBRFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
+		jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
 		jMinusView[ jPlusView[ cell ] ] = cell;
 		kMinusView[ kPlusView[ cell ] ] = cell;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRFinishLambda );
 	
 	Timer.stop();
 	std::cout << "Step 13 fill NBR minus on level " << level << " took " << Timer.getRealTime() << " s" << std::endl;
@@ -509,8 +489,8 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		SkeletonGrid.markerBuffer.setSize( SkeletonInfo.cellCount );
 		
 		Info.cellCountX = SkeletonInfo.cellCountX * 2;
-		Info.cellCountY = SkeletonInfo.cellCountX * 2;
-		Info.cellCountZ = SkeletonInfo.cellCountX * 2;
+		Info.cellCountY = SkeletonInfo.cellCountY * 2;
+		Info.cellCountZ = SkeletonInfo.cellCountZ * 2;
 		Info.ox = SkeletonInfo.ox - Info.res * 0.5f;
 		Info.oy = SkeletonInfo.oy - Info.res * 0.5f;
 		Info.oz = SkeletonInfo.oz - Info.res * 0.5f;
@@ -521,8 +501,8 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		GridStruct &GridCoarse = grids[ level-1 ];
 		Info.res = GridCoarse.Info.res * 0.5f;
 		Info.cellCountX = GridCoarse.Info.cellCountX * 2;
-		Info.cellCountY = GridCoarse.Info.cellCountX * 2;
-		Info.cellCountZ = GridCoarse.Info.cellCountX * 2;
+		Info.cellCountY = GridCoarse.Info.cellCountY * 2;
+		Info.cellCountZ = GridCoarse.Info.cellCountZ * 2;
 		Info.ox = GridCoarse.Info.ox - Info.res * 0.5f;
 		Info.oy = GridCoarse.Info.oy - Info.res * 0.5f;
 		Info.oz = GridCoarse.Info.oz - Info.res * 0.5f;
