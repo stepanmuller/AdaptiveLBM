@@ -136,65 +136,132 @@ void skipAllUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArra
 	}
 }
 
-// Optimized version: On launch build list of unfinished cells and only loop through them
-
-void skipOneUnmarkedNBROptimized( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
+void connectNBRHoles( IntArrayType &nbrArray, const NBRHoleMapStruct &NBRHoleMap, const int &firstBound, const int &secondBound )
 {
-	// For each cell, if its neighbour is not marked, travel one neighbour up (set our neighbour to the neighbour's neighbour)
 	auto nbrView = nbrArray.getView();
-	auto nbrOldView = nbrOldArray.getConstView();
-	auto markerView = markerArray.getConstView();
-	auto finishedMarkerView = finishedMarkerArray.getView();
+	auto holeStartView = NBRHoleMap.holeStartArray.getConstView();
+	auto holeEndView = NBRHoleMap.holeEndArray.getConstView();
+	auto startCounterView = NBRHoleMap.startCounterArray.getConstView();
+	auto endCounterView = NBRHoleMap.endCounterArray.getConstView();
 	
-	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	// now check for overflow and mismatch between start and end counts
+	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
 	{
-		if ( finishedMarkerView[ cell ] ) return;
-		int nbr = nbrOldView[ cell ];
-		if ( nbr == cell || markerView[ nbr ] ) // the first condition clicks if we already travelled a full closed unmarked loop
-		{
-			nbrView[ cell ] = nbr;
-			finishedMarkerView[ cell ] = true;
-			return;
-		}
-		int newNBR = nbrOldView[ nbr ]; // neighbour of our neighbour
-		nbrView[ cell ] = newNBR;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
-}
-
-int countUnfinishedNBROptimized( const BoolArrayType &markerArray, const BoolArrayType &finishedMarkerArray, const int &upperBound )
-{
-	auto markerView = markerArray.getConstView();
-	auto finishedMarkerView = finishedMarkerArray.getConstView();
-	auto fetch = [ = ] __cuda_callable__( const int cell )
-	{
-		if ( markerView[ cell ] && !finishedMarkerView[ cell ] ) return 1; // sum those who are marked but not finished - we only care about those
+		const int iHole = singleIndex % firstBound;
+		const int jHole = singleIndex / firstBound;
+		const int startCount = startCounterView( iHole, jHole );
+		if ( startCount >= RAY_MAP_DEPTH / 2 ) return 1;
+		const int endCount = endCounterView( iHole, jHole );
+		if ( endCount >= RAY_MAP_DEPTH / 2 ) return 1;
+		if ( startCount != endCount ) return 1;
 		else return 0;
 	};
 	auto reduction = [] __cuda_callable__( const int& a, const int& b )
 	{
 		return a + b;
 	};
-	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
+	const int start = 0;
+	const int end = firstBound * secondBound;
+	const int errorCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
+	if ( errorCount > 0 ) 
+	{
+		std::cout << "connect NBRHoles errorCount: " << errorCount << std::endl;
+		throw std::runtime_error("connectNBRHoles failed. Either the number of starts and ends doesn't match, or their count exceeded RAY_MAP_DEPTH. RAY_MAP_DEPTH can be increased in the main file.");
+	}
+
+	auto holeLambda = [=] __cuda_callable__ ( const IntPairType& doubleIndex ) mutable
+	{
+		const int iHole = doubleIndex.x();
+		const int jHole = doubleIndex.y();
+		const int holeCount = startCounterView( iHole, jHole );
+		if (holeCount == 0) return;
+		// load starts and ends up to holeCount
+		int starts[ RAY_MAP_DEPTH / 2 ];
+		for ( int holeIndex = 0; holeIndex < holeCount; holeIndex++ ) starts[holeIndex] = holeStartView( iHole, jHole, holeIndex );
+		int ends[ RAY_MAP_DEPTH / 2 ];
+		for ( int holeIndex = 0; holeIndex < holeCount; holeIndex++ ) ends[holeIndex] = holeEndView( iHole, jHole, holeIndex );
+		// sort starts
+		for ( int holeIndex = 1; holeIndex < holeCount; holeIndex++ ) 
+		{
+			int key = starts[holeIndex];
+			int slider = holeIndex - 1;
+			while ( slider >= 0 && starts[slider] > key ) 
+			{
+				starts[slider + 1] = starts[slider];
+				slider = slider - 1;
+			}
+			starts[slider + 1] = key;
+		}
+		// sort ends
+		for ( int holeIndex = 1; holeIndex < holeCount; holeIndex++ ) 
+		{
+			int key = ends[holeIndex];
+			int slider = holeIndex - 1;
+			while ( slider >= 0 && ends[slider] > key ) 
+			{
+				ends[slider + 1] = ends[slider];
+				slider = slider - 1;
+			}
+			ends[slider + 1] = key;
+		}
+		// now we want to connect the first start to the first larger end. 
+		const bool holeWrapsAround = ( starts[0] >= ends[0] );
+		// If first end is smaller than first start, wrap around
+		for ( int holeIndex = 0; holeIndex < holeCount; holeIndex++ ) 
+		{
+			const int startCell = starts[ holeIndex ];
+			int endCell;
+			if ( !holeWrapsAround ) endCell = ends[ holeIndex ];
+			else endCell = ends[ (holeIndex + 1) % holeCount ];
+			nbrView[ startCell ] = endCell;
+		}
+	};
+	IntPairType startList{ 0, 0 };
+	IntPairType endList{ firstBound, secondBound };
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(startList, endList, holeLambda );
 }
 
-void skipAllUnmarkedNBROptimized( IntArrayType &nbrArray, const BoolArrayType &markerArray, IntArrayType &intBuffer, IntArrayType &intBuffer2, BoolArrayType &markerBuffer, const int &upperBound )
+void skipUnmarkedJPlusArray( IntArrayType &jPlusArray, const BoolArrayType &markerArray, GridStruct &Grid, const int &upperBound )
 {
-	// Receives nbrArray, which also points on cells that are not marked
-	// For each cell, while its neighbour is not marked, we want to travel up the neighbour list
-	// to find the first marked neighbour
-	IntArrayType &nbrOldArray = intBuffer;
-	BoolArrayType &finishedMarkerArray = markerBuffer;
+	const int cellCountX = Grid.Info.cellCountX;
+	// const int cellCountY = Grid.Info.cellCountY; // not needed here
+	const int cellCountZ = Grid.Info.cellCountZ;
+	IntArray2DType &startCounterArray = Grid.NBRHoleMap.startCounterArray;
+	IntArray2DType &endCounterArray = Grid.NBRHoleMap.endCounterArray;
+	startCounterArray.setValue( 0 );
+	endCounterArray.setValue( 0 );
 	
-	finishedMarkerArray.setValue( false );
-	int unfinishedCount = upperBound;
+	auto jPlusView = jPlusArray.getView();
+	auto markerView = markerArray.getConstView();
+	auto holeStartView = Grid.NBRHoleMap.holeStartArray.getView();
+	auto holeEndView = Grid.NBRHoleMap.holeEndArray.getView();
+	auto startCounterView = startCounterArray.getView();
+	auto endCounterView = endCounterArray.getView();
+	auto iView = Grid.IJK.iArray.getConstView();
+	// auto jView = Grid.IJK.jArray.getConstView(); // not needed here
+	auto kView = Grid.IJK.kArray.getConstView();
 	
-	nbrOldArray = nbrArray;
-	
-	while ( unfinishedCount > 0 )
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
-		nbrArray.swap( nbrOldArray ); // pointer swap without data travel
-		skipOneUnmarkedNBR( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
-		unfinishedCount = countUnfinishedNBR( markerArray, finishedMarkerArray, upperBound );
-	}
+		const int nbr = jPlusView[ cell ];
+		const bool cellMarker = markerView[ cell ];
+		const bool nbrMarker = markerView[ nbr ];
+		if ( cellMarker && nbrMarker ) return;
+		if ( !cellMarker && !nbrMarker ) return;
+		const int iCell = iView[ cell ];
+		const int kCell = kView[ cell ];
+		if ( cellMarker && !nbrMarker ) // NBR hole start
+		{
+			const int holeStartOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(startCounterView(iCell, kCell), 1);
+			if ( holeStartOrder < RAY_MAP_DEPTH / 2) holeStartView( iCell, kCell, holeStartOrder ) = cell;
+		}
+		else if ( !cellMarker && nbrMarker ) // NBR hole end
+		{
+			const int holeEndOrder = TNL::Algorithms::AtomicOperations<TNL::Devices::Cuda>::add(endCounterView(iCell, kCell), 1);
+			if ( holeEndOrder < RAY_MAP_DEPTH / 2) holeEndView( iCell, kCell, holeEndOrder ) = nbr;
+		}
+	};	
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+	
+	connectNBRHoles( jPlusArray, Grid.NBRHoleMap, cellCountX, cellCountZ ); // the second span is be either cellCountZ (jPlus, jkPlus) or cellCountY (kPlus)
 }

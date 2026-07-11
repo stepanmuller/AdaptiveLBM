@@ -128,6 +128,13 @@ inline IJKArrayStruct::IJKArrayStruct(const IJKArrayStructCPU& IJKCPU) {
     kArray = IJKCPU.kArray;
 }
 
+struct rayMapStruct { IntArray3DType rayMapArray; IntArray2DType hitCounterArray; };
+
+struct VoxelizerStruct { 	InfoStruct Info; 
+							rayMapStruct rayMapBounceback;
+							rayMapStruct rayMapMovingBounceback;
+							rayMapStruct rayMapTotal; };
+
 // NBR holds:
 // Connectivity for Esotwist: indexes of 3 neighbours in the positive direction jPlus, kPlus, jkPlus. 
 // Thanks to cell sorting where X runs the fastest, the indexes for remaining 4 neighbours iPlus, ijPlus, ikPlus, ijkPlus are just +1 to self, jPlus, kPlus, jkPlus.
@@ -142,6 +149,8 @@ struct NBRStruct { 	int self;
 					int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
 					int iMinus; int jMinus; int kMinus;
 					int isGeometricMarker[10]; }; 
+					
+struct NBRHoleMapStruct { IntArray3DType holeStartArray; IntArray2DType startCounterArray; IntArray3DType holeEndArray; IntArray2DType endCounterArray; };
 
 struct SkeletonGridStruct { InfoStruct Info; 
 							IntArrayType intBuffer1; IntArrayType intBuffer2; IntArrayType intBuffer3;
@@ -154,6 +163,7 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType intBuffer3;
+					NBRHoleMapStruct NBRHoleMap;
 					BoolArrayType keepCellMarkerArray; 
 					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
 					BoolArrayType refinementMarkerArray; BoolArrayType deepRefinementMarkerArray;
@@ -191,13 +201,6 @@ struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
 						Bounds = STLCPU.Bounds;	
 					}
 				};
-
-struct rayMapStruct { IntArray3DType rayMapArray; IntArray2DType hitCounterArray; };
-
-struct VoxelizerStruct { 	InfoStruct Info; 
-							rayMapStruct rayMapBounceback;
-							rayMapStruct rayMapMovingBounceback;
-							rayMapStruct rayMapTotal; };
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 

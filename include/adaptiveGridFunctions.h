@@ -266,7 +266,30 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	
 	// 5) Now we know which cells to keep, skip the unmarked ones in NBR arrays
 	
-	skipAllUnmarkedNBR( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
+	// TESTING NEW NBR SKIP ALGORITHM
+	
+	Grid.intBuffer3 = Grid.NBR.jPlusArray; 
+	skipUnmarkedJPlusArray( Grid.intBuffer3, Grid.keepCellMarkerArray, Grid, Info.cellCountFull ); // NEW VERSION
+	skipAllUnmarkedNBR( Grid.NBR.jPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull ); // OLD VERSION
+	
+	// now we would like those to match for all marked cells
+	std::cout << "testing match of two NBR skip methods " << std::endl;
+	IntArrayTypeCPU nbr1;
+	IntArrayTypeCPU nbr2;
+	BoolArrayTypeCPU markers;
+	nbr1 = Grid.intBuffer3;
+	nbr2 = Grid.NBR.jPlusArray;
+	markers = Grid.keepCellMarkerArray;
+	for ( int i = 0; i < Info.cellCountFull; i++ )
+	{
+		if ( markers[i] && (nbr1[i] != nbr2[i]) )
+		{
+			std::cout << "mismatch of element " << i << ", nbr1 " << nbr1[i] << ", nbr2 " << nbr2[i] << std::endl;
+		}
+	}
+	std::cout << "finished testing match of two NBR skip methods " << std::endl;
+	
+	
 	skipAllUnmarkedNBR( Grid.NBR.kPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
 	skipAllUnmarkedNBR( Grid.NBR.jkPlusArray, Grid.keepCellMarkerArray, Grid.intBuffer2, Grid.markerBuffer, Info.cellCountFull );
 	
@@ -504,6 +527,11 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		Info.oy = GridCoarse.Info.oy - Info.res * 0.5f;
 		Info.oz = GridCoarse.Info.oz - Info.res * 0.5f;
 	}
+	
+	Grid.NBRHoleMap.holeStartArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ), RAY_MAP_DEPTH / 2 );
+	Grid.NBRHoleMap.holeEndArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ), RAY_MAP_DEPTH / 2 );
+	Grid.NBRHoleMap.startCounterArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ) );
+	Grid.NBRHoleMap.endCounterArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ) );
 	
 	if ( !iAmFinest ) initializeGrids( grids, Bounds, level+1 );
 }
