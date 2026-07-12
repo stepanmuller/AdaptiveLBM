@@ -38,7 +38,7 @@ void applyInitialCondition( GridStruct &Grid )
 		NBR.jPlus = jPlusView( cell );
 		NBR.kPlus = kPlusView( cell );
 		NBR.jkPlus = jkPlusView( cell );
-		finishNBR( NBR, Info );
+		finishNBRPlus( NBR, Info );
 		
 		MarkerStruct Marker;
 		if ( useBouncebackMarkerArray ) Marker.bounceback = bouncebackMarkerView( cell );

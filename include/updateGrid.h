@@ -56,7 +56,7 @@ void updateGrid( GridStruct &Grid )
 		NBR.jPlus = jPlusView( cell );
 		NBR.kPlus = kPlusView( cell );
 		NBR.jkPlus = jkPlusView( cell );
-		finishNBR( NBR, Info );
+		finishNBRPlus( NBR, Info );
 		
 		float f[27];
 		int cellReadIndex[27];

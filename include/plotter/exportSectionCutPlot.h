@@ -93,7 +93,7 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			NBR.jPlus = jPlusView( cell );
 			NBR.kPlus = kPlusView( cell );
 			NBR.jkPlus = jkPlusView( cell );
-			finishNBR( NBR, Info );
+			finishNBRPlus( NBR, Info );
 			
 			int indexHorizontal = 0;
 			int indexVertical = 0;
@@ -317,7 +317,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			NBR.jPlus = jPlusView( cell );
 			NBR.kPlus = kPlusView( cell );
 			NBR.jkPlus = jkPlusView( cell );
-			finishNBR( NBR, Info );
+			finishNBRPlus( NBR, Info );
 			
 			// Compute physical center of this cell (x, y) relative to the origin
 			float xc = ((float)iCell + 0.5f * cellScale - (float)iOriginFinest) * FinestInfo.res;

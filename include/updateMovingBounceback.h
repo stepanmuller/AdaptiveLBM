@@ -130,7 +130,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			NBR.jPlus = jPlusView( nbr );
 			NBR.kPlus = kPlusView( nbr );
 			NBR.jkPlus = jPlusView( kPlusView( nbr ) );
-			finishNBR( NBR, Info );
+			finishNBRPlus( NBR, Info );
 			
 			float f[27];
 			int cellReadIndex[27];
@@ -168,21 +168,26 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			for (int direction = 0; direction < 27; direction++) fneqAvg[direction] = fneqAvg[direction] / fneqAvgCounter;
 		}
 		
+		float feq[27];
+		getFeq(rhoAvg, uxAvg, uyAvg, uzAvg, feq);
 		float f[27];
-		getFeq(rhoAvg, uxAvg, uyAvg, uzAvg, f);
-		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] + fneqAvg[direction];	
+		for (int direction = 0; direction < 27; direction++) f[direction] = feq[direction] + fneqAvg[direction];	
 		
 		NBRStruct NBR;
 		NBR.self = cell;
 		NBR.jPlus = nbrList[2];
 		NBR.kPlus = nbrList[4];
 		NBR.jkPlus = jPlusView( nbrList[4] );
-		finishNBR( NBR, Info );
+		finishNBRPlus( NBR, Info );
+		
+		NBR.jMinus = jMinusView( cell );
+		NBR.kMinus = kMinusView( cell );
+		NBR.iMinus = cell - 1; if ( NBR.iMinus < 0 ) NBR.iMinus = Info.cellCount-1;
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
 		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
-		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = feq[direction];
 		
 		// We are not ending yet. We have overwritten the newly uncovered fluid, but the uncovered fluid also has moving bounceback neighbours,
 		// whose adjacent side is now newly uncovered. Next iteration we will pull (receive) garbage data from this. Therefore we must also
@@ -194,6 +199,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		// cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 		// the neighbour we are looking is located in direction against the PDF direction
 		// we can get to the neighbour by sequentially reading neighbours of neighbours in the main directions
+		/*
 		int fullNBRList[27];
 		// 0: Center
 		fullNBRList[0]  = cell;
@@ -228,12 +234,28 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
 		// now look at each neighbour if they are MBB 
 		// (note that the ones which were MBB but are no longer MBB are already sorted out by our previous loop)
-		bool isMovingBounceback[27];
-		for ( int direction = 0; direction < 27; direction++ )
+		bool isMovingBounceback[27] = {false};
+		for ( int direction = 1; direction < 27; direction++ )
 		{
-			
+			isMovingBounceback[direction] = movingBouncebackMarkerView( fullNBRList[direction] );
 		}
-		
+		*/
+		int cellNextIndex[27];
+		int fNextIndex[27];
+		bool inverseEsotwistFlipper = !esotwistFlipper;
+		getPreCollisionIndex( cellNextIndex, fNextIndex, NBR, inverseEsotwistFlipper, Info );
+		for ( int direction = 0; direction < 27; direction++ ) 
+		{
+			/*
+			if ( isMovingBounceback[direction] ) 
+			{
+				// if we are going to be receiving f from a moving bounceback in this direction,
+				// just set it to the same f as we currently have in our cell
+				fArrayView( fNextIndex[direction], cellNextIndex[direction] ) = feq[direction];
+			}
+			*/
+			fArrayView( fNextIndex[direction], cellNextIndex[direction] ) = feq[direction];
+		}		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, newlyFluidCount, newlyFluidLambda );
 	

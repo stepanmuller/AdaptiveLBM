@@ -3,14 +3,16 @@ static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 
-static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 4;
-static constexpr int GRID_REBUILD_PERIOD = 16;
+static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
+static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 1;
+static constexpr int GRID_LEVEL_COUNT = 3;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
+constexpr int iterationChunk = 100;
+constexpr int iterationCount = 100000;
 
-constexpr float resGlobal = 0.20f; 														// mm
+constexpr float resGlobal = 0.30f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -171,11 +173,23 @@ int main(int argc, char **argv)
 	
 	std::cout << "Maximum cells travelled by MBB per iteration: " << dtPhysGlobal * angularVelocity * 17.5f / resGlobal << std::endl;
 	
-	for ( int iteration = 0; iteration < 72; iteration++ )
+	TNL::Timer lapTimer;
+	lapTimer.reset();
+	lapTimer.start();
+	
+	for ( int iteration = 0; iteration < iterationCount; iteration++ )
 	{
-		if ( iteration % 1 == 0 )
+		if ( iteration % iterationChunk == 0 )
 		{
 			std::cout << "Finished iteration " << iteration << std::endl;
+			
+			lapTimer.stop();
+			auto lapTime = lapTimer.getRealTime();
+			const float updateCount = (float)usefulCellUpdatesPerIteration * (float)iterationChunk;
+			const float glups = updateCount / lapTime / 1000000000.f;
+			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
+			
+			/*
 			const float fMax = findMaxFloatArray2D( grids[0].fArray, 27, grids[0].Info.cellCount );
 			std::cout << "fMax " << fMax << std::endl;
 			if ( iteration >= 69 )
@@ -202,7 +216,7 @@ int main(int argc, char **argv)
 					NBR.jPlus = jPlusArrayCPU[ cell ];
 					NBR.kPlus = kPlusArrayCPU[ cell ];
 					NBR.jkPlus = jkPlusArrayCPU[ cell ];
-					finishNBR( NBR, Grid.Info );
+					finishNBRPlus( NBR, Grid.Info );
 					float f[27];
 					int cellReadIndex[27];
 					int fReadIndex[27];
@@ -226,28 +240,22 @@ int main(int argc, char **argv)
 						}
 					}
 				}
-	
 			}
-			/*
+				*/
+			
 			const int r = 14.f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
+			/*
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
 			exportSectionCutPlotZY( grids, iCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
 			*/
+			lapTimer.reset();
+			lapTimer.start();
 		}
 		applyGlobalUpdate(grids, 0, Voxelizer, STLImpellerStationary, STLImpellerMoving );
 	}
-	
-	/*
-	Timer.reset();
-	Timer.start();
-	rebuildGrids( grids, Voxelizer, 0 );
-	Timer.stop();
-	std::cout << "Second rebuild grids from level 0 took " << Timer.getRealTime() << " s" << std::endl;
-	std::cout << std::endl;
-	*/
-	
+		
 	return EXIT_SUCCESS;
 }

@@ -3,7 +3,7 @@
 #include "./types.h"
 #include "./genericArrayFunctions.h"
 
-__host__ __device__ void finishNBR( NBRStruct &NBR, const InfoStruct &Info )
+__host__ __device__ void finishNBRPlus( NBRStruct &NBR, const InfoStruct &Info )
 {
 	NBR.iPlus = NBR.self + 1; if ( NBR.iPlus >= Info.cellCount ) NBR.iPlus = 0;		
 	NBR.ijPlus = NBR.jPlus + 1; if ( NBR.ijPlus >= Info.cellCount ) NBR.ijPlus = 0;

@@ -326,7 +326,7 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			NBR.jPlus = jPlusViewFine( cellFine );
 			NBR.kPlus = kPlusViewFine( cellFine );
 			NBR.jkPlus = jkPlusViewFine( cellFine );
-			finishNBR( NBR, InfoFine );
+			finishNBRPlus( NBR, InfoFine );
 			
 			float fFine[27];
 			int cellReadIndex[27];
@@ -344,7 +344,7 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		NBR.jPlus = jPlusViewCoarse( cellCoarse );
 		NBR.kPlus = kPlusViewCoarse( cellCoarse );
 		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
-		finishNBR( NBR, InfoCoarse );
+		finishNBRPlus( NBR, InfoCoarse );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
@@ -396,7 +396,7 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		NBR.jPlus = jPlusViewCoarse( cellCoarse );
 		NBR.kPlus = kPlusViewCoarse( cellCoarse );
 		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
-		finishNBR( NBR, InfoCoarse );
+		finishNBRPlus( NBR, InfoCoarse );
 		
 		int cellReadIndex[27];
 		int fReadIndex[27];
@@ -412,7 +412,7 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			NBR.jPlus = jPlusViewFine( cellFine );
 			NBR.kPlus = kPlusViewFine( cellFine );
 			NBR.jkPlus = jkPlusViewFine( cellFine );
-			finishNBR( NBR, InfoFine );
+			finishNBRPlus( NBR, InfoFine );
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
 			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperFine, InfoFine );
