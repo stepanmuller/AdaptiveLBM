@@ -81,6 +81,14 @@ void voxelizeSTL( rayMapStruct &rayMap, STLStruct &STL, VoxelizerStruct &Voxeliz
 		const int rayMapMemoryMB = (float)(rayMapElementCount * 4) / 1000000.f;
 		std::cout << "New rayMap allocated on GPU, it takes " << rayMapMemoryMB << " MB" << std::endl;
 	}
+	if ( Voxelizer.rayMapTotal.rayMapArray.getSizes()[0] < 1 ) // we will always need rayMapTotal so we allocate it now
+	{
+		Voxelizer.rayMapTotal.rayMapArray.setSizes( Info.cellCountX, Info.cellCountY, RAY_MAP_DEPTH );
+		Voxelizer.rayMapTotal.hitCounterArray.setSizes( Info.cellCountX, Info.cellCountY );
+		const int rayMapElementCount = Info.cellCountX * Info.cellCountY * (RAY_MAP_DEPTH + 1);
+		const int rayMapMemoryMB = (float)(rayMapElementCount * 4) / 1000000.f;
+		std::cout << "New rayMap allocated on GPU, it takes " << rayMapMemoryMB << " MB" << std::endl;
+	}
 	
 	hitCounterArray.setValue( 0 );
 	rayMapArray.setValue( INT_MAX );

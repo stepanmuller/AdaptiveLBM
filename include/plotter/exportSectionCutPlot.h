@@ -1,162 +1,9 @@
 #include "../cellFunctions.h"
+#include "../NBRFunctions.h"
+#include "../esotwistStreamingFunctions.h"
+
 enum PlaneEnum { XY, ZY, ZX };
 
-/*
-void exportSectionCutPlotGeneral( GridStruct &Grid, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
-{
-	InfoStruct Info = Grid.Info;
-	int cellCountHorizontal, cellCountVertical;
-	if ( plane == XY ) 		{ cellCountHorizontal = Info.cellCountX; cellCountVertical = Info.cellCountY; }
-	else if ( plane == ZY ) { cellCountHorizontal = Info.cellCountZ; cellCountVertical = Info.cellCountY; }
-	else 					{ cellCountHorizontal = Info.cellCountZ; cellCountVertical = Info.cellCountX; }
-	
-	auto fArrayView  = Grid.fArray.getConstView();
-	bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
-	auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
-	
-	auto iView = Grid.IJK.iArray.getConstView();
-	auto jView = Grid.IJK.jArray.getConstView();
-	auto kView = Grid.IJK.kArray.getConstView();
-	
-	bool esotwistFlipper = Grid.esotwistFlipper;
-	auto iPlusView = Grid.NBR.iPlusArray.getConstView();
-	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
-	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto ijPlusView = Grid.NBR.ijPlusArray.getConstView();
-	auto ikPlusView = Grid.NBR.ikPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
-	auto ijkPlusView = Grid.NBR.ijkPlusArray.getConstView();
-	
-	SectionCutStruct SectionCut;
-	SectionCut.rhoArray.setSizes( cellCountVertical, cellCountHorizontal );
-	SectionCut.uxArray.setSizes( cellCountVertical, cellCountHorizontal );
-	SectionCut.uyArray.setSizes( cellCountVertical, cellCountHorizontal );
-	SectionCut.uzArray.setSizes( cellCountVertical, cellCountHorizontal );
-	SectionCut.markerArray.setSizes( cellCountVertical, cellCountHorizontal );
-	
-	SectionCut.rhoArray.setValue( 1.f );
-	SectionCut.uxArray.setValue( 0.f );
-	SectionCut.uyArray.setValue( 0.f );
-	SectionCut.uzArray.setValue( 0.f );
-	SectionCut.markerArray.setValue( 1 );
-		
-	auto rhoArrayView = SectionCut.rhoArray.getView();
-	auto uxArrayView = SectionCut.uxArray.getView();
-	auto uyArrayView = SectionCut.uyArray.getView();
-	auto uzArrayView = SectionCut.uzArray.getView();
-	auto markerArrayView = SectionCut.markerArray.getView();
-
-	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{
-		int iCell = iView[ cell ];
-		int jCell = jView[ cell ];
-		int kCell = kView[ cell ];
-		
-		DIADEsotwistNbrStruct Nbr;
-		Nbr.i = iPlusView( cell );
-		Nbr.j = jPlusView( cell );
-		Nbr.k = kPlusView( cell );
-		Nbr.ij = ijPlusView( cell );
-		Nbr.ik = ikPlusView( cell );
-		Nbr.jk = jkPlusView( cell );
-		Nbr.ijk = ijkPlusView( cell );
-		
-		int indexHorizontal = 0;
-		int indexVertical = 0;
-		
-		if ( plane == XY ) 
-		{
-			if (kCell != cutIndex) return;
-			indexHorizontal = iCell; 
-			indexVertical = jCell; 
-		}
-		else if ( plane == ZY ) 
-		{ 
-			if (iCell != cutIndex) return; 
-			indexVertical = jCell; 
-			indexHorizontal = kCell; 
-		}
-		else 					
-		{ 
-			if (jCell != cutIndex) return; 
-			indexVertical = iCell; 
-			indexHorizontal = kCell; 
-		}
-		
-		float f[27];
-		int cellReadIndex[27];
-		int fReadIndex[27];
-		getEsotwistWriteIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
-		// Using the write index because plotting is happening after collision and we want to be consistent with that last write
-		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
-		
-		float rho, ux, uy, uz;
-		getRhoUxUyUz(rho, ux, uy, uz, f);
-
-		MarkerStruct Marker;
-		if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
-		//getMarkers( iCell, jCell, kCell, Marker, Info );
-		const float marker = Marker.bounceback;
-		rhoArrayView( indexVertical, indexHorizontal ) = rho;
-		uxArrayView( indexVertical, indexHorizontal ) = ux;
-		uyArrayView( indexVertical, indexHorizontal ) = uy;
-		uzArrayView( indexVertical, indexHorizontal ) = uz;
-		markerArrayView( indexVertical, indexHorizontal ) = marker;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, cellLambda );
-	
-	SectionCutStructCPU SectionCutCPU;
-	SectionCutCPU.rhoArray = SectionCut.rhoArray;
-	SectionCutCPU.uxArray = SectionCut.uxArray;
-	SectionCutCPU.uyArray = SectionCut.uyArray;
-	SectionCutCPU.uzArray = SectionCut.uzArray;
-	SectionCutCPU.markerArray = SectionCut.markerArray;
-	
-	FILE* fp = fopen("/dev/shm/sim_data.bin", "wb"); 	// Use /dev/shm/ for a pure RAM-based "file" on Linux
-	int header[4] = {plotNumber, (int)cellCountVertical, (int)cellCountHorizontal, 5};
-	fwrite(header, sizeof(int), 4, fp);
-	
-	for (int indexVertical = 0; indexVertical < cellCountVertical; indexVertical++)
-	{
-		for (int indexHorizontal = 0; indexHorizontal < cellCountHorizontal; indexHorizontal++)
-		{
-			float rho = SectionCutCPU.rhoArray.getElement(indexVertical, indexHorizontal);
-			float ux = SectionCutCPU.uxArray.getElement(indexVertical, indexHorizontal);
-			float uy = SectionCutCPU.uyArray.getElement(indexVertical, indexHorizontal);
-			float uz = SectionCutCPU.uzArray.getElement(indexVertical, indexHorizontal);
-			float marker = SectionCutCPU.markerArray.getElement(indexVertical, indexHorizontal);
-			float p = rho;
-			convertToPhysicalVelocity( ux, uy, uz, Info );
-			convertToPhysicalPressure( p, Info );
-			float uHorizontal, uVertical, uNormal;
-			if ( plane == XY ) 		{ uHorizontal = ux; uVertical = uy; uNormal = uz; }
-			else if ( plane == ZY ) { uHorizontal = uz; uVertical = uy; uNormal = ux; }
-			else 					{ uHorizontal = uz; uVertical = ux; uNormal = uy; }
-			float data[5] = {p, uHorizontal, uVertical, uNormal, marker};
-			fwrite(data, sizeof(float), 5, fp);
-		}
-	}
-	fclose(fp);
-}
-
-void exportSectionCutPlotXY( GridStruct &Grid, const int &kCell, const int &plotNumber )
-{
-	std::cout << "Exporting DIAD XY section cut plot " << plotNumber << std::endl;
-	exportSectionCutPlotGeneral( Grid, kCell, plotNumber, XY );
-}
-void exportSectionCutPlotZY( GridStruct &Grid, const int &iCell, const int &plotNumber )
-{
-	std::cout << "Exporting DIAD ZY section cut plot " << plotNumber << std::endl;
-	exportSectionCutPlotGeneral( Grid, iCell, plotNumber, ZY );
-}
-void exportSectionCutPlotZX( GridStruct &Grid, const int &jCell, const int &plotNumber )
-{
-	std::cout << "Exporting DIAD ZX section cut plot " << plotNumber << std::endl;
-	exportSectionCutPlotGeneral( Grid, jCell, plotNumber, ZX );
-}
-*/
-
-// DIAD Version that dynamically downsamples finest grids to fit VRAM
 void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cutIndex, const int &plotNumber, PlaneEnum plane )
 {
 	const int levelCount = grids.size();
@@ -211,7 +58,7 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 	for ( int level = 0; level < levelCount; level++ )
 	{
 		GridStruct &Grid = grids[level];
-		InfoStruct Info = Grid.Info;
+		const InfoStruct &Info = Grid.Info;
 		
 		// cellScale is relative to the absolute finest grid (levelCount)
 		const int cellScale = std::pow(2, (levelCount - Info.gridID - 1) );
@@ -219,16 +66,16 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 		auto fArrayView  = Grid.fArray.getConstView();
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
 		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
-		bool useRefinementMarkerArray = ( Grid.refinementMarkerArray.getSize() > 0 );
+		bool useRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
 		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
-		auto refinementMarkerArrayView = Grid.refinementMarkerArray.getConstView();
+		auto deepRefinementMarkerArrayView = Grid.deepRefinementMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
 		auto kView = Grid.IJK.kArray.getConstView();
 		
-		bool esotwistFlipper = Grid.esotwistFlipper;
+		const bool &esotwistFlipper = Grid.esotwistFlipper;
 		
 		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
@@ -241,15 +88,12 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			int jCell = jView[ cell ] * cellScale;
 			int kCell = kView[ cell ] * cellScale;
 			
-			NBRStruct Nbr;
-			Nbr.self = cell;
-			Nbr.iPlus = cell + 1; if ( Nbr.iPlus >= Info.cellCount ) Nbr.iPlus = 0;
-			Nbr.jPlus = jPlusView( cell );
-			Nbr.kPlus = kPlusView( cell );
-			Nbr.ijPlus = Nbr.jPlus + 1; if ( Nbr.jPlus >= Info.cellCount ) Nbr.jPlus = 0;
-			Nbr.ikPlus = Nbr.kPlus + 1; if ( Nbr.kPlus >= Info.cellCount ) Nbr.kPlus = 0;
-			Nbr.jkPlus = jkPlusView( cell );
-			Nbr.ijkPlus = Nbr.jkPlus + 1; if ( Nbr.jkPlus > Info.cellCount ) Nbr.jkPlus = 0;
+			NBRStruct NBR;
+			NBR.self = cell;
+			NBR.jPlus = jPlusView( cell );
+			NBR.kPlus = kPlusView( cell );
+			NBR.jkPlus = jkPlusView( cell );
+			finishNBR( NBR, Info );
 			
 			int indexHorizontal = 0;
 			int indexVertical = 0;
@@ -275,10 +119,10 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			}
 			
 			float f[27];
-			//int cellReadIndex[27];
-			//int fReadIndex[27];
-			//getEsotwistWriteIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
-			for ( int direction = 0; direction < 27; direction++ )	f[direction] = 1.f/27.f;//fArrayView(fReadIndex[direction], cellReadIndex[direction]);
+			int cellReadIndex[27];
+			int fReadIndex[27];
+			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
 			getRhoUxUyUz(rho, ux, uy, uz, f);
@@ -286,8 +130,8 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			MarkerStruct Marker;
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
 			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
-			if ( useRefinementMarkerArray ) Marker.refinement = refinementMarkerArrayView( cell );
-			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.refinement;
+			if ( useRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerArrayView( cell );
+			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.deepRefinement;
 			
 			// 3. Mapping coordinates to the scaled-down output array
 			int outYStart = indexVertical / targetScale;
@@ -375,8 +219,6 @@ void exportSectionCutPlotZX( std::vector<GridStruct> &grids, const int &jCell, c
 	exportSectionCutPlotGeneral( grids, jCell, plotNumber, ZX );
 }
 
-/*
-// DIAD Version of Toilet Paper Plot that dynamically downsamples finest grids to fit VRAM
 void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const float &r, const int &plotNumber )
 {
 	std::cout << "Exporting DIAD Toilet Paper Z section cut plot " << plotNumber << " at radius " << r << " mm" << std::endl;
@@ -447,20 +289,21 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 		
 		auto fArrayView  = Grid.fArray.getConstView();
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
+		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
+		bool useRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
+		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
+		auto deepRefinementMarkerArrayView = Grid.deepRefinementMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
 		auto kView = Grid.IJK.kArray.getConstView();
 		
-		bool esotwistFlipper = Grid.esotwistFlipper;
-		auto iPlusView = Grid.NBR.iPlusArray.getConstView();
+		const bool &esotwistFlipper = Grid.esotwistFlipper;
+		
 		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-		auto ijPlusView = Grid.NBR.ijPlusArray.getConstView();
-		auto ikPlusView = Grid.NBR.ikPlusArray.getConstView();
 		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
-		auto ijkPlusView = Grid.NBR.ijkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -468,6 +311,13 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			int iCell = iView[ cell ] * cellScale; 
 			int jCell = jView[ cell ] * cellScale;
 			int kCell = kView[ cell ] * cellScale;
+			
+			NBRStruct NBR;
+			NBR.self = cell;
+			NBR.jPlus = jPlusView( cell );
+			NBR.kPlus = kPlusView( cell );
+			NBR.jkPlus = jkPlusView( cell );
+			finishNBR( NBR, Info );
 			
 			// Compute physical center of this cell (x, y) relative to the origin
 			float xc = ((float)iCell + 0.5f * cellScale - (float)iOriginFinest) * FinestInfo.res;
@@ -486,15 +336,11 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			
 			float s = theta * r;
 			int finestVerticalIndex = (int)(s / FinestInfo.res);
-
-			// Extract f populations and compute macroscopic fields
-			DIADEsotwistNbrStruct Nbr;
-			Nbr.i = iPlusView( cell ); Nbr.j = jPlusView( cell ); Nbr.k = kPlusView( cell );
-			Nbr.ij = ijPlusView( cell ); Nbr.ik = ikPlusView( cell ); Nbr.jk = jkPlusView( cell ); Nbr.ijk = ijkPlusView( cell );
 			
 			float f[27];
-			int cellReadIndex[27], fReadIndex[27];
-			getEsotwistWriteIndex( cell, cellReadIndex, fReadIndex, Nbr, esotwistFlipper, Info ); 
+			int cellReadIndex[27];
+			int fReadIndex[27];
+			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
@@ -502,7 +348,9 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 
 			MarkerStruct Marker;
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
-			const float marker = Marker.bounceback;
+			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
+			if ( useRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerArrayView( cell );
+			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.deepRefinement;
 			
 			// 3. Mapping coordinates to the scaled-down 2D unrolled array
 			int spanY = max(1, cellScale / targetScale);
@@ -582,6 +430,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 	fclose(fp);
 }
 
+/*
 void exportHistoryData( const std::vector<float>& historyVector, const int &currentIteration ) {
     FILE* fp = fopen("/dev/shm/historyData.bin", "wb");
     if (!fp) return;

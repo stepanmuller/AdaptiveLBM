@@ -86,7 +86,7 @@ using IntTripleType = TNL::Containers::StaticArray< 3, int >;
 //--------------------------------- STRUCTS  -----------------------------------------
 //------------------------------------------------------------------------------------
 
-struct InfoStruct { float gridID = 0; 
+struct InfoStruct { float gridID = 0; float gridMemoryMB; int iterationsFinished = 0;
 					float res = 1.f; float ox = 0.f; float oy = 0.f; float oz = 0.f; 
 					float nu = 1.f; float dtPhys = 1.f; 
 					int cellCountX = 0; int cellCountY = 0; int cellCountZ = 0; 
@@ -95,7 +95,7 @@ struct InfoStruct { float gridID = 0;
 					int fineToCoarseCount = 0; int coarseToFineCount = 0; 
 					int memoryCount = 0; int memoryCountFull = 0; 
 					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0;
-					bool esotwistFlipper = 0; 
+					bool esotwistFlipper = 0; int updatesSinceRebuild = 0; int updatesSinceMovingBouncebackUpdate = 0;
 					float pRegulator = 0.f; float iRegulator = 0.f; };
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;

@@ -284,7 +284,7 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, const floa
 	const float k_011 = (k_c11 + k_a11) + k_b11;
 	const float k_020 = (k_c20 + k_a20) + k_b20;
 
-	const float k_100 = (k_c00 - k_a00) - ux * k_000;
+	// const float k_100 = (k_c00 - k_a00) - ux * k_000; // not needed
 	const float k_101 = (k_c01 - k_a01) - ux * k_001;
 	const float k_110 = (k_c10 - k_a10) - ux * k_010;
 

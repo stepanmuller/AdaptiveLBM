@@ -3,7 +3,7 @@
 #include "./types.h"
 #include "./genericArrayFunctions.h"
 
-__host__ __device__ int finishNBR( NBRStruct &NBR, const InfoStruct &Info )
+__host__ __device__ void finishNBR( NBRStruct &NBR, const InfoStruct &Info )
 {
 	NBR.iPlus = NBR.self + 1; if ( NBR.iPlus >= Info.cellCount ) NBR.iPlus = 0;		
 	NBR.ijPlus = NBR.jPlus + 1; if ( NBR.jPlus >= Info.cellCount ) NBR.jPlus = 0;
@@ -81,67 +81,6 @@ void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, c
 		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
-}
-
-void skipOneUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArray, const IntArrayType &nbrOldArray, BoolArrayType &finishedMarkerArray, const int &upperBound )
-{
-	// For each cell, if its neighbour is not marked, travel one neighbour up (set our neighbour to the neighbour's neighbour)
-	auto nbrView = nbrArray.getView();
-	auto nbrOldView = nbrOldArray.getConstView();
-	auto markerView = markerArray.getConstView();
-	auto finishedMarkerView = finishedMarkerArray.getView();
-	
-	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{
-		if ( finishedMarkerView[ cell ] ) return;
-		int nbr = nbrOldView[ cell ];
-		if ( nbr == cell || markerView[ nbr ] ) // the first condition clicks if we already travelled a full closed unmarked loop
-		{
-			nbrView[ cell ] = nbr;
-			finishedMarkerView[ cell ] = true;
-			return;
-		}
-		int newNBR = nbrOldView[ nbr ]; // neighbour of our neighbour
-		nbrView[ cell ] = newNBR;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
-}
-
-int countUnfinishedNBR( const BoolArrayType &markerArray, const BoolArrayType &finishedMarkerArray, const int &upperBound )
-{
-	auto markerView = markerArray.getConstView();
-	auto finishedMarkerView = finishedMarkerArray.getConstView();
-	auto fetch = [ = ] __cuda_callable__( const int cell )
-	{
-		if ( markerView[ cell ] && !finishedMarkerView[ cell ] ) return 1; // sum those who are marked but not finished - we only care about those
-		else return 0;
-	};
-	auto reduction = [] __cuda_callable__( const int& a, const int& b )
-	{
-		return a + b;
-	};
-	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
-}
-
-void skipAllUnmarkedNBR( IntArrayType &nbrArray, const BoolArrayType &markerArray, IntArrayType &intBuffer, BoolArrayType &markerBuffer, const int &upperBound )
-{
-	// Receives nbrArray, which also points on cells that are not marked
-	// For each cell, while its neighbour is not marked, we want to travel up the neighbour list
-	// to find the first marked neighbour
-	IntArrayType &nbrOldArray = intBuffer;
-	BoolArrayType &finishedMarkerArray = markerBuffer;
-	
-	finishedMarkerArray.setValue( false );
-	int unfinishedCount = upperBound;
-	
-	nbrOldArray = nbrArray;
-	
-	while ( unfinishedCount > 0 )
-	{
-		nbrArray.swap( nbrOldArray ); // pointer swap without data travel
-		skipOneUnmarkedNBR( nbrArray, markerArray, nbrOldArray, finishedMarkerArray, upperBound );
-		unfinishedCount = countUnfinishedNBR( markerArray, finishedMarkerArray, upperBound );
-	}
 }
 
 void connectNBRHoles( IntArrayType &nbrArray, const NBRHoleMapStruct &NBRHoleMap, const int &firstBound, const int &secondBound )

@@ -12,15 +12,17 @@
 
 void updateGrid( GridStruct &Grid )
 {
-	const InfoStruct &Info = Grid.Info;
+	applyStreaming( Grid );
+	
+	InfoStruct &Info = Grid.Info;
+	const bool &esotwistFlipper = Grid.esotwistFlipper;
 	
 	auto fArrayView  = Grid.fArray.getView();
 	
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
-	
-	const bool &esotwistFlipper = Grid.esotwistFlipper;
+
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
@@ -112,4 +114,7 @@ void updateGrid( GridStruct &Grid )
 		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, cellLambda );
+	Info.updatesSinceRebuild++; 
+	Info.updatesSinceMovingBouncebackUpdate++;
+	Info.iterationsFinished++;
 }

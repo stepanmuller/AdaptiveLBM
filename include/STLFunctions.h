@@ -309,7 +309,7 @@ void rotateSTLAlongZ( STLStruct &STL, const float &radians )
 }
 
 // Versions with source and target that don't overwrite the source STL
-void rotateSTLAlongX( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+void rotateSTLAlongX( STLStruct &STLTarget, const STLStruct &STLSource, const float radians )
 {
     auto sourceAyView = STLSource.ayArray.getConstView();
     auto sourceAzView = STLSource.azArray.getConstView();
@@ -355,7 +355,7 @@ void rotateSTLAlongX( const STLStruct &STLSource, STLStruct &STLTarget, const fl
     TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STLSource.triangleCount, rotateLambda );
 }
 
-void rotateSTLAlongY( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+void rotateSTLAlongY( STLStruct &STLTarget, const STLStruct &STLSource, const float radians )
 {
     auto sourceAxView = STLSource.axArray.getConstView();
     auto sourceAzView = STLSource.azArray.getConstView();
@@ -401,7 +401,7 @@ void rotateSTLAlongY( const STLStruct &STLSource, STLStruct &STLTarget, const fl
     TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, STLSource.triangleCount, rotateLambda );
 }
 
-void rotateSTLAlongZ( const STLStruct &STLSource, STLStruct &STLTarget, const float radians )
+void rotateSTLAlongZ( STLStruct &STLTarget, const STLStruct &STLSource, const float radians )
 {
     auto sourceAxView = STLSource.axArray.getConstView();
     auto sourceAyView = STLSource.ayArray.getConstView();

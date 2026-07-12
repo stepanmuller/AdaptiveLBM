@@ -43,3 +43,23 @@ int countOnesInBoolArray( const BoolArrayType &boolArray, const int &upperBound 
 	};
 	return TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, upperBound, fetch, reduction, 0 );
 }
+
+int countOnesInBoolArray2D( const BoolArray2DType &boolArray, const int &firstBound, const int &secondBound )
+{
+	auto boolView = boolArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
+	{
+		const int i = singleIndex % firstBound;
+		const int j = singleIndex / firstBound;
+		if ( boolView( i, j ) ) return 1;
+		else return 0;
+	};
+	auto reduction = [] __cuda_callable__( const int& a, const int& b )
+	{
+		return a + b;
+	};
+	const int start = 0;
+	const int end = firstBound * secondBound;
+	const int onesCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
+	return onesCount;
+}
