@@ -3,9 +3,10 @@ static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 5;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
 
-constexpr float resGlobal = 0.28f; 
+constexpr float resGlobal = 0.3f; 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
 constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water

@@ -4,6 +4,252 @@
 #include "./genericArrayFunctions.h"
 #include "./voxelizerFunctions.h"
 
+void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
+{
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	markerArray.setValue( false );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCell = iView[ cell ];
+		const int jCell = jView[ cell ];
+		const int kCell = kView[ cell ];
+		int kStart, kEnd;
+		for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
+		{
+			kStart = rayMapView( iCell, jCell, startIndex );
+			if ( kStart > kCell ) break;
+			kEnd = rayMapView( iCell, jCell, startIndex + 1 );
+			if ( kEnd > kCell )
+			{
+				markerView[ cell ] = true;
+				return;
+			}
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
+{
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / Grid.Info.cellCountX;
+	
+	markerArray.setValue( true );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCoarse = iView[ cell ];
+		const int jCoarse = jView[ cell ];
+		const int kCoarse = kView[ cell ];
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
+				{
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd < kFineFirst ) continue;
+					else if ( kEnd >= kFineFirst && kEnd <= kFineLast ) return;
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart <= kFineFirst ) break;
+					else return;
+				}
+			}
+		}
+		markerView[ cell ] = false;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
+{
+	// marks the top master grid based on a fine rayMapArray, result is 1 if at least one fine cell is 0 (fluid)
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
+	const int cellCount = SkeletonGrid.Info.cellCount;
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / cellCountX;
+	
+	markerArray.setValue( true );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int kCoarse = cell / (cellCountX * cellCountY);
+		const int remainder = cell % (cellCountX * cellCountY);
+		const int jCoarse = remainder / cellCountX;
+		const int iCoarse = remainder % cellCountX;
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
+				{
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd < kFineFirst ) continue;
+					else if ( kEnd >= kFineFirst && kEnd <= kFineLast ) return;
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart <= kFineFirst ) break;
+					else return;
+				}
+			}
+		}
+		markerView[ cell ] = false;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+}
+
+void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
+{
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
+	const int cellCountX = Grid.Info.cellCountX;
+	const int cellCountY = Grid.Info.cellCountY;
+	const int cellCountZ = Grid.Info.cellCountZ;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / Grid.Info.cellCountX;
+	
+	markerArray.setValue( false );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCoarse = iView[ cell ];
+		const int jCoarse = jView[ cell ];
+		const int kCoarse = kView[ cell ];
+		// early exit if we are on the boundary: 
+		// we will automatically refine the boundary to prevent having interface cross a boundary condition
+		if ( iCoarse == 0 || iCoarse == cellCountX-1 
+				|| jCoarse == 0 || jCoarse == cellCountY-1 
+				|| kCoarse == 0 || kCoarse == cellCountZ-1 ) 
+			{
+				markerView[ cell ] = true;
+				return;
+			}	
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
+				{
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart > kFineLast ) break;
+					else if ( kStart >= kFineFirst ) 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd <= kFineFirst ) continue;
+					else 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+				}
+			}
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
+void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const SkeletonGridStruct &SkeletonGrid )
+{
+	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
+	const int cellCountX = SkeletonGrid.Info.cellCountX;
+	const int cellCountY = SkeletonGrid.Info.cellCountY;
+	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
+	const int cellCount = SkeletonGrid.Info.cellCount;
+	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
+	auto markerView = markerArray.getView();
+	auto rayMapView = rayMapArray.getConstView();
+	
+	const int downsample = rayMapArray.getSizes()[0] / cellCountX;
+	
+	markerArray.setValue( false );
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int kCoarse = cell / (cellCountX * cellCountY);
+		const int remainder = cell % (cellCountX * cellCountY);
+		const int jCoarse = remainder / cellCountX;
+		const int iCoarse = remainder % cellCountX;
+		const int iFineFirst = iCoarse * downsample;
+		const int jFineFirst = jCoarse * downsample;
+		const int kFineFirst = kCoarse * downsample;
+		const int kFineLast = kFineFirst + downsample - 1;
+		int iFine, jFine, kStart, kEnd;
+		for ( int jAdd = 0; jAdd < downsample; jAdd++ )
+		{
+			jFine = jFineFirst + jAdd; 
+			for ( int iAdd = 0; iAdd < downsample; iAdd++ )
+			{
+				iFine = iFineFirst + iAdd;
+				for ( int startIndex = 0; startIndex < RAY_MAP_DEPTH; startIndex = startIndex + 2 )
+				{
+					kStart = rayMapView( iFine, jFine, startIndex );
+					if ( kStart > kFineLast ) break;
+					else if ( kStart >= kFineFirst ) 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+					kEnd = rayMapView( iFine, jFine, startIndex + 1 );
+					if ( kEnd <= kFineFirst ) continue;
+					else 
+					{
+						markerView[ cell ] = true;
+						return;
+					}
+				}
+			}
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+}
+
 void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
 {
 	// The way this is written creates a race condition, one that is harmless because all threads write the same 1
@@ -116,8 +362,7 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 
 void markKeepCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const int &upperBound )
 {
-	// the marking functions used here are defined in voxelizerFunctions.h
-	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );	// <- this is currently not working, it doesnt mark any cells
+	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
 	Grid.keepCellMarkerArray.swap( Grid.markerBuffer );
 	spreadMarkers( Grid.keepCellMarkerArray, Grid.markerBuffer, Grid, upperBound );
 	// the moving bounceback geometry can travel distance up to 2 cells before the grid is fully rebuild

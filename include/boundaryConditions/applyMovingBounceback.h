@@ -5,8 +5,13 @@
 // cy: { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
 // cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 
-__host__ __device__ void applyMovingBounceback( float (&f)[27], const float &ux, const float &uy, const float &uz )
+__host__ __device__ void applyMovingBounceback( float (&f)[27], const BCRhoUGStruct &BCRhoUG )
 {
+	
+	const float ux = BCRhoUG.ux;
+	const float uy = BCRhoUG.uy;
+	const float uz = BCRhoUG.uz;
+	
 	float fTemp, cu;
 
 	// Precalculated multipliers: 2 * w_i / c_s^2 (where c_s^2 = 1/3) -> 6 * w_i

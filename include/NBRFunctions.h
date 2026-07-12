@@ -3,6 +3,14 @@
 #include "./types.h"
 #include "./genericArrayFunctions.h"
 
+__host__ __device__ int finishNBR( NBRStruct &NBR, const InfoStruct &Info )
+{
+	NBR.iPlus = NBR.self + 1; if ( NBR.iPlus >= Info.cellCount ) NBR.iPlus = 0;		
+	NBR.ijPlus = NBR.jPlus + 1; if ( NBR.jPlus >= Info.cellCount ) NBR.jPlus = 0;
+	NBR.ikPlus = NBR.kPlus + 1; if ( NBR.kPlus >= Info.cellCount ) NBR.kPlus = 0;
+	NBR.ijkPlus = NBR.jkPlus + 1; if ( NBR.jkPlus > Info.cellCount ) NBR.jkPlus = 0;
+}
+
 void getNBRArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int kPlus, const SkeletonGridStruct &SkeletonGrid )
 {
 	const int cellCount = SkeletonGrid.Info.cellCount;

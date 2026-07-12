@@ -1,9 +1,14 @@
 __host__ __device__ void restoreRho(
 	const int &outerNormalX, const int &outerNormalY, const int &outerNormalZ,
-	float &rho, const float &ux, const float &uy, const float &uz,
+	BCRhoUGStruct &BCRhoUG,
 	const float (&f)[27]
 )
 {
+	float &rho = BCRhoUG.rho;
+	const float &ux = BCRhoUG.ux;
+	const float &uy = BCRhoUG.uy;
+	const float &uz = BCRhoUG.uz;
+	
 	const int normalCode = (outerNormalX + 5) * 100 + (outerNormalY + 5) * 10 + (outerNormalZ + 5);
 	if ( normalCode == 655 )
 	{

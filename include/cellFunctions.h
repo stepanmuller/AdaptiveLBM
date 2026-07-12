@@ -140,10 +140,10 @@ __cuda_callable__ void getRhoUxUyUz(
 			+f[21] - f[22] - f[23] + f[24] - f[25] + f[26]) / rho;
 }
 
-__cuda_callable__ void getOmegaLES( const float (&fneq)[27], const float &rho, const float &nu, const float &SmagorinskyConstant, float &omegaLES )
+__cuda_callable__ void getOmegaLES( const float (&fneq)[27], const float &rho, const float &nu, float &omegaLES )
 {
 	const float tau = 3.f * nu + 0.5f;
-	if (SmagorinskyConstant == 0)
+	if (SMAGORINSKY_CONSTANT == 0)
 	{
 		omegaLES = 1 / tau;
 		return;
@@ -177,7 +177,7 @@ __cuda_callable__ void getOmegaLES( const float (&fneq)[27], const float &rho, c
 
 	P = sqrt(P);
 
-	const float CLES_term = 18.f * SmagorinskyConstant * (1.f/rho);
+	const float CLES_term = 18.f * SMAGORINSKY_CONSTANT * (1.f/rho);
 	const float tauLES = 0.5 * tau + 0.5 * sqrt(tau * tau + CLES_term * P);
 
 	omegaLES = 1 / tauLES;
