@@ -1,3 +1,7 @@
+#pragma once
+
+#include "./cellFunctions.h"
+
 // Cummulant collision
 //
 // Martin Geier 2015, 2017

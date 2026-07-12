@@ -20,6 +20,8 @@ constexpr float soundspeedPhys = invSqrt3 * (resGlobal/1000) / dtPhysGlobal; 			
 #include "../../include/adaptiveGridFunctions.h"
 #include "../../include/STLFunctions.h"
 #include "../../include/voxelizerFunctions.h"
+#include "../../include/updateGrid.h"
+#include "../../include/updateInterface.h"
 #include "../../include/plotter/OLDexportSectionCutPlot.h"
 
 std::string STLPathMain = "M-Jet_35_pump_main.STL";
@@ -78,7 +80,7 @@ int main(int argc, char **argv)
 	
 	const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX / 2;
 	exportSectionCutPlotZY( grids, iCut, 0 );
-	system("python3 ../../include/plotter/plotterGridID.py");
+	int bleble = system("python3 ../../include/plotter/plotterGridID.py");
 	
 	/*
 	Timer.reset();

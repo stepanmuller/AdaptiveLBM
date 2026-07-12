@@ -102,7 +102,7 @@ struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBouncebac
 						bool BCRho = 0; bool BCU = 0; bool BCNonReflectiveOutlet = 0; 
 						bool refinement = 0; bool deepRefinement = 0; };
 						
-struct BCRhoUGStruct { rho = 1.f, ux = 0.f, uy = 0.f, uz = 0.f, gx = 0.f, gy = 0.f, gz = 0.f; };
+struct BCRhoUGStruct { float rho = 1.f; float ux = 0.f; float uy = 0.f; float uz = 0.f; float gx = 0.f; float gy = 0.f; float gz = 0.f; };
 
 struct BoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 
 					

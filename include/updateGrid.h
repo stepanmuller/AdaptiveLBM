@@ -1,7 +1,9 @@
 #pragma once
 
 #include "./applyCollision.h"
+#include "./esotwistStreamingFunctions.h"
 #include "./cellFunctions.h"
+#include "./NBRFunctions.h"
 #include "./boundaryConditions/applyBounceback.h"
 #include "./boundaryConditions/applyMovingBounceback.h"
 #include "./boundaryConditions/restoreRho.h"
@@ -38,7 +40,7 @@ void updateGrid( GridStruct &Grid )
 		const int kCell = kView( cell );
 		
 		MarkerStruct Marker;
-		if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerView( cell );
+		if ( useBouncebackMarkerArray ) Marker.bounceback = bouncebackMarkerView( cell );
 		if ( useMovingBouncebackMarkerArray ) Marker.movingBounceback = movingBouncebackMarkerView( cell );
 		if ( useDeepRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerView( cell );
 		getMarkers( iCell, jCell, kCell, Marker, Info );
@@ -57,7 +59,7 @@ void updateGrid( GridStruct &Grid )
 		float f[27];
 		int cellReadIndex[27];
 		int fReadIndex[27];
-		getPreCollisionIndex( cell, cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+		getPreCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 		
 		BCRhoUGStruct BCRhoUG;
@@ -72,7 +74,7 @@ void updateGrid( GridStruct &Grid )
 			applyMovingBounceback( f, BCRhoUG );
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
-			getPostCollisionIndex( cell, cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
+			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 			return;
 		}
@@ -81,7 +83,7 @@ void updateGrid( GridStruct &Grid )
 		{
 			// do nothing, just skip the else block below
 		}
-		else if ( Marker.nonReflectiveOutlet )
+		else if ( Marker.BCNonReflectiveOutlet )
 		{
 			// also do nothing, just skip the else block below
 		}
@@ -104,7 +106,7 @@ void updateGrid( GridStruct &Grid )
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
-		getPostCollisionIndex( cell, cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
+		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		
 		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 		

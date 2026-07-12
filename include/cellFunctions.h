@@ -313,7 +313,7 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, const floa
 	float fneq[27];
 	getFneq(f, feq, fneq);
 	float omegaLES;
-	getOmegaLES(fneq, rho, nu, SmagorinskyConstant, omegaLES);
+	getOmegaLES(fneq, rho, nu, omegaLES);
 
 	const float omega1 = omegaLES;
 	
