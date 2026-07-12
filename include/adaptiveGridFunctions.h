@@ -1108,14 +1108,15 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 			std::cout << "Grid level " << level << " allocated on GPU, it takes " << Grid.Info.gridMemoryMB << " MB" << std::endl;
 		}
 	}
-	// 16)
+	
+	// 16 recursion
+	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
+	
+	// 17
 	if ( !iAmCoarsest )
 	{
 		updateInterface(grids[level - 1], Grid);
 	}
-	
-	// 167 recursion
-	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
 }
 
 void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds, const int level )

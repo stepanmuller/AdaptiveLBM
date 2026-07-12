@@ -9,7 +9,7 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 3;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
-constexpr int iterationChunk = 100;
+constexpr int iterationChunk = 8;
 constexpr int iterationCount = 100000;
 
 constexpr float resGlobal = 0.30f; 														// mm
@@ -109,14 +109,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 
 void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStruct &Voxelizer, STLStruct &STLImpellerStationary, STLStruct &STLImpellerMoving ) 
 {
-	//applyNonReflectiveOutletZ(grids[level]);
-    updateGrid(grids[level]);
-    if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
-    {
-        for ( int i = 0; i < 2; i++) applyGlobalUpdate(grids, level + 1, Voxelizer, STLImpellerStationary, STLImpellerMoving );
-        updateInterface(grids[level], grids[level + 1]);
-    }
-    if ( level == GRID_LEVEL_COUNT - 1 ) // I am the finest grid
+	if ( level == GRID_LEVEL_COUNT - 1 ) // I am the finest grid
     {
 		if (grids[level].Info.updatesSinceMovingBouncebackUpdate >= MOVING_BOUNCEBACK_UPDATE_PERIOD )
 		{
@@ -128,10 +121,17 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 			updateMovingBounceback( grids[level], Voxelizer );
 		}
 	}
-    if ( grids[level].Info.updatesSinceRebuild >= GRID_REBUILD_PERIOD )
+	if ( grids[level].Info.updatesSinceRebuild >= GRID_REBUILD_PERIOD )
     {
 		rebuildGrids( grids, Voxelizer, level );
 	}
+	//applyNonReflectiveOutletZ(grids[level]);
+    updateGrid(grids[level]);
+    if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
+    {
+        for ( int i = 0; i < 2; i++) applyGlobalUpdate(grids, level + 1, Voxelizer, STLImpellerStationary, STLImpellerMoving );
+        updateInterface(grids[level], grids[level + 1]);
+    }
 }
 
 int main(int argc, char **argv)
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 				*/
 			
 			const int r = 14.f;
-			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
+			exportSectionCutPlotToiletPaperZ( grids, r, iteration / iterationChunk );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
 			/*
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
