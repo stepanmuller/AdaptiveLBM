@@ -5,6 +5,7 @@
 #include "./voxelizerFunctions.h"
 #include "./NBRFunctions.h"
 #include "./markerFunctions.h"
+#include "./updateInterface.h"
 #include "./boundaryConditions/applyInitialCondition.h"
 
 __host__ __device__ int getFinerGridIndex( 	const int &refinedIndex,
@@ -857,7 +858,6 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	
 	// 1) Pull fArray into the correct cells to be able to forget NBR
 	if ( !initPass ) pullFArrayIntoCells( Grid );
-	std::cout << "step 1 done" << std::endl;
 	// 2) Mark refinement area
 	if ( iAmCoarsest )
 	{
@@ -913,13 +913,11 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		std::cout << "rebuildGrid failed on level " << level << ", memoryCountFull = " << Info.memoryCountFull << ", cellCountFull = " << Info.cellCountFull << std::endl;
 		throw std::runtime_error("rebuildGrid failed, cellCountFull exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE in your main file.");
 	}
-	std::cout << "step 2 done" << std::endl;
 	// 3) Build our grid (we are the "finer grid" with respect to the grid we are taking spatial information from)
 	
 	if ( iAmCoarsest ) buildFinerGrid( SkeletonGrid, Grid );
 	else buildFinerGrid( GridCoarse, Grid );
 	IntArrayType &oldToFullArray = Grid.intBuffer1; // We cannot touch intBuffer1 now!
-	std::cout << "step 3 done" << std::endl;
 	// 4) Get rid of the cells that are deep inside solid. Only keep the necessary ones, mark them in keepCellMarkerArray
 	markKeepCells( Grid, Voxelizer, Info.cellCountFull );
 	Info.cellCount = countOnesInBoolArray( Grid.keepCellMarkerArray, Info.cellCountFull );
@@ -1110,8 +1108,13 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 			std::cout << "Grid level " << level << " allocated on GPU, it takes " << Grid.Info.gridMemoryMB << " MB" << std::endl;
 		}
 	}
+	// 16)
+	if ( !iAmCoarsest )
+	{
+		updateInterface(grids[level - 1], Grid);
+	}
 	
-	// 16) recursion
+	// 167 recursion
 	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
 }
 

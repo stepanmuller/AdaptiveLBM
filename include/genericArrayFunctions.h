@@ -63,3 +63,22 @@ int countOnesInBoolArray2D( const BoolArray2DType &boolArray, const int &firstBo
 	const int onesCount = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0 );
 	return onesCount;
 }
+
+float findMaxFloatArray2D( const FloatArray2DType &floatArray, const int &firstBound, const int &secondBound )
+{
+	auto floatView = floatArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int singleIndex )
+	{
+		const int i = singleIndex % firstBound;
+		const int j = singleIndex / firstBound;
+		return std::fabs(floatView( i, j ));
+	};
+	auto reduction = [] __cuda_callable__( const float& a, const float& b )
+	{
+		return TNL::max( a, b );
+	};
+	const int start = 0;
+	const int end = firstBound * secondBound;
+	const float floatMax = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0.f );
+	return floatMax;
+}

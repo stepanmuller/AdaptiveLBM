@@ -6,11 +6,11 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 4;
 static constexpr int GRID_REBUILD_PERIOD = 16;
 
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
 
-constexpr float resGlobal = 0.30f; 														// mm
+constexpr float resGlobal = 0.20f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -128,17 +128,8 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 	}
     if ( grids[level].Info.updatesSinceRebuild >= GRID_REBUILD_PERIOD )
     {
-		const float radians = grids[level].Info.iterationsFinished * grids[level].Info.dtPhys * angularVelocity;
-		rotateSTLAlongZ( STLImpellerMoving, STLImpellerStationary, radians );
-		Voxelizer.rayMapTotal = Voxelizer.rayMapBounceback;
-		voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLImpellerMoving, Voxelizer );
-		sumRayMaps( Voxelizer.rayMapTotal, Voxelizer.rayMapMovingBounceback );
-		std::cout << "trying to do rebuildGrids on level " << level << std::endl;
 		rebuildGrids( grids, Voxelizer, level );
-		std::cout << "rebuildGrids on level " << level << " succeeded" << std::endl;
-		if (level < GRID_LEVEL_COUNT - 1) updateInterface(grids[level], grids[level + 1]);
 	}
-    
 }
 
 int main(int argc, char **argv)
@@ -178,18 +169,76 @@ int main(int argc, char **argv)
 	std::cout << "Useful cell updates per iteration " << usefulCellUpdatesPerIteration << std::endl; 	
 	std::cout << std::endl;
 	
-	for ( int iteration = 0; iteration < 100000; iteration++ )
+	std::cout << "Maximum cells travelled by MBB per iteration: " << dtPhysGlobal * angularVelocity * 17.5f / resGlobal << std::endl;
+	
+	for ( int iteration = 0; iteration < 72; iteration++ )
 	{
 		if ( iteration % 1 == 0 )
 		{
 			std::cout << "Finished iteration " << iteration << std::endl;
+			const float fMax = findMaxFloatArray2D( grids[0].fArray, 27, grids[0].Info.cellCount );
+			std::cout << "fMax " << fMax << std::endl;
+			if ( iteration >= 69 )
+			{
+				GridStruct &Grid = grids[0];
+				InfoStruct &Info = Grid.Info;
+				FloatArray2DTypeCPU fArrayCPU;
+				fArrayCPU = Grid.fArray;
+				
+				IntArrayTypeCPU jPlusArrayCPU;
+				IntArrayTypeCPU kPlusArrayCPU;
+				IntArrayTypeCPU jkPlusArrayCPU;
+				jPlusArrayCPU = Grid.NBR.jPlusArray;
+				kPlusArrayCPU = Grid.NBR.kPlusArray;
+				jkPlusArrayCPU = Grid.NBR.jkPlusArray;
+				
+				BoolArrayTypeCPU movingBouncebackMarkerCPU;
+				movingBouncebackMarkerCPU = Grid.movingBouncebackMarkerArray;
+				
+				for ( int cell = 0; cell < Grid.Info.cellCount; cell++ )
+				{
+					NBRStruct NBR;
+					NBR.self = cell;
+					NBR.jPlus = jPlusArrayCPU[ cell ];
+					NBR.kPlus = kPlusArrayCPU[ cell ];
+					NBR.jkPlus = jkPlusArrayCPU[ cell ];
+					finishNBR( NBR, Grid.Info );
+					float f[27];
+					int cellReadIndex[27];
+					int fReadIndex[27];
+					getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, Grid.esotwistFlipper, Grid.Info );
+					for ( int direction = 0; direction < 27; direction++ )
+					{
+						if ( cellReadIndex[direction] >= Info.cellCount )
+						{
+							std::cout << "Faulty cellReadIndex for cell " << cell << std::endl;
+						}
+					}
+					for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayCPU.getElement(fReadIndex[direction], cellReadIndex[direction]);
+					for ( int direction = 0; direction < 27; direction++ )
+					{
+						if ( std::fabs( f[direction] ) > 1.f ) 
+						{
+							std::cout << "Maximum exceeded in cell " << cell << std::endl;
+							std::cout << "Direction " << direction << std::endl;
+							std::cout << "cellReadIndex " << cellReadIndex[direction] << std::endl;
+							std::cout << "cell moving bounceback marker " << movingBouncebackMarkerCPU[cell] << std::endl;
+						}
+					}
+				}
+	
+			}
+			/*
 			const int r = 14.f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
+			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
+			exportSectionCutPlotZY( grids, iCut, iteration+1 );
+			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
+			*/
 		}
 		applyGlobalUpdate(grids, 0, Voxelizer, STLImpellerStationary, STLImpellerMoving );
 	}
-	
 	
 	/*
 	Timer.reset();

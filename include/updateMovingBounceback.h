@@ -113,8 +113,9 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 				continue;
 			}	
 			
-			if ( Marker.movingBounceback )
+			if ( Marker.movingBounceback || oldMovingBouncebackMarkerView( nbr ) )
 			{
+				Marker.movingBounceback = true;
 				BCRhoUGStruct BCRhoUG;
 				getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
 				uxAvg += BCRhoUG.ux;
@@ -167,10 +168,9 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			for (int direction = 0; direction < 27; direction++) fneqAvg[direction] = fneqAvg[direction] / fneqAvgCounter;
 		}
 		
-		float feq[27];
-		getFeq(rhoAvg, uxAvg, uyAvg, uzAvg, feq);
 		float f[27];
-		for (int direction = 0; direction < 27; direction++) f[direction] = feq[direction] + fneqAvg[direction];	
+		getFeq(rhoAvg, uxAvg, uyAvg, uzAvg, f);
+		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] + fneqAvg[direction];	
 		
 		NBRStruct NBR;
 		NBR.self = cell;
@@ -183,6 +183,57 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		int fWriteIndex[27];
 		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+		
+		// We are not ending yet. We have overwritten the newly uncovered fluid, but the uncovered fluid also has moving bounceback neighbours,
+		// whose adjacent side is now newly uncovered. Next iteration we will pull (receive) garbage data from this. Therefore we must also
+		// overwrite not only the outcoming PDFs but also those incoming PDFs that are coming from moving bounceback cells. For this, we first
+		// need to identify the physical directions where moving bounceback cells lie. So our next step: Find indexes of all 26 neighbours
+		// id: { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26 };
+		// cx: { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+		// cy: { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+		// cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+		// the neighbour we are looking is located in direction against the PDF direction
+		// we can get to the neighbour by sequentially reading neighbours of neighbours in the main directions
+		int fullNBRList[27];
+		// 0: Center
+		fullNBRList[0]  = cell;
+		// 1-6: Straight directions (Faces)
+		fullNBRList[1]  = NBR.iMinus; 			// cx=1  -> nx=-1
+		fullNBRList[2]  = NBR.iPlus;  			// cx=-1 -> nx=1
+		fullNBRList[3]  = NBR.kPlus;  			// cz=-1 -> nz=1
+		fullNBRList[4]  = NBR.kMinus; 			// cz=1  -> nz=-1
+		fullNBRList[5]  = NBR.jPlus;  			// cy=-1 -> ny=1
+		fullNBRList[6]  = NBR.jMinus; 			// cy=1  -> ny=-1
+		// 7-18: Diagonal directions (Edges)
+		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cx=1,  cz=-1 -> nx=-1, nz=1
+		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cx=-1, cz=1  -> nx=1,  nz=-1
+		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cx=1,  cz=1  -> nx=-1, nz=-1
+		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cx=-1, cz=-1 -> nx=1,  nz=1
+		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cx=-1, cy=-1 -> nx=1,  ny=1
+		fullNBRList[12] = jMinusView( NBR.iMinus );	// cx=1,  cy=1  -> nx=-1, ny=-1
+		fullNBRList[13] = kPlusView( NBR.jMinus );	// cy=1,  cz=-1 -> ny=-1, nz=1
+		fullNBRList[14] = kMinusView( NBR.jPlus );	// cy=-1, cz=1  -> ny=1,  nz=-1
+		fullNBRList[15] = jMinusView( NBR.iPlus );	// cx=-1, cy=1  -> nx=1,  ny=-1
+		fullNBRList[16] = jPlusView( NBR.iMinus );	// cx=1,  cy=-1 -> nx=-1, ny=1
+		fullNBRList[17] = kMinusView( NBR.jMinus );	// cy=1,  cz=1  -> ny=-1, nz=-1
+		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cy=-1, cz=-1 -> ny=1,  nz=1
+		// 19-26: Corner directions (Vertices)
+		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=-1 -> nx=1,  ny=-1, nz=1
+		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=1  -> nx=-1, ny=1,  nz=-1
+		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cx=-1, cy=-1, cz=1  -> nx=1,  ny=1,  nz=-1
+		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cx=1,  cy=1,  cz=-1 -> nx=-1, ny=-1, nz=1
+		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=-1 -> nx=-1, ny=1,  nz=1
+		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
+		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
+		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+		// now look at each neighbour if they are MBB 
+		// (note that the ones which were MBB but are no longer MBB are already sorted out by our previous loop)
+		bool isMovingBounceback[27];
+		for ( int direction = 0; direction < 27; direction++ )
+		{
+			
+		}
+		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, newlyFluidCount, newlyFluidLambda );
 	
