@@ -58,3 +58,4 @@ gitignoreBackup.txt
 !/M35Full/dimensions.png
 !/M35Full/static_mass_flow_rate_plot.png
 !/M35Full/static_torque_plot.png
+*.zip
