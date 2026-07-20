@@ -17,7 +17,7 @@ void updateGrid( GridStruct &Grid )
 	InfoStruct &Info = Grid.Info;
 	const bool &esotwistFlipper = Grid.esotwistFlipper;
 	
-	auto fArrayView  = Grid.fArray.getView();
+	auto fView  = Grid.fArray.getView();
 	
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
@@ -62,7 +62,7 @@ void updateGrid( GridStruct &Grid )
 		int cellReadIndex[27];
 		int fReadIndex[27];
 		getPreCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
-		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
+		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 		
 		BCRhoUGStruct BCRhoUG;
 		// load the current state into the boundary condition struct
@@ -77,7 +77,7 @@ void updateGrid( GridStruct &Grid )
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
 			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
-			for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+			for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 			return;
 		}
 		
@@ -110,7 +110,7 @@ void updateGrid( GridStruct &Grid )
 		int fWriteIndex[27];
 		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		
-		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+		for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, cellLambda );

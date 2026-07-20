@@ -11,6 +11,15 @@ __host__ __device__ void finishNBRPlus( NBRStruct &NBR, const InfoStruct &Info )
 	NBR.ijkPlus = NBR.jkPlus + 1; if ( NBR.ijkPlus >= Info.cellCount ) NBR.ijkPlus = 0;
 }
 
+__host__ __device__ void finishNBRAll( NBRStruct &NBR, const InfoStruct &Info )
+{
+	NBR.iPlus = NBR.self + 1; if ( NBR.iPlus >= Info.cellCount ) NBR.iPlus = 0;		
+	NBR.ijPlus = NBR.jPlus + 1; if ( NBR.ijPlus >= Info.cellCount ) NBR.ijPlus = 0;
+	NBR.ikPlus = NBR.kPlus + 1; if ( NBR.ikPlus >= Info.cellCount ) NBR.ikPlus = 0;
+	NBR.ijkPlus = NBR.jkPlus + 1; if ( NBR.ijkPlus >= Info.cellCount ) NBR.ijkPlus = 0;
+	NBR.iMinus = NBR.self - 1; if ( NBR.iPlus < 0 ) NBR.iPlus = Info.cellCount-1;		
+}
+
 void getNBRArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int kPlus, const SkeletonGridStruct &SkeletonGrid )
 {
 	const int cellCount = SkeletonGrid.Info.cellCount;
