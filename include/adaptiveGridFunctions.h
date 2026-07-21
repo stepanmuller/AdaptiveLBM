@@ -841,6 +841,9 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	const bool iAmFinest = ( level == GRID_LEVEL_COUNT - 1 );
 	
 	GridStruct &Grid = grids[ level ];
+	
+	//if ( Grid.Info.iterationsFinished > 310 ) std::cout << "REBUILDING GRID" << std::endl;
+	
 	InfoStruct &Info = Grid.Info;
 	Info.cellCountOld = Info.cellCount;
 	

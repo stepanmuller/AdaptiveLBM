@@ -12,6 +12,9 @@
 
 void updateGrid( GridStruct &Grid )
 {
+	
+	//if ( Grid.Info.iterationsFinished > 310 ) std::cout << "STREAMING AND COLLISION" << std::endl;
+	
 	applyStreaming( Grid );
 	
 	InfoStruct &Info = Grid.Info;
