@@ -12,7 +12,7 @@ static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 int iterationChunk = 1000;
 constexpr int iterationCount = 1000000;
 
-constexpr float resGlobal = 0.15f; 														// mm
+constexpr float resGlobal = 0.10f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -387,7 +387,9 @@ int main(int argc, char **argv)
 			
 			const int r = 14.f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
-			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
+			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
+			std::string command = "python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy);
+			if (system(command.c_str()) != 0) {}
 			
 			/*
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
