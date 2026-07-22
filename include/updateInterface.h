@@ -5,90 +5,6 @@
 #include "./cellFunctions.h"
 #include "./NBRFunctions.h"
 
-void checkInterfaceTopology( GridStruct &GridCoarse )
-{
-	std::cout << "CHECKING INTERFACE TOPOLOGY" << std::endl;
-	const InfoStruct &InfoCoarse = GridCoarse.Info;
-	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
-	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
-	auto jMinusViewCoarse = GridCoarse.NBR.jMinusArray.getConstView();
-	auto kMinusViewCoarse = GridCoarse.NBR.kMinusArray.getConstView();
-	
-	auto iViewCoarse = GridCoarse.IJK.iArray.getConstView();
-	auto jViewCoarse = GridCoarse.IJK.jArray.getConstView();
-	auto kViewCoarse = GridCoarse.IJK.kArray.getConstView();
-	
-	auto coarseToFineIndexView = GridCoarse.coarseToFineIndexArray.getConstView();
-	
-	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{
-		const int cellCoarse = coarseToFineIndexView( index );
-		
-		const int stencilCell[6] = { 
-			cellCoarse + 1, 
-			cellCoarse - 1, 
-			jPlusViewCoarse( cellCoarse ), 
-			jMinusViewCoarse( cellCoarse ), 
-			kPlusViewCoarse( cellCoarse ), 
-			kMinusViewCoarse( cellCoarse ) 
-		};
-		
-		const int iCoarse = iViewCoarse( cellCoarse );
-		const int jCoarse = jViewCoarse( cellCoarse );
-		const int kCoarse = kViewCoarse( cellCoarse );
-		
-		for ( int i = 0; i < 6; i++ )
-		{
-			const int nbr = stencilCell[i];
-			
-			const int iNbr = iViewCoarse( nbr );
-			const int jNbr = jViewCoarse( nbr );
-			const int kNbr = kViewCoarse( nbr );
-			
-			int iExpected = iCoarse;
-			int jExpected = jCoarse;
-			int kExpected = kCoarse;
-			
-			switch( i ) {
-				case 0: // X+
-					iExpected = iCoarse + 1; break;
-				case 1: // X-
-					iExpected = iCoarse - 1; break;
-				case 2: // Y+
-					jExpected = jCoarse + 1; break;
-				case 3: // Y-
-					jExpected = jCoarse - 1; break;
-				case 4: // Z+
-					kExpected = kCoarse + 1; break;
-				case 5: // Z-
-					kExpected = kCoarse - 1; break;
-			}
-			
-			if ( iNbr != iExpected || jNbr != jExpected || kNbr != kExpected )
-			{
-				printf("TOPOLOGY ERROR: Coarse cell %d (%d, %d, %d). Nbr case %d expected (%d, %d, %d) but got cell %d at (%d, %d, %d)\n", 
-				       cellCoarse, iCoarse, jCoarse, kCoarse, i, iExpected, jExpected, kExpected, nbr, iNbr, jNbr, kNbr);
-			}
-		}
-	};
-	std::cout << "CHECKING INTERFACE TOPOLOGY END" << std::endl;
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>( 0, InfoCoarse.coarseToFineCount, cellLambda );
-}
-
-__host__ __device__ void rescaleF( float (&f)[27], const float &scale )
-{    
-    float rho, ux, uy, uz;
-    getRhoUxUyUz( rho, ux, uy, uz, f );
-    
-    float feq[27];
-	getFeq(rho, ux, uy, uz, feq);
-    
-    for (int direction = 0; direction < 27; direction++)
-    {
-        f[direction] = feq[direction] + scale * (f[direction] - feq[direction]);
-    }
-}
-
 void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 {
 	const InfoStruct &InfoCoarse = GridCoarse.Info;
@@ -113,39 +29,194 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		const int cellCoarse = fineToCoarseIndexView( index );
 		const int cellFine0 = childMapView( cellCoarse );
 		
-		int cellFineList[8];
-		cellFineList[0] = cellFine0;
-		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
-		cellFineList[2] = jPlusViewFine( cellFine0 );
-		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
-		cellFineList[4] = kPlusViewFine( cellFine0 );
-		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
-		cellFineList[6] = jkPlusViewFine( cellFine0 );
-		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
+		// Initialize accumulation variables
+		// We want linear interpolation for fNeq -> this is a simple average from all fine cells
+		float fNeq[27] = {0.f};
+		// linear interpolation for rho -> this is also a simple average
+		float rho = 0.f;
+		// quadratic interpolation for u -> use coefficients found in Pavel Eichler's disertation, Appendix C
+		// we only need the value at [0, 0, 0] so all we need is a0, b0, c0 and the helper coefficients
+		float A11 = 0.f, A12 = 0.f, A13 = 0.f, B22 = 0.f, B12 = 0.f, B23 = 0.f, C33 = 0.f, C13 = 0.f, C23 = 0.f;
+		float ux = 0.f, uy = 0.f, uz = 0.f; // in our case this equals a0, b0, c0
+
+		int stencilCell[8];
+		stencilCell[0] = cellFine0;
+		stencilCell[1] = cellFine0 + 1; if ( stencilCell[1] >= InfoFine.cellCount ) stencilCell[1] = 0;
+		stencilCell[2] = jPlusViewFine( cellFine0 );
+		stencilCell[3] = stencilCell[2] + 1; if ( stencilCell[3] >= InfoFine.cellCount ) stencilCell[3] = 0;
+		stencilCell[4] = kPlusViewFine( cellFine0 );
+		stencilCell[5] = stencilCell[4] + 1; if ( stencilCell[5] >= InfoFine.cellCount ) stencilCell[5] = 0;
+		stencilCell[6] = jkPlusViewFine( cellFine0 );
+		stencilCell[7] = stencilCell[6] + 1; if ( stencilCell[7] >= InfoFine.cellCount ) stencilCell[7] = 0;
 		
-		float f[27] = {0.f};
-		
-		for ( int which = 0; which < 8; which++ )
+		// Accumulate contributions for each neighbour
+		for ( int i = 0; i < 8; i++ )
 		{
-			const int cellFine = cellFineList[which];
-			NBRStruct NBR;
-			NBR.self = cellFine;
-			NBR.jPlus = jPlusViewFine( cellFine );
-			NBR.kPlus = kPlusViewFine( cellFine );
-			NBR.jkPlus = jkPlusViewFine( cellFine );
-			finishNBRPlus( NBR, InfoFine );
+			const int nbr = stencilCell[i];
+			NBRStruct NBRofNBR;
+			NBRofNBR.self = nbr;
+			NBRofNBR.jPlus = jPlusViewFine( nbr );
+			NBRofNBR.kPlus = kPlusViewFine( nbr );
+			NBRofNBR.jkPlus = jkPlusViewFine( nbr );
+			finishNBRPlus( NBRofNBR, InfoFine );
 			
-			float fFine[27];
-			int cellReadIndex[27];
-			int fReadIndex[27];
-			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperFine, InfoFine );
-			for ( int direction = 0; direction < 27; direction++ )	fFine[direction] = fViewFine(fReadIndex[direction], cellReadIndex[direction]);
-			for (int direction = 0; direction < 27; direction++) f[direction] += fFine[direction];	
+			int nbrCellReadIndex[27], nbrFReadIndex[27];
+			getPostCollisionIndex( nbrCellReadIndex, nbrFReadIndex, NBRofNBR, esotwistFlipperFine, InfoFine );
+			
+			// reused variables for this neighbor only
+			float fNeqNbr[27];
+			float rhoNbr, uxNbr, uyNbr, uzNbr;
+			LocalDuStruct LocalDuNbr;
+
+			for ( int direction = 0; direction < 27; direction++ ) fNeqNbr[direction] = fViewFine( nbrFReadIndex[direction], nbrCellReadIndex[direction] );
+			getRhoUxUyUz( rhoNbr, uxNbr, uyNbr, uzNbr, fNeqNbr );
+			getLocalDu( fNeqNbr, InfoCoarse.nu, LocalDuNbr );
+			float feqNbr[27];
+			getFeq(rhoNbr, uxNbr, uyNbr, uzNbr, feqNbr);
+			for ( int direction = 0; direction < 27; direction++ ) fNeqNbr[direction] = fNeqNbr[direction] - feqNbr[direction];
+			
+			// Add contributions to rho and fNeq
+			rho += rhoNbr;
+			for (int direction = 0; direction < 27; direction++) fNeq[direction] += fNeqNbr[direction];
+			
+			ux += 2.f * uxNbr; // LINEAR VERSION
+			uy += 2.f * uyNbr;
+			uz += 2.f * uzNbr;
+			
+			// Add this neighbor's specific contribution to ux, uy, uz and the helper coefficients
+			switch(i) {
+				case 0: // (-1/2, -1/2, -1/2) -> x1
+					//ux += 2.f * uxNbr + uzNbr + uyNbr;
+					//uy += uxNbr + 2.f * uyNbr + uzNbr;
+					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					A11 -= LocalDuNbr.duxdx; 
+					A12 -= LocalDuNbr.duxdyCross;
+					A13 -= LocalDuNbr.duxdzCross;
+					B22 -= LocalDuNbr.duydy; 
+					B12 -= LocalDuNbr.duxdyCross;
+					B23 -= LocalDuNbr.duydzCross;
+					C33 -= LocalDuNbr.duzdz; 
+					C13 -= LocalDuNbr.duxdzCross;
+					C23 -= LocalDuNbr.duydzCross;
+					break;
+				case 1: // (+1/2, -1/2, -1/2) -> x2
+					//ux += 2.f * uxNbr - uyNbr - uzNbr;
+					//uy += -uxNbr + 2.f * uyNbr + uzNbr;
+					//uz += -uxNbr + uyNbr + 2.f * uzNbr;
+					A11 += LocalDuNbr.duxdx; 
+					A12 += LocalDuNbr.duxdyCross;
+					A13 += LocalDuNbr.duxdzCross;
+					B22 -= LocalDuNbr.duydy; 
+					B12 -= LocalDuNbr.duxdyCross;
+					B23 -= LocalDuNbr.duydzCross;
+					C33 -= LocalDuNbr.duzdz; 
+					C13 -= LocalDuNbr.duxdzCross;
+					C23 -= LocalDuNbr.duydzCross;
+					break;
+				case 2: // (-1/2, +1/2, -1/2) -> x5
+					//ux += 2.f * uxNbr - uyNbr + uzNbr;
+					//uy += -uxNbr + 2.f * uyNbr - uzNbr;
+					//uz += uxNbr - uyNbr + 2.f * uzNbr;
+					A11 -= LocalDuNbr.duxdx; 
+					A12 -= LocalDuNbr.duxdyCross;
+					A13 -= LocalDuNbr.duxdzCross;
+					B22 += LocalDuNbr.duydy; 
+					B12 += LocalDuNbr.duxdyCross;
+					B23 += LocalDuNbr.duydzCross;
+					C33 -= LocalDuNbr.duzdz; 
+					C13 -= LocalDuNbr.duxdzCross;
+					C23 -= LocalDuNbr.duydzCross;
+					break;
+				case 3: // (+1/2, +1/2, -1/2) -> x6
+					//ux += 2.f * uxNbr + uyNbr - uzNbr;
+					//uy += uxNbr + 2.f * uyNbr - uzNbr;
+					//uz += -uxNbr - uyNbr + 2.f * uzNbr;
+					A11 += LocalDuNbr.duxdx; 
+					A12 += LocalDuNbr.duxdyCross;
+					A13 += LocalDuNbr.duxdzCross;
+					B22 += LocalDuNbr.duydy; 
+					B12 += LocalDuNbr.duxdyCross;
+					B23 += LocalDuNbr.duydzCross;
+					C33 -= LocalDuNbr.duzdz; 
+					C13 -= LocalDuNbr.duxdzCross;
+					C23 -= LocalDuNbr.duydzCross;
+					break;
+				case 4: // (-1/2, -1/2, +1/2) -> x4 
+					//ux += 2.f * uxNbr + uyNbr - uzNbr;
+					//uy += uxNbr + 2.f * uyNbr - uzNbr;
+					//uz += -uxNbr - uyNbr + 2.f * uzNbr;
+					A11 -= LocalDuNbr.duxdx; 
+					A12 -= LocalDuNbr.duxdyCross;
+					A13 -= LocalDuNbr.duxdzCross;
+					B22 -= LocalDuNbr.duydy; 
+					B12 -= LocalDuNbr.duxdyCross;
+					B23 -= LocalDuNbr.duydzCross;
+					C33 += LocalDuNbr.duzdz; 
+					C13 += LocalDuNbr.duxdzCross;
+					C23 += LocalDuNbr.duydzCross;
+					break;
+				case 5: // (+1/2, -1/2, +1/2) -> x3
+					//ux += 2.f * uxNbr - uyNbr + uzNbr;
+					//uy += -uxNbr + 2.f * uyNbr - uzNbr;
+					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					A11 += LocalDuNbr.duxdx; 
+					A12 += LocalDuNbr.duxdyCross;
+					A13 += LocalDuNbr.duxdzCross;
+					B22 -= LocalDuNbr.duydy; 
+					B12 -= LocalDuNbr.duxdyCross;
+					B23 -= LocalDuNbr.duydzCross;
+					C33 += LocalDuNbr.duzdz; 
+					C13 += LocalDuNbr.duxdzCross;
+					C23 += LocalDuNbr.duydzCross;
+					break;
+				case 6: // (-1/2, +1/2, +1/2) -> x8 
+					//ux += 2.f * uxNbr - uyNbr - uzNbr;
+					//uy += -uxNbr + 2.f * uyNbr + uzNbr;
+					//uz += -uxNbr + uyNbr + 2.f * uzNbr;
+					A11 -= LocalDuNbr.duxdx; 
+					A12 -= LocalDuNbr.duxdyCross;
+					A13 -= LocalDuNbr.duxdzCross;
+					B22 += LocalDuNbr.duydy; 
+					B12 += LocalDuNbr.duxdyCross;
+					B23 += LocalDuNbr.duydzCross;
+					C33 += LocalDuNbr.duzdz; 
+					C13 += LocalDuNbr.duxdzCross;
+					C23 += LocalDuNbr.duydzCross;
+					break;
+				case 7: // (+1/2, +1/2, +1/2) -> x7 
+					//ux += 2.f * uxNbr + uyNbr + uzNbr;
+					//uy += uxNbr + 2.f * uyNbr + uzNbr;
+					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					A11 += LocalDuNbr.duxdx; 
+					A12 += LocalDuNbr.duxdyCross;
+					A13 += LocalDuNbr.duxdzCross;
+					B22 += LocalDuNbr.duydy; 
+					B12 += LocalDuNbr.duxdyCross;
+					B23 += LocalDuNbr.duydzCross;
+					C33 += LocalDuNbr.duzdz; 
+					C13 += LocalDuNbr.duxdzCross;
+					C23 += LocalDuNbr.duydzCross;
+					break;
+			}
 		}
-		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] * 0.125f;
 		
-		const float scale = 2.0f;
-		rescaleF( f, scale );
+		// divide rho and fNeq by 8
+		rho *= 0.125f;
+		for (int direction = 0; direction < 27; direction++) fNeq[direction] *= 0.125f;
+		// divide A, B, C by 4
+		A11 *= 0.25f; A12 *= 0.25f; A13 *= 0.25f; B22 *= 0.25f; B12 *= 0.25f; B23 *= 0.25f; C33 *= 0.25f; C13 *= 0.25f; C23 *= 0.25f;
+		
+		// add the helper coefficients to find final ux, uy, uz -> this is not working correctly
+		//ux += -2.f * A11 - 2.f * C13 - 2 * B12;
+		//uy += -2.f * B22 - 2.f * C23 - 2 * A12;
+		//uz += -2.f * C33 - 2.f * B23 - 2 * A13;
+		
+		// divide ux, uy, uz by 16
+		ux *= 0.0625f; uy *= 0.0625f; uz *= 0.0625f;
+		
+		const float scale = ( 6.f * InfoCoarse.nu + 1.f) / ( 6.f * InfoFine.nu + 1.f );
+		
+		for ( int direction = 0; direction < 27; direction++ ) fNeq[direction] *= scale;
 		
 		NBRStruct NBR;
 		NBR.self = cellCoarse;
@@ -153,11 +224,17 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		NBR.kPlus = kPlusViewCoarse( cellCoarse );
 		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
 		finishNBRPlus( NBR, InfoCoarse );
-		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
 		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
-		for ( int direction = 0; direction < 27; direction++ ) fViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+		
+		float feq[27];
+		getFeq( rho, ux, uy, uz, feq );
+		
+		for ( int direction = 0; direction < 27; direction++ ) 
+		{
+			fViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = feq[direction] + fNeq[direction];
+		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.fineToCoarseCount, cellLambda );
 }
@@ -331,7 +408,7 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		const float cellFineDy[8] = {-0.25f,-0.25f, 0.25f, 0.25f,-0.25f,-0.25f, 0.25f, 0.25f};
 		const float cellFineDz[8] = {-0.25f,-0.25f,-0.25f,-0.25f, 0.25f, 0.25f, 0.25f, 0.25f};
 		
-		const float scale = 0.5f;
+		const float scale = ( 6.f * InfoFine.nu + 1.f ) / ( 6.f * InfoCoarse.nu + 1.f);
 		for ( int direction = 0; direction < 27; direction++ )
 		{
 			fNeqBase[direction] *= scale;
@@ -378,8 +455,6 @@ void updateInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 	updateFineToCoarseInterface( GridCoarse, GridFine );
 	updateCoarseToFineInterface( GridCoarse, GridFine );
 }
-
-
 
 
 /*
@@ -658,5 +733,81 @@ __host__ __device__ void rescaleFOLD( float (&f)[27], const bool &coarseToFine )
 	f[20] = (ks_ca0 * (uz * uz + uz) + ks_ca1 * (2.f * uz + 1.f) + ks_ca2) * 0.5f;
 	f[9] = (ks_cb0 * (uz * uz + uz) + ks_cb1 * (2.f * uz + 1.f) + ks_cb2) * 0.5f;
 	f[26] = (ks_cc0 * (uz * uz + uz) + ks_cc1 * (2.f * uz + 1.f) + ks_cc2) * 0.5f;
+}
+*/
+
+/*
+// BACKUP
+void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
+{
+	const InfoStruct &InfoCoarse = GridCoarse.Info;
+	auto fViewCoarse = GridCoarse.fArray.getView();
+	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
+	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
+	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
+	auto jkPlusViewCoarse = GridCoarse.NBR.jkPlusArray.getConstView();
+	
+	const InfoStruct &InfoFine = GridFine.Info;
+	auto fViewFine = GridFine.fArray.getView();
+	const bool &esotwistFlipperFine = GridFine.esotwistFlipper;
+	auto jPlusViewFine = GridFine.NBR.jPlusArray.getConstView();
+	auto kPlusViewFine = GridFine.NBR.kPlusArray.getConstView();
+	auto jkPlusViewFine = GridFine.NBR.jkPlusArray.getConstView();
+	
+	auto fineToCoarseIndexView = GridCoarse.fineToCoarseIndexArray.getConstView();
+	auto childMapView = GridCoarse.childMapArray.getConstView();
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
+	{
+		const int cellCoarse = fineToCoarseIndexView( index );
+		const int cellFine0 = childMapView( cellCoarse );
+		
+		int cellFineList[8];
+		cellFineList[0] = cellFine0;
+		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
+		cellFineList[2] = jPlusViewFine( cellFine0 );
+		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
+		cellFineList[4] = kPlusViewFine( cellFine0 );
+		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
+		cellFineList[6] = jkPlusViewFine( cellFine0 );
+		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
+		
+		float f[27] = {0.f};
+		
+		for ( int which = 0; which < 8; which++ )
+		{
+			const int cellFine = cellFineList[which];
+			NBRStruct NBR;
+			NBR.self = cellFine;
+			NBR.jPlus = jPlusViewFine( cellFine );
+			NBR.kPlus = kPlusViewFine( cellFine );
+			NBR.jkPlus = jkPlusViewFine( cellFine );
+			finishNBRPlus( NBR, InfoFine );
+			
+			float fFine[27];
+			int cellReadIndex[27];
+			int fReadIndex[27];
+			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperFine, InfoFine );
+			for ( int direction = 0; direction < 27; direction++ )	fFine[direction] = fViewFine(fReadIndex[direction], cellReadIndex[direction]);
+			for (int direction = 0; direction < 27; direction++) f[direction] += fFine[direction];	
+		}
+		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] * 0.125f;
+		
+		const float scale = 2.0f;
+		rescaleF( f, scale );
+		
+		NBRStruct NBR;
+		NBR.self = cellCoarse;
+		NBR.jPlus = jPlusViewCoarse( cellCoarse );
+		NBR.kPlus = kPlusViewCoarse( cellCoarse );
+		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
+		finishNBRPlus( NBR, InfoCoarse );
+		
+		int cellWriteIndex[27];
+		int fWriteIndex[27];
+		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
+		for ( int direction = 0; direction < 27; direction++ ) fViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.fineToCoarseCount, cellLambda );
 }
 */
