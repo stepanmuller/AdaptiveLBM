@@ -346,7 +346,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountCoarse, IJKNBRLambda );
 	
 	
-	// 9) repair coarse jkPlus from jPlus and kPlus, because we broke it using intBuffer3!
+	// 9) repair coarse jkPlus, because we broke it using intBuffer3
 	auto jkPlusCoarseLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		jkPlusViewCoarse[ cell ] = jPlusViewCoarse[ kPlusViewCoarse[ cell ] ];
@@ -1102,23 +1102,41 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		}
 	}
 	
-	// 16 recursion
+	// 16) recursion
 	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
+		
+	// 17) Repair NBR minus of the coarser grid
+	if ( !iAmCoarsest ) // && grids[level - 1].Info.updatesSinceRebuild != 0 )
+	{
+		auto jPlusViewCoarse = grids[level - 1].NBR.jPlusArray.getConstView();
+		auto kPlusViewCoarse = grids[level - 1].NBR.kPlusArray.getConstView();
+		auto jMinusViewCoarse = grids[level - 1].NBR.jMinusArray.getView();
+		auto kMinusViewCoarse = grids[level - 1].NBR.kMinusArray.getView();
+		auto NBRCoarseRepairLambda = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			jMinusViewCoarse[ jPlusViewCoarse[ cell ] ] = cell;
+			kMinusViewCoarse[ kPlusViewCoarse[ cell ] ] = cell;
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, grids[level - 1].Info.cellCount, NBRCoarseRepairLambda );
+	}
 	
-	// 13) fill NBR minus (because only at this point we will no longer be using them as a buffer)
-	auto jMinusView = Grid.NBR.jMinusArray.getView();
-	auto kMinusView = Grid.NBR.kMinusArray.getView();
-	auto NBRMinusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jMinusView[ jPlusView[ cell ] ] = cell;
-		kMinusView[ kPlusView[ cell ] ] = cell;
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusFinishLambda );
+	// 18) if we are the finest, we need to fill NBR minus ourselves
+	if ( iAmFinest )
+	{
+		auto jMinusView = Grid.NBR.jMinusArray.getView();
+		auto kMinusView = Grid.NBR.kMinusArray.getView();
+		auto NBRMinusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			jMinusView[ jPlusView[ cell ] ] = cell;
+			kMinusView[ kPlusView[ cell ] ] = cell;
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusFinishLambda );
+	}
 	
-	// 17
+	// 19) update interface with the coarser grid
 	if ( !iAmCoarsest )
 	{
-		updateInterface(grids[level - 1], Grid);
+		updateInterface( grids[level - 1], Grid );
 	}
 }
 

@@ -9,8 +9,8 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
-int iterationChunk = 100;
-constexpr int iterationCount = 101;
+int iterationChunk = 1000;
+constexpr int iterationCount = 100000;
 
 constexpr float resGlobal = 0.30f; 														// mm
 

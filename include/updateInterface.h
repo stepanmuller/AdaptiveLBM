@@ -164,7 +164,6 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 
 void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 {
-	// checkInterfaceTopology( GridCoarse ); // WRONG HERE!
 	const InfoStruct &InfoCoarse = GridCoarse.Info;
 	auto fViewCoarse = GridCoarse.fArray.getView();
 	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
@@ -357,9 +356,9 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			const float dy = cellFineDy[which];
 			const float dz = cellFineDz[which];
 			const float rho = rhoBase + dRhodx * dx + dRhody * dy + dRhodz * dz;
-			const float ux = uxBase;// + ax * dx + ay * dy + az * dz;// + axy * dx * dy + axz * dx * dz + ayz * dy * dz + axx * dx * dx + ayy * dy * dy + azz * dz * dz;
-			const float uy = uyBase;// + bx * dx + by * dy + bz * dz;// + bxy * dx * dy + bxz * dx * dz + byz * dy * dz + bxx * dx * dx + byy * dy * dy + bzz * dz * dz;
-			const float uz = uzBase;// + cx * dx + cy * dy + cz * dz;// + cxy * dx * dy + cxz * dx * dz + cyz * dy * dz + cxx * dx * dx + cyy * dy * dy + czz * dz * dz;
+			const float ux = uxBase + ax * dx + ay * dy + az * dz + axy * dx * dy + axz * dx * dz + ayz * dy * dz + axx * dx * dx + ayy * dy * dy + azz * dz * dz;
+			const float uy = uyBase + bx * dx + by * dy + bz * dz + bxy * dx * dy + bxz * dx * dz + byz * dy * dz + bxx * dx * dx + byy * dy * dy + bzz * dz * dz;
+			const float uz = uzBase + cx * dx + cy * dy + cz * dz + cxy * dx * dy + cxz * dx * dz + cyz * dy * dz + cxx * dx * dx + cyy * dy * dy + czz * dz * dz;
 			float fNeq[27];
 			for ( int direction = 0; direction < 27; direction++ ) fNeq[direction] = fNeqBase[direction] + dfNeqdx[direction] * dx + dfNeqdy[direction] * dy + dfNeqdz[direction] * dz;
 			float feq[27];
