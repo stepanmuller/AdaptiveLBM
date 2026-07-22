@@ -135,8 +135,8 @@ struct VoxelizerStruct { 	InfoStruct Info;
 // Connectivity for Esotwist: indexes of 3 neighbours in the positive direction jPlus, kPlus, jkPlus. 
 // Thanks to cell sorting where X runs the fastest, the indexes for remaining 4 neighbours iPlus, ijPlus, ikPlus, ijkPlus are just +1 to self, jPlus, kPlus, jkPlus.
 // Then it holds 2 more neighbour indexes in the main negative directions jMinus, kMinus (iMinus would be self-1)
-// In addition to that it holds a list of 10 bool vectors which are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
-// These 10 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus, iMinus, jMinus, kMinus
+// In addition to that it holds a list of 7 bool vectors which are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
+// These 7 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus
 struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
 						BoolArray2DType isGeometricMarkerArray; }; 
@@ -202,7 +202,7 @@ struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
 
 struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
 
-struct LocalDuStruct { float duxdx = 0.f; float duydy = 0.f; float duzdz = 0.f; float duXY = 0.f; float duYZ = 0.f; float duXZ = 0.f; };
+struct LocalDuStruct { float duxdx = 0.f; float duydy = 0.f; float duzdz = 0.f; float duxdyCross = 0.f; float duydzCross = 0.f; float duxdzCross = 0.f; };
 
 struct SectionCutStruct { 	FloatArray2DType rhoArray; FloatArray2DType uxArray; FloatArray2DType uyArray; FloatArray2DType uzArray; 
 							FloatArray2DType markerArray; FloatArray2DType scalarTransportArray; IntArray2DType gridIDArray; };

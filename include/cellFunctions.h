@@ -211,7 +211,7 @@ __cuda_callable__ void convertToPhysicalForce( float &gx, float &gy, float &gz, 
 	gz = gz * rhoNominalPhys * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) / (Info.dtPhys * Info.dtPhys);
 }
 
-__host__ __device__ void getLocalDu( float (&f)[27], const float &nu, const float &SmagorinskyConstant, LocalDuStruct &localDu )
+__host__ __device__ void getLocalDu( float (&f)[27], const float &nu, LocalDuStruct &localDu )
 {
 	float rho, ux, uy, uz;
 	getRhoUxUyUz( rho, ux, uy, uz, f );
@@ -304,18 +304,8 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, const floa
 	const float C_020 = k_020;
 	const float C_002 = k_002;
 	
-	//------------------------------------------------------------------------------------
-	// -------------------------------CALCULATING LES OMEGA-------------------------------
-	//------------------------------------------------------------------------------------
-
-	float feq[27];
-	getFeq(rho, ux, uy, uz, feq);
-	float fneq[27];
-	getFneq(f, feq, fneq);
-	float omegaLES;
-	getOmegaLES(fneq, rho, nu, omegaLES);
-
-	const float omega1 = omegaLES;
+	const float tau = 3.f * nu + 0.5f;
+	const float omega1 =  1 / tau;
 	
 	localDu.duxdx = (0.5f * omega1) * (-2.f * C_200 + C_020 + C_002) + 0.5f * (rho - C_200 - C_020 - C_002);
 	localDu.duydy = localDu.duxdx + (1.5f * omega1) * (C_200 - C_020);

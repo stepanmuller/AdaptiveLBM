@@ -45,7 +45,7 @@ void getNBRArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int 
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );
 }
 
-void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, const int &upperBound )
+void markGeometricNBRPlus( GridStruct &Grid, const int &upperBound )
 {
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
@@ -53,8 +53,6 @@ void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, c
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
-	auto jMinusView = Grid.NBR.jMinusArray.getConstView();
-	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
 	auto isGeometricMarkerView = Grid.NBR.isGeometricMarkerArray.getView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
@@ -78,16 +76,6 @@ void markGeometricNBR( GridStruct &Grid, const bool markNegativeDirectionsToo, c
 		isGeometricMarkerView(4, cell) = ( iView[ikPlus]==iCell+1 && jView[ikPlus]==jCell && kView[ikPlus]==kCell+1 );
 		isGeometricMarkerView(5, cell) = ( iView[jkPlus]==iCell && jView[jkPlus]==jCell+1 && kView[jkPlus]==kCell+1 );
 		isGeometricMarkerView(6, cell) = ( iView[ijkPlus]==iCell+1 && jView[ijkPlus]==jCell+1 && kView[ijkPlus]==kCell+1 );
-		
-		if ( markNegativeDirectionsToo )
-		{
-			const int jMinus = jMinusView[ cell ];
-			const int kMinus = kMinusView[ cell ]; 
-			const int iMinus = (cell > 0) ? cell - 1 : upperBound - 1;
-			isGeometricMarkerView(7, cell) = ( iView[iMinus]==iCell-1 && jView[iMinus]==jCell && kView[iMinus]==kCell );
-			isGeometricMarkerView(8, cell) = ( iView[jMinus]==iCell && jView[jMinus]==jCell-1 && kView[jMinus]==kCell );
-			isGeometricMarkerView(9, cell) = ( iView[kMinus]==iCell && jView[kMinus]==jCell && kView[kMinus]==kCell-1 );
-		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }

@@ -361,8 +361,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
 	
 	// 11) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
-	const bool markNegativeDirectionsToo = false;
-	markGeometricNBR( GridFine, markNegativeDirectionsToo, cellCountFullFine );
+	markGeometricNBRPlus( GridFine, cellCountFullFine );
 }
 
 void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
@@ -694,8 +693,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
 	
 	// 9) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
-	const bool markNegativeDirectionsToo = false;
-	markGeometricNBR( GridFine, markNegativeDirectionsToo, cellCountFullFine );
+	markGeometricNBRPlus( GridFine, cellCountFullFine );
 }
 
 void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int postCollisionLocation )
@@ -887,7 +885,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Grid.NBR.jkPlusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.jMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.kMinusArray.setSize( Info.memoryCountFull );
-		Grid.NBR.isGeometricMarkerArray.setSizes( 10, Info.memoryCountFull );
+		Grid.NBR.isGeometricMarkerArray.setSizes( 7, Info.memoryCountFull );
 		Grid.parentMapArray.setSize( Info.memoryCountFull );
 		Grid.keepCellMarkerArray.setSize( Info.memoryCountFull );	
 		Grid.movingBouncebackMarkerArray.setSize( Info.memoryCountFull );
@@ -1071,19 +1069,14 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto jkPlusView = Grid.NBR.jkPlusArray.getView();
-	auto jMinusView = Grid.NBR.jMinusArray.getView();
-	auto kMinusView = Grid.NBR.kMinusArray.getView();
-	auto NBRFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	auto NBRPlusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
-		jMinusView[ jPlusView[ cell ] ] = cell;
-		kMinusView[ kPlusView[ cell ] ] = cell;
 	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRFinishLambda );
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRPlusFinishLambda );
 	
 	// 14) mark NBR geometric validity
-	const bool markNegativeDirectionsToo = true;
-	markGeometricNBR( Grid, markNegativeDirectionsToo, Info.cellCount );
+	markGeometricNBRPlus( Grid, Info.cellCount );
 	
 	// 15) if we are the finest grid, mark moving bounceback and bounceback
 	if ( iAmFinest )
@@ -1111,6 +1104,16 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	
 	// 16 recursion
 	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
+	
+	// 13) fill NBR minus (because only at this point we will no longer be using them as a buffer)
+	auto jMinusView = Grid.NBR.jMinusArray.getView();
+	auto kMinusView = Grid.NBR.kMinusArray.getView();
+	auto NBRMinusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		jMinusView[ jPlusView[ cell ] ] = cell;
+		kMinusView[ kPlusView[ cell ] ] = cell;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusFinishLambda );
 	
 	// 17
 	if ( !iAmCoarsest )
