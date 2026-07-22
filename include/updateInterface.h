@@ -5,17 +5,191 @@
 #include "./cellFunctions.h"
 #include "./NBRFunctions.h"
 
-__host__ __device__ void rescaleF( float (&f)[27], const bool &coarseToFine )
+__host__ __device__ void rescaleF( float (&f)[27], const float &scale )
+{    
+    float rho, ux, uy, uz;
+    getRhoUxUyUz( rho, ux, uy, uz, f );
+    
+    float feq[27];
+	getFeq(rho, ux, uy, uz, feq);
+    
+    for (int direction = 0; direction < 27; direction++)
+    {
+        f[direction] = feq[direction] + scale * (f[direction] - feq[direction]);
+    }
+}
+
+void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
+{
+	const InfoStruct &InfoCoarse = GridCoarse.Info;
+	auto fViewCoarse = GridCoarse.fArray.getView();
+	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
+	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
+	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
+	auto jkPlusViewCoarse = GridCoarse.NBR.jkPlusArray.getConstView();
+	
+	const InfoStruct &InfoFine = GridFine.Info;
+	auto fViewFine = GridFine.fArray.getView();
+	const bool &esotwistFlipperFine = GridFine.esotwistFlipper;
+	auto jPlusViewFine = GridFine.NBR.jPlusArray.getConstView();
+	auto kPlusViewFine = GridFine.NBR.kPlusArray.getConstView();
+	auto jkPlusViewFine = GridFine.NBR.jkPlusArray.getConstView();
+	
+	auto fineToCoarseIndexView = GridCoarse.fineToCoarseIndexArray.getConstView();
+	auto childMapView = GridCoarse.childMapArray.getConstView();
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
+	{
+		const int cellCoarse = fineToCoarseIndexView( index );
+		const int cellFine0 = childMapView( cellCoarse );
+		
+		int cellFineList[8];
+		cellFineList[0] = cellFine0;
+		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
+		cellFineList[2] = jPlusViewFine( cellFine0 );
+		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
+		cellFineList[4] = kPlusViewFine( cellFine0 );
+		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
+		cellFineList[6] = jkPlusViewFine( cellFine0 );
+		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
+		
+		float f[27] = {0.f};
+		
+		for ( int which = 0; which < 8; which++ )
+		{
+			const int cellFine = cellFineList[which];
+			NBRStruct NBR;
+			NBR.self = cellFine;
+			NBR.jPlus = jPlusViewFine( cellFine );
+			NBR.kPlus = kPlusViewFine( cellFine );
+			NBR.jkPlus = jkPlusViewFine( cellFine );
+			finishNBRPlus( NBR, InfoFine );
+			
+			float fFine[27];
+			int cellReadIndex[27];
+			int fReadIndex[27];
+			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperFine, InfoFine );
+			for ( int direction = 0; direction < 27; direction++ )	fFine[direction] = fViewFine(fReadIndex[direction], cellReadIndex[direction]);
+			for (int direction = 0; direction < 27; direction++) f[direction] += fFine[direction];	
+		}
+		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] * 0.125f;
+		
+		const float scale = 2.0f;
+		rescaleF( f, scale );
+		
+		NBRStruct NBR;
+		NBR.self = cellCoarse;
+		NBR.jPlus = jPlusViewCoarse( cellCoarse );
+		NBR.kPlus = kPlusViewCoarse( cellCoarse );
+		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
+		finishNBRPlus( NBR, InfoCoarse );
+		
+		int cellWriteIndex[27];
+		int fWriteIndex[27];
+		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
+		for ( int direction = 0; direction < 27; direction++ ) fViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.fineToCoarseCount, cellLambda );
+}
+
+void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
+{
+	// Now I want to improve this by interpolation
+	const InfoStruct &InfoCoarse = GridCoarse.Info;
+	auto fViewCoarse = GridCoarse.fArray.getView();
+	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
+	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
+	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
+	auto jkPlusViewCoarse = GridCoarse.NBR.jkPlusArray.getConstView();
+	auto jMinusViewCoarse = GridCoarse.NBR.jMinusArray.getConstView();
+	auto kMinusViewCoarse = GridCoarse.NBR.kMinusArray.getConstView();
+	
+	const InfoStruct &InfoFine = GridFine.Info;
+	auto fViewFine = GridFine.fArray.getView();
+	const bool &esotwistFlipperFine = GridFine.esotwistFlipper;
+	auto jPlusViewFine = GridFine.NBR.jPlusArray.getConstView();
+	auto kPlusViewFine = GridFine.NBR.kPlusArray.getConstView();
+	auto jkPlusViewFine = GridFine.NBR.jkPlusArray.getConstView();
+	
+	auto coarseToFineIndexView = GridCoarse.coarseToFineIndexArray.getConstView();
+	auto childMapView = GridCoarse.childMapArray.getConstView();
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
+	{
+		const int cellCoarse = coarseToFineIndexView( index );
+		
+		// Get the base values from the center cell
+		float fBase[27];
+		float rhoBase, uxBase, uyBase, uzBase;
+		NBRStruct NBR;
+		NBR.self = cellCoarse;
+		NBR.jPlus = jPlusViewCoarse( cellCoarse );
+		NBR.kPlus = kPlusViewCoarse( cellCoarse );
+		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
+		finishNBRPlus( NBR, InfoCoarse );
+		int cellReadIndex[27];
+		int fReadIndex[27];
+		getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
+		for ( int direction = 0; direction < 27; direction++ )	fBase[direction] = fViewCoarse(fReadIndex[direction], cellReadIndex[direction]);
+		getRhoUxUyUz( rhoBase, uxBase, uyBase, uzBase, fBase );
+		
+		
+		
+		const int cellFine0 = childMapView( cellCoarse );
+
+		int cellFineList[8];
+		cellFineList[0] = cellFine0;
+		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
+		cellFineList[2] = jPlusViewFine( cellFine0 );
+		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
+		cellFineList[4] = kPlusViewFine( cellFine0 );
+		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
+		cellFineList[6] = jkPlusViewFine( cellFine0 );
+		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
+		
+		
+		
+		const float scale = 0.5f;
+		rescaleF( f, scale );
+		
+		for ( int which = 0; which < 8; which++ )
+		{
+			const int cellFine = cellFineList[which];
+			NBR.self = cellFine;
+			NBR.jPlus = jPlusViewFine( cellFine );
+			NBR.kPlus = kPlusViewFine( cellFine );
+			NBR.jkPlus = jkPlusViewFine( cellFine );
+			finishNBRPlus( NBR, InfoFine );
+			int cellWriteIndex[27];
+			int fWriteIndex[27];
+			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperFine, InfoFine );
+			for ( int direction = 0; direction < 27; direction++ ) fViewFine( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+		}
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.coarseToFineCount, cellLambda );
+}
+
+void updateInterface( GridStruct &GridCoarse, GridStruct &GridFine )
+{
+	updateFineToCoarseInterface( GridCoarse, GridFine );
+	updateCoarseToFineInterface( GridCoarse, GridFine );
+}
+
+
+
+
+/*
+__host__ __device__ void rescaleFOLD( float (&f)[27], const bool &coarseToFine )
 {
 	float rho, ux, uy, uz;
 	getRhoUxUyUz( rho, ux, uy, uz, f );
-	/*
-		We are using cummulant collision, which involves transformation to central moments. Therefore to
-		perform the transformation of the distribution functions when travelling between grids, we can perform
-		the central moment transformation, scale the relevant moments, set the high order cummulants to zero,
-		skip the relaxation part and perform the backwards transformation to receive the rescaled distribution
-		functions on the target grid.
-	*/
+	//
+	//	We are using cummulant collision, which involves transformation to central moments. Therefore to
+	//	perform the transformation of the distribution functions when travelling between grids, we can perform
+	//	the central moment transformation, scale the relevant moments, set the high order cummulants to zero,
+	//	skip the relaxation part and perform the backwards transformation to receive the rescaled distribution
+	//	functions on the target grid.
+
 	//-------------------------- CUMMULANT COLLISION EQUATIONS ---------------------------
 	//------------------------------------------------------------------------------------
 	//--------------------------- TRANSFORM TO CENTRAL MOMENTS ---------------------------
@@ -281,149 +455,4 @@ __host__ __device__ void rescaleF( float (&f)[27], const bool &coarseToFine )
 	f[9] = (ks_cb0 * (uz * uz + uz) + ks_cb1 * (2.f * uz + 1.f) + ks_cb2) * 0.5f;
 	f[26] = (ks_cc0 * (uz * uz + uz) + ks_cc1 * (2.f * uz + 1.f) + ks_cc2) * 0.5f;
 }
-
-void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
-{
-	const InfoStruct &InfoCoarse = GridCoarse.Info;
-	auto fArrayViewCoarse = GridCoarse.fArray.getView();
-	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
-	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
-	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
-	auto jkPlusViewCoarse = GridCoarse.NBR.jkPlusArray.getConstView();
-	
-	const InfoStruct &InfoFine = GridFine.Info;
-	auto fArrayViewFine = GridFine.fArray.getView();
-	const bool &esotwistFlipperFine = GridFine.esotwistFlipper;
-	auto jPlusViewFine = GridFine.NBR.jPlusArray.getConstView();
-	auto kPlusViewFine = GridFine.NBR.kPlusArray.getConstView();
-	auto jkPlusViewFine = GridFine.NBR.jkPlusArray.getConstView();
-	
-	auto fineToCoarseIndexView = GridCoarse.fineToCoarseIndexArray.getConstView();
-	auto childMapView = GridCoarse.childMapArray.getConstView();
-	
-	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{
-		const int cellCoarse = fineToCoarseIndexView( index );
-		const int cellFine0 = childMapView( cellCoarse );
-		
-		int cellFineList[8];
-		cellFineList[0] = cellFine0;
-		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
-		cellFineList[2] = jPlusViewFine( cellFine0 );
-		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
-		cellFineList[4] = kPlusViewFine( cellFine0 );
-		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
-		cellFineList[6] = jkPlusViewFine( cellFine0 );
-		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
-		
-		float f[27] = {0.f};
-		
-		for ( int which = 0; which < 8; which++ )
-		{
-			const int cellFine = cellFineList[which];
-			NBRStruct NBR;
-			NBR.self = cellFine;
-			NBR.jPlus = jPlusViewFine( cellFine );
-			NBR.kPlus = kPlusViewFine( cellFine );
-			NBR.jkPlus = jkPlusViewFine( cellFine );
-			finishNBRPlus( NBR, InfoFine );
-			
-			float fFine[27];
-			int cellReadIndex[27];
-			int fReadIndex[27];
-			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperFine, InfoFine );
-			for ( int direction = 0; direction < 27; direction++ )	fFine[direction] = fArrayViewFine(fReadIndex[direction], cellReadIndex[direction]);
-			for (int direction = 0; direction < 27; direction++) f[direction] += fFine[direction];	
-		}
-		for (int direction = 0; direction < 27; direction++) f[direction] = f[direction] * 0.125f;
-		
-		rescaleF( f, false );
-		
-		NBRStruct NBR;
-		NBR.self = cellCoarse;
-		NBR.jPlus = jPlusViewCoarse( cellCoarse );
-		NBR.kPlus = kPlusViewCoarse( cellCoarse );
-		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
-		finishNBRPlus( NBR, InfoCoarse );
-		
-		int cellWriteIndex[27];
-		int fWriteIndex[27];
-		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
-		for ( int direction = 0; direction < 27; direction++ ) fArrayViewCoarse( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.fineToCoarseCount, cellLambda );
-}
-
-void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
-{
-	
-	const InfoStruct &InfoCoarse = GridCoarse.Info;
-	auto fArrayViewCoarse = GridCoarse.fArray.getView();
-	const bool &esotwistFlipperCoarse = GridCoarse.esotwistFlipper;
-	auto jPlusViewCoarse = GridCoarse.NBR.jPlusArray.getConstView();
-	auto kPlusViewCoarse = GridCoarse.NBR.kPlusArray.getConstView();
-	auto jkPlusViewCoarse = GridCoarse.NBR.jkPlusArray.getConstView();
-	
-	const InfoStruct &InfoFine = GridFine.Info;
-	auto fArrayViewFine = GridFine.fArray.getView();
-	const bool &esotwistFlipperFine = GridFine.esotwistFlipper;
-	auto jPlusViewFine = GridFine.NBR.jPlusArray.getConstView();
-	auto kPlusViewFine = GridFine.NBR.kPlusArray.getConstView();
-	auto jkPlusViewFine = GridFine.NBR.jkPlusArray.getConstView();
-	
-	auto coarseToFineIndexView = GridCoarse.coarseToFineIndexArray.getConstView();
-	auto childMapView = GridCoarse.childMapArray.getConstView();
-	
-	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{
-		const int cellCoarse = coarseToFineIndexView( index );
-		const int cellFine0 = childMapView( cellCoarse );
-
-		int cellFineList[8];
-		cellFineList[0] = cellFine0;
-		cellFineList[1] = cellFine0 + 1; if ( cellFineList[1] >= InfoFine.cellCount ) cellFineList[1] = 0;
-		cellFineList[2] = jPlusViewFine( cellFine0 );
-		cellFineList[3] = cellFineList[2] + 1; if ( cellFineList[3] >= InfoFine.cellCount ) cellFineList[3] = 0;
-		cellFineList[4] = kPlusViewFine( cellFine0 );
-		cellFineList[5] = cellFineList[4] + 1; if ( cellFineList[5] >= InfoFine.cellCount ) cellFineList[5] = 0;
-		cellFineList[6] = jkPlusViewFine( cellFine0 );
-		cellFineList[7] = cellFineList[6] + 1; if ( cellFineList[7] >= InfoFine.cellCount ) cellFineList[7] = 0;
-		
-		float f[27];
-		
-		NBRStruct NBR;
-		NBR.self = cellCoarse;
-		NBR.jPlus = jPlusViewCoarse( cellCoarse );
-		NBR.kPlus = kPlusViewCoarse( cellCoarse );
-		NBR.jkPlus = jkPlusViewCoarse( cellCoarse );
-		finishNBRPlus( NBR, InfoCoarse );
-		
-		int cellReadIndex[27];
-		int fReadIndex[27];
-		getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperCoarse, InfoCoarse );
-		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayViewCoarse(fReadIndex[direction], cellReadIndex[direction]);
-		
-		rescaleF( f, true );
-		
-		for ( int which = 0; which < 8; which++ )
-		{
-			const int cellFine = cellFineList[which];
-			NBR.self = cellFine;
-			NBR.jPlus = jPlusViewFine( cellFine );
-			NBR.kPlus = kPlusViewFine( cellFine );
-			NBR.jkPlus = jkPlusViewFine( cellFine );
-			finishNBRPlus( NBR, InfoFine );
-			int cellWriteIndex[27];
-			int fWriteIndex[27];
-			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperFine, InfoFine );
-			for ( int direction = 0; direction < 27; direction++ ) fArrayViewFine( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
-		}
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, InfoCoarse.coarseToFineCount, cellLambda );
-}
-
-void updateInterface( GridStruct &GridCoarse, GridStruct &GridFine )
-{
-	updateFineToCoarseInterface( GridCoarse, GridFine );
-	updateCoarseToFineInterface( GridCoarse, GridFine );
-}
+*/

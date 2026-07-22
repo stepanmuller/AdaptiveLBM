@@ -6,13 +6,13 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 1;
+static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
 int iterationChunk = 1000;
-constexpr int iterationCount = 1000000;
+constexpr int iterationCount = 1001;
 
-constexpr float resGlobal = 0.10f; 														// mm
+constexpr float resGlobal = 0.30f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -314,8 +314,6 @@ int main(int argc, char **argv)
 	lapTimer.reset();
 	lapTimer.start();
 	
-	float uMaxTotal = 0.f;
-	
 	for ( int iteration = 0; iteration < iterationCount; iteration++ )
 	{
 		if ( iteration % iterationChunk == 0 || iteration > 31000000 )
@@ -329,67 +327,10 @@ int main(int argc, char **argv)
 			const float glups = updateCount / lapTime / 1000000000.f;
 			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
 			
-			/*
-			InfoStruct &Info = grids[0].Info;
-			const bool &esotwistFlipper = grids[0].esotwistFlipper;
-			auto fView = grids[0].fArray.getConstView();
-			auto movingBouncebackMarkerView = grids[0].movingBouncebackMarkerArray.getConstView();
-			auto bouncebackMarkerView = grids[0].bouncebackMarkerArray.getConstView();
-			auto jPlusView = grids[0].NBR.jPlusArray.getConstView();
-			auto kPlusView = grids[0].NBR.kPlusArray.getConstView();
-			auto jkPlusView = grids[0].NBR.jkPlusArray.getConstView();
-			
-			auto fetch = [ = ] __cuda_callable__( const int cell )
-			{
-				const bool MBBmarker = movingBouncebackMarkerView( cell );
-				if ( MBBmarker ) return 0.f;
-				const bool BBmarker = bouncebackMarkerView( cell );
-				if ( BBmarker ) return 0.f;
-				
-				NBRStruct NBR;
-				NBR.self = cell;
-				NBR.jPlus = jPlusView( cell );
-				NBR.kPlus = kPlusView( cell );
-				NBR.jkPlus = jkPlusView( cell );
-				finishNBRPlus( NBR, Info );
-				
-				int cellReadIndex[27];
-				int fReadIndex[27];
-				getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
-				float f[27];
-				for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
-				
-				float rho, ux, uy, uz;
-				getRhoUxUyUz( rho, ux, uy, uz, f );
-				
-				float u = std::sqrt(ux * ux + uy * uy + uz * uz);
-				
-				return u;
-			};
-			auto reduction = [] __cuda_callable__( const float& a, const float& b )
-			{
-				return TNL::max( a, b );
-			};
-			const int start = 0;
-			const int end = grids[0].Info.cellCount;
-			const float uMax = TNL::Algorithms::reduce<TNL::Devices::Cuda>( start, end, fetch, reduction, 0.f );
-			
-			//const float fMax = findMaxFloatArray2D( grids[0].fArray, 27, grids[0].Info.cellCount );
-			std::cout << "uMax " << uMax << std::endl;
-			if ( uMax > uMaxTotal ) uMaxTotal = uMax;
-			std::cout << "uMaxTotal " << uMaxTotal << std::endl;
-			if ( iteration >= 312 )
-			{
-				findCellState( grids[0], 95, 173, 97 );
-			}
-			*/
-			
-			
 			const int r = 14.f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
-			std::string command = "python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy);
-			if (system(command.c_str()) != 0) {}
+			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
 			/*
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
