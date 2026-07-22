@@ -133,6 +133,22 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		for ( int direction = 0; direction < 27; direction++ )	fBase[direction] = fViewCoarse(fReadIndex[direction], cellReadIndex[direction]);
 		getRhoUxUyUz( rhoBase, uxBase, uyBase, uzBase, fBase );
 		
+		// Prepare the stencil
+		const int stencil[6] = { cellCoarse+1, cellCoarse-1, jPlusViewCoarse(cellCoarse), jMinusViewCoarse(cellCoarse), kPlusViewCoarse(cellCoarse), kMinusViewCoarse(cellCoarse) };
+		const int dx[6] = { 1, -1, 0, 0, 0, 0 };
+		const int dy[6] = { 0, 0, 1, -1, 0, 0 };
+		const int dz[6] = { 0, 0, 0, 0, 1, -1 };
+		
+		// We want linear interpolation for f, linear interpolation for rho and quadratic interpolation for u
+		// Prepare the derivatives
+		float dfdx[27] = {0.f};	float dfdy[27] = {0.f};	float dfdz[27] = {0.f};
+		float dRhodx = 0.f; float dRhody = 0.f; float dRhodz = 0.f;
+		float duxdx = 0.f; float duxdy = 0.f; float duxdz = 0.f;
+		float d2uxdx2 = 0.f; float d2uxdy2 = 0.f; float d2uxdz2 = 0.f;
+		float duydx = 0.f; float duydy = 0.f; float duydz = 0.f;
+		float d2uydx2 = 0.f; float d2uydy2 = 0.f; float d2uydz2 = 0.f;
+		float duzdx = 0.f; float duzdy = 0.f; float duzdz = 0.f;
+		float d2uzdx2 = 0.f; float d2uzdy2 = 0.f; float d2uzdz2 = 0.f;
 		
 		
 		const int cellFine0 = childMapView( cellCoarse );

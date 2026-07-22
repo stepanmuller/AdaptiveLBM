@@ -320,7 +320,7 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, const floa
 	localDu.duxdx = (0.5f * omega1) * (-2.f * C_200 + C_020 + C_002) + 0.5f * (rho - C_200 - C_020 - C_002);
 	localDu.duydy = localDu.duxdx + (1.5f * omega1) * (C_200 - C_020);
 	localDu.duzdz = localDu.duxdx + (1.5f * omega1) * (C_200 - C_002);
-	localDu.duXY = - (3.f * omega1) * C_110;
-	localDu.duYZ = - (3.f * omega1) * C_011;
-	localDu.duXZ = - (3.f * omega1) * C_101;
+	localDu.duxdyCross = - (3.f * omega1) * C_110;
+	localDu.duydzCross = - (3.f * omega1) * C_011;
+	localDu.duxdzCross = - (3.f * omega1) * C_101;
 }
