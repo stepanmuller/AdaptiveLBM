@@ -214,7 +214,7 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		// divide ux, uy, uz by 16
 		ux *= 0.0625f; uy *= 0.0625f; uz *= 0.0625f;
 		
-		const float scale = ( 6.f * InfoCoarse.nu + 1.f) / ( 6.f * InfoFine.nu + 1.f );
+		const float scale = ( 6.f * InfoCoarse.nu + 1.f) / ( 3.f * InfoFine.nu + 0.5f );
 		
 		for ( int direction = 0; direction < 27; direction++ ) fNeq[direction] *= scale;
 		
@@ -408,7 +408,7 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		const float cellFineDy[8] = {-0.25f,-0.25f, 0.25f, 0.25f,-0.25f,-0.25f, 0.25f, 0.25f};
 		const float cellFineDz[8] = {-0.25f,-0.25f,-0.25f,-0.25f, 0.25f, 0.25f, 0.25f, 0.25f};
 		
-		const float scale = ( 6.f * InfoFine.nu + 1.f ) / ( 6.f * InfoCoarse.nu + 1.f);
+		const float scale = ( 3.f * InfoFine.nu + 0.5f ) / ( 6.f * InfoCoarse.nu + 1.f);
 		for ( int direction = 0; direction < 27; direction++ )
 		{
 			fNeqBase[direction] *= scale;
