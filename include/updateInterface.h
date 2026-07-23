@@ -70,7 +70,7 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 
 			for ( int direction = 0; direction < 27; direction++ ) fNeqNbr[direction] = fViewFine( nbrFReadIndex[direction], nbrCellReadIndex[direction] );
 			getRhoUxUyUz( rhoNbr, uxNbr, uyNbr, uzNbr, fNeqNbr );
-			getLocalDu( fNeqNbr, InfoCoarse.nu, LocalDuNbr );
+			getLocalDu( fNeqNbr, InfoFine.nu, LocalDuNbr );
 			float feqNbr[27];
 			getFeq(rhoNbr, uxNbr, uyNbr, uzNbr, feqNbr);
 			for ( int direction = 0; direction < 27; direction++ ) fNeqNbr[direction] = fNeqNbr[direction] - feqNbr[direction];
@@ -79,16 +79,16 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			rho += rhoNbr;
 			for (int direction = 0; direction < 27; direction++) fNeq[direction] += fNeqNbr[direction];
 			
-			ux += 2.f * uxNbr; // LINEAR VERSION
-			uy += 2.f * uyNbr;
-			uz += 2.f * uzNbr;
+			//ux += 2.f * uxNbr; // LINEAR VERSION
+			//uy += 2.f * uyNbr;
+			//uz += 2.f * uzNbr;
 			
 			// Add this neighbor's specific contribution to ux, uy, uz and the helper coefficients
 			switch(i) {
 				case 0: // (-1/2, -1/2, -1/2) -> x1
-					//ux += 2.f * uxNbr + uzNbr + uyNbr;
-					//uy += uxNbr + 2.f * uyNbr + uzNbr;
-					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr + uzNbr + uyNbr;
+					uy += uxNbr + 2.f * uyNbr + uzNbr;
+					uz += uxNbr + uyNbr + 2.f * uzNbr;
 					A11 -= LocalDuNbr.duxdx; 
 					A12 -= LocalDuNbr.duxdyCross;
 					A13 -= LocalDuNbr.duxdzCross;
@@ -100,9 +100,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 -= LocalDuNbr.duydzCross;
 					break;
 				case 1: // (+1/2, -1/2, -1/2) -> x2
-					//ux += 2.f * uxNbr - uyNbr - uzNbr;
-					//uy += -uxNbr + 2.f * uyNbr + uzNbr;
-					//uz += -uxNbr + uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr - uyNbr - uzNbr;
+					uy += -uxNbr + 2.f * uyNbr + uzNbr;
+					uz += -uxNbr + uyNbr + 2.f * uzNbr;
 					A11 += LocalDuNbr.duxdx; 
 					A12 += LocalDuNbr.duxdyCross;
 					A13 += LocalDuNbr.duxdzCross;
@@ -114,9 +114,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 -= LocalDuNbr.duydzCross;
 					break;
 				case 2: // (-1/2, +1/2, -1/2) -> x5
-					//ux += 2.f * uxNbr - uyNbr + uzNbr;
-					//uy += -uxNbr + 2.f * uyNbr - uzNbr;
-					//uz += uxNbr - uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr - uyNbr + uzNbr;
+					uy += -uxNbr + 2.f * uyNbr - uzNbr;
+					uz += uxNbr - uyNbr + 2.f * uzNbr;
 					A11 -= LocalDuNbr.duxdx; 
 					A12 -= LocalDuNbr.duxdyCross;
 					A13 -= LocalDuNbr.duxdzCross;
@@ -128,9 +128,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 -= LocalDuNbr.duydzCross;
 					break;
 				case 3: // (+1/2, +1/2, -1/2) -> x6
-					//ux += 2.f * uxNbr + uyNbr - uzNbr;
-					//uy += uxNbr + 2.f * uyNbr - uzNbr;
-					//uz += -uxNbr - uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr + uyNbr - uzNbr;
+					uy += uxNbr + 2.f * uyNbr - uzNbr;
+					uz += -uxNbr - uyNbr + 2.f * uzNbr;
 					A11 += LocalDuNbr.duxdx; 
 					A12 += LocalDuNbr.duxdyCross;
 					A13 += LocalDuNbr.duxdzCross;
@@ -142,9 +142,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 -= LocalDuNbr.duydzCross;
 					break;
 				case 4: // (-1/2, -1/2, +1/2) -> x4 
-					//ux += 2.f * uxNbr + uyNbr - uzNbr;
-					//uy += uxNbr + 2.f * uyNbr - uzNbr;
-					//uz += -uxNbr - uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr + uyNbr - uzNbr;
+					uy += uxNbr + 2.f * uyNbr - uzNbr;
+					uz += -uxNbr - uyNbr + 2.f * uzNbr;
 					A11 -= LocalDuNbr.duxdx; 
 					A12 -= LocalDuNbr.duxdyCross;
 					A13 -= LocalDuNbr.duxdzCross;
@@ -156,9 +156,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 += LocalDuNbr.duydzCross;
 					break;
 				case 5: // (+1/2, -1/2, +1/2) -> x3
-					//ux += 2.f * uxNbr - uyNbr + uzNbr;
-					//uy += -uxNbr + 2.f * uyNbr - uzNbr;
-					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr - uyNbr + uzNbr;
+					uy += -uxNbr + 2.f * uyNbr - uzNbr;
+					uz += uxNbr - uyNbr + 2.f * uzNbr;
 					A11 += LocalDuNbr.duxdx; 
 					A12 += LocalDuNbr.duxdyCross;
 					A13 += LocalDuNbr.duxdzCross;
@@ -170,9 +170,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 += LocalDuNbr.duydzCross;
 					break;
 				case 6: // (-1/2, +1/2, +1/2) -> x8 
-					//ux += 2.f * uxNbr - uyNbr - uzNbr;
-					//uy += -uxNbr + 2.f * uyNbr + uzNbr;
-					//uz += -uxNbr + uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr - uyNbr - uzNbr;
+					uy += -uxNbr + 2.f * uyNbr + uzNbr;
+					uz += -uxNbr + uyNbr + 2.f * uzNbr;
 					A11 -= LocalDuNbr.duxdx; 
 					A12 -= LocalDuNbr.duxdyCross;
 					A13 -= LocalDuNbr.duxdzCross;
@@ -184,9 +184,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 += LocalDuNbr.duydzCross;
 					break;
 				case 7: // (+1/2, +1/2, +1/2) -> x7 
-					//ux += 2.f * uxNbr + uyNbr + uzNbr;
-					//uy += uxNbr + 2.f * uyNbr + uzNbr;
-					//uz += uxNbr + uyNbr + 2.f * uzNbr;
+					ux += 2.f * uxNbr + uyNbr + uzNbr;
+					uy += uxNbr + 2.f * uyNbr + uzNbr;
+					uz += uxNbr + uyNbr + 2.f * uzNbr;
 					A11 += LocalDuNbr.duxdx; 
 					A12 += LocalDuNbr.duxdyCross;
 					A13 += LocalDuNbr.duxdzCross;
@@ -207,9 +207,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		A11 *= 0.25f; A12 *= 0.25f; A13 *= 0.25f; B22 *= 0.25f; B12 *= 0.25f; B23 *= 0.25f; C33 *= 0.25f; C13 *= 0.25f; C23 *= 0.25f;
 		
 		// add the helper coefficients to find final ux, uy, uz -> this is not working correctly
-		//ux += -2.f * A11 - 2.f * C13 - 2 * B12;
-		//uy += -2.f * B22 - 2.f * C23 - 2 * A12;
-		//uz += -2.f * C33 - 2.f * B23 - 2 * A13;
+		ux += -2.f * A11 - 2.f * C13 - 2 * B12;
+		uy += -2.f * B22 - 2.f * C23 - 2 * A12;
+		uz += -2.f * C33 - 2.f * B23 - 2 * A13;
 		
 		// divide ux, uy, uz by 16
 		ux *= 0.0625f; uy *= 0.0625f; uz *= 0.0625f;
