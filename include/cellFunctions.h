@@ -304,15 +304,15 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, LocalDuStr
 	const float C_020 = k_020;
 	const float C_002 = k_002;
 	
-	//float feq[27];
-	//getFeq(rho, ux, uy, uz, feq);
-	//float fneq[27];
-	//getFneq(f, feq, fneq);
-	//float omegaLES;
-	//getOmegaLES(fneq, rho, nu, omegaLES);
-	//const float omega1 = omegaLES;
-	const float tau = 3.f * nu + 0.5f;
-	const float omega1 =  1 / tau;
+	float feq[27];
+	getFeq(rho, ux, uy, uz, feq);
+	float fneq[27];
+	getFneq(f, feq, fneq);
+	float omegaLES;
+	getOmegaLES(fneq, rho, nu, omegaLES);
+	const float omega1 = omegaLES;
+	//const float tau = 3.f * nu + 0.5f;
+	//const float omega1 =  1 / tau;
 	
 	localDu.duxdx = (0.5f * omega1) * (-2.f * C_200 + C_020 + C_002) + 0.5f * (rho - C_200 - C_020 - C_002);
 	localDu.duydy = localDu.duxdx + (1.5f * omega1) * (C_200 - C_020);
@@ -322,21 +322,15 @@ __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, LocalDuStr
 	localDu.duxdzCross = - (3.f * omega1) * C_101;
 }
 
-__host__ __device__ void getRhoUxUyUzAndCentralMoments( float &rho, float &ux, float &uy, float &uz, 
-														float &k_000,
-														float &k_100, float &k_010, float &k_001, 
-														float &k_200, float &k_020, float &k_002, 
-														float &k_011, float &k_101, float &k_110, 
-														&const float (&f)[27] )
+__host__ __device__ void getInterpolationVariables( float &rho, float &ux, float &uy, float &uz, 
+													float &k_000,
+													float &k_100, float &k_010, float &k_001, 
+													float &k_200, float &k_020, float &k_002, 
+													float &k_011, float &k_101, float &k_110,
+													LocalDuStruct &localDu, 
+													const float (&f)[27], const float &nu )
 {
-	float rho, ux, uy, uz;
 	getRhoUxUyUz( rho, ux, uy, uz, f );
-	//
-	//	We are using cummulant collision, which involves transformation to central moments. Therefore to
-	//	perform the transformation of the distribution functions when travelling between grids, we can perform
-	//	the central moment transformation, scale the relevant moments, set the high order cummulants to zero,
-	//	skip the relaxation part and perform the backwards transformation to receive the rescaled distribution
-	//	functions on the target grid.
 
 	//-------------------------- CUMMULANT COLLISION EQUATIONS ---------------------------
 	//------------------------------------------------------------------------------------
@@ -413,11 +407,34 @@ __host__ __device__ void getRhoUxUyUzAndCentralMoments( float &rho, float &ux, f
 	k_110 = (k_c10 - k_a10) - ux * k_010;
 
 	k_200 = (k_c00 + k_a00) - 2.f * ux * (k_c00 - k_a00) + ux * ux * k_000;
+	
+	// Get local Du
+	
+	float feq[27];
+	getFeq(rho, ux, uy, uz, feq);
+	float fneq[27];
+	getFneq(f, feq, fneq);
+	float omegaLES;
+	getOmegaLES(fneq, rho, nu, omegaLES);
+	const float omega1 = omegaLES;
+	
+	localDu.duxdx = (0.5f * omega1) * (-2.f * k_200 + k_020 + k_002) + 0.5f * (rho - k_200 - k_020 - k_002);
+	localDu.duydy = localDu.duxdx + (1.5f * omega1) * (k_200 - k_020);
+	localDu.duzdz = localDu.duxdx + (1.5f * omega1) * (k_200 - k_002);
+	localDu.duxdyCross = - (3.f * omega1) * k_110;
+	localDu.duydzCross = - (3.f * omega1) * k_011;
+	localDu.duxdzCross = - (3.f * omega1) * k_101;
 }
 __host__ __device__ void rescaleCentralMoments(	float &k_200, float &k_020, float &k_002, 
 												float &k_011, float &k_101, float &k_110,
 												const bool &coarseToFine )
 {	
+	//	We are using cummulant collision, which involves transformation to central moments. Therefore to
+	//	perform the transformation of the distribution functions when travelling between grids, we can perform
+	//	the central moment transformation, scale the relevant moments, set the high order cummulants to zero,
+	//	skip the relaxation part and perform the backwards transformation to receive the rescaled distribution
+	//	functions on the target grid.
+	
 	const float k_200prev = k_200;
 	const float k_020prev = k_020;
 	const float k_002prev = k_002;
@@ -446,12 +463,13 @@ __host__ __device__ void rescaleCentralMoments(	float &k_200, float &k_020, floa
 	}
 }
 
-__host__ __device__ void rhoUxUyUzAndCentralMomentsToF( const float &rho, const float &ux, const float &uy, const float &uz, 
-														const float &k_000,
-														const float &k_100, const float &k_010, const float &k_001, 
-														const float &k_200, const float &k_020, const float &k_002, 
-														const float &k_011, const float &k_101, const float &k_110, 
-														&float (&f)[27] )
+__host__ __device__ void useInterpolatedVariables( 	const float &rho, const float &ux, const float &uy, const float &uz, 
+													const float &k_000,
+													const float &k_100, const float &k_010, const float &k_001, 
+													const float &k_200, const float &k_020, const float &k_002, 
+													const float &k_011, const float &k_101, const float &k_110, 
+													float (&f)[27] )
+{
 	//------------------------------------------------------------------------------------
 	//------------------------------ CENTRAL MOM. TO CUMULANTS ---------------------------
 	//------------------------------------------------------------------------------------
