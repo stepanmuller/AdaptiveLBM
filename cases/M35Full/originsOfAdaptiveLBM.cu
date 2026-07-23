@@ -6,10 +6,10 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 2;
+static constexpr int GRID_LEVEL_COUNT = 3;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
-int iterationChunk = 1000;
+int iterationChunk = 100;
 constexpr int iterationCount = 100000;
 
 constexpr float resGlobal = 0.30f; 														// mm
@@ -254,11 +254,8 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 	}
 	if ( grids[level].Info.updatesSinceRebuild >= GRID_REBUILD_PERIOD )
     {
-		//if ( grids[level].Info.iterationsFinished >= 312 ) findCellState( grids[0], 95, 173, 97 );
-		
+		for ( int sublevel = std::max(1, level); sublevel < GRID_LEVEL_COUNT; sublevel++) updateInterface(grids[sublevel-1], grids[sublevel]);
 		rebuildGrids( grids, Voxelizer, level );
-		
-		//if ( grids[level].Info.iterationsFinished >= 312 ) findCellState( grids[0], 95, 173, 97 );
 	}
 	//applyNonReflectiveOutletZ(grids[level]);
 	//std::cout << "COLLISION " << std::endl;

@@ -839,13 +839,13 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	const bool iAmFinest = ( level == GRID_LEVEL_COUNT - 1 );
 	
 	GridStruct &Grid = grids[ level ];	
-	InfoStruct &Info = Grid.Info;
+	const bool initPass = ( Grid.fArray.getSizes()[0] < 1 );
+	
+	InfoStruct &Info = Grid.Info;	
 	Info.cellCountOld = Info.cellCount;
 	
 	Info.updatesSinceRebuild = 0; 
 	Info.updatesSinceMovingBouncebackUpdate = 0;
-	
-	const bool initPass = ( Grid.fArray.getSizes()[0] < 1 );
 	
 	SkeletonGridStruct &SkeletonGrid = Grid.SkeletonGrid;
 	InfoStruct &SkeletonInfo = SkeletonGrid.Info;
@@ -1134,7 +1134,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	}
 	
 	// 19) update interface with the coarser grid
-	if ( !iAmCoarsest )
+	if ( !iAmCoarsest && !initPass )
 	{
 		updateInterface( grids[level - 1], Grid );
 	}
