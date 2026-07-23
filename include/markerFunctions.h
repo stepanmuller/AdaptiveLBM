@@ -133,9 +133,6 @@ void markFinestFluid( BoolArrayType &markerArray, const rayMapStruct &rayMap, co
 void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
 	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
-	const int cellCountX = Grid.Info.cellCountX;
-	const int cellCountY = Grid.Info.cellCountY;
-	const int cellCountZ = Grid.Info.cellCountZ;
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
@@ -152,15 +149,6 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 		const int iCoarse = iView[ cell ];
 		const int jCoarse = jView[ cell ];
 		const int kCoarse = kView[ cell ];
-		// early exit if we are on the boundary: 
-		// we will automatically refine the boundary to prevent having interface cross a boundary condition
-		if ( iCoarse == 0 || iCoarse == cellCountX-1 
-				|| jCoarse == 0 || jCoarse == cellCountY-1 
-				|| kCoarse == 0 || kCoarse == cellCountZ-1 ) 
-			{
-				markerView[ cell ] = true;
-				return;
-			}	
 		const int iFineFirst = iCoarse * downsample;
 		const int jFineFirst = jCoarse * downsample;
 		const int kFineFirst = kCoarse * downsample;
@@ -200,7 +188,7 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 	// marks a coarse grid based on a fine rayMapArray, result is 1 if at least one fine cell is 1 (bounceback)
 	const int cellCountX = SkeletonGrid.Info.cellCountX;
 	const int cellCountY = SkeletonGrid.Info.cellCountY;
-	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // this is not needed
+	// const int cellCountZ = SkeletonGrid.Info.cellCountZ; // not needed here
 	const int cellCount = SkeletonGrid.Info.cellCount;
 	const IntArray3DType &rayMapArray = rayMap.rayMapArray;
 	auto markerView = markerArray.getView();
@@ -248,6 +236,34 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 		}
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
+}
+
+void markBoundaryAdditive( BoolArrayType &markerArray, const GridStruct &Grid, const int &upperBound )
+{
+	// additively marks all boundary cells. This is used to ensure that boundary cells will be refined. Marker for other cells remains unchanged.
+	const int cellCountX = Grid.Info.cellCountX;
+	const int cellCountY = Grid.Info.cellCountY;
+	const int cellCountZ = Grid.Info.cellCountZ;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	auto markerView = markerArray.getView();
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCoarse = iView[ cell ];
+		const int jCoarse = jView[ cell ];
+		const int kCoarse = kView[ cell ];
+		// mark cell if we are on the boundary: 
+		if ( iCoarse == 0 || iCoarse == cellCountX-1 
+				|| jCoarse == 0 || jCoarse == cellCountY-1 
+				|| kCoarse == 0 || kCoarse == cellCountZ-1
+				 ) 
+			{
+				markerView[ cell ] = true;
+			}	
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
 void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
@@ -365,7 +381,7 @@ void markKeepCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, const in
 	markFinestFluid( Grid.keepCellMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
 	Grid.keepCellMarkerArray.swap( Grid.markerBuffer );
 	spreadMarkers( Grid.keepCellMarkerArray, Grid.markerBuffer, Grid, upperBound );
-	// the moving bounceback geometry can travel distance up to 2 cells before the grid is fully rebuild
+	// the moving bounceback geometry can travel distance up to 2 cells before the grid is fully rebuilt
 	// so we need to keep a 3-cell thick moving bounceback layer (2 layers may become fluid later)
 	// we do this by spreading the keepCell area by 2 more cells
 	// then find intersection of the spread with moving bounceback and add the intersection to original keepCell area
@@ -403,6 +419,7 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	markKeepCells( Grid, Voxelizer, upperBound );
 	// search deep refinement area
 	markFinestBounceback( Grid.deepRefinementMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
+	markBoundaryAdditive( Grid.deepRefinementMarkerArray, Grid, upperBound );
 	for ( int spread = 0; spread < WALL_REFINEMENT_COUNT; spread++ )
 	{
 		Grid.deepRefinementMarkerArray.swap( Grid.markerBuffer );

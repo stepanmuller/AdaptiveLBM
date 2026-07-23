@@ -6,11 +6,11 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1;
 
-int iterationChunk = 4;
-constexpr int iterationCount = 100000;
+int iterationChunk = 1000;
+constexpr int iterationCount = 5000;
 
 constexpr float resGlobal = 0.30f; 														// mm
 
@@ -311,7 +311,7 @@ int main(int argc, char **argv)
 	lapTimer.reset();
 	lapTimer.start();
 	
-	for ( int iteration = 0; iteration < iterationCount; iteration++ )
+	for ( int iteration = 0; iteration <= iterationCount; iteration++ )
 	{
 		if ( iteration % iterationChunk == 0 || iteration > 31000000 )
 		{
@@ -325,15 +325,15 @@ int main(int argc, char **argv)
 			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
 			
 			const int r = 14.f;
-			exportSectionCutPlotToiletPaperZ( grids, r, iteration / iterationChunk );
+			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
-			/*
-			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
+			
+			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2 + 75;
 			exportSectionCutPlotZY( grids, iCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
-			*/
+			
 			lapTimer.reset();
 			lapTimer.start();
 		}
