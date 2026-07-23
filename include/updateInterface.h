@@ -76,10 +76,9 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			// Add contributions to f
 			for ( int direction = 0; direction < 27; direction++ ) fAvg[direction] += fNbr[direction];
 			
-			ux += 2.f * uxNbr; // LINEAR VERSION
-			uy += 2.f * uyNbr;
-			uz += 2.f * uzNbr;
-			/*
+			//ux += 2.f * uxNbr; // LINEAR VERSION
+			//uy += 2.f * uyNbr;
+			//uz += 2.f * uzNbr;
 			// Add this neighbor's specific contribution to ux, uy, uz and the helper coefficients
 			switch(i) {
 				case 0: // (-1/2, -1/2, -1/2) -> x1
@@ -195,7 +194,6 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 					C23 += LocalDuNbr.duydzCross;
 					break;
 			}
-			*/
 		}
 		
 		// divide rho by 8
@@ -206,12 +204,10 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		// divide A, B, C by 4
 		A11 *= 0.25f; A12 *= 0.25f; A13 *= 0.25f; B22 *= 0.25f; B12 *= 0.25f; B23 *= 0.25f; C33 *= 0.25f; C13 *= 0.25f; C23 *= 0.25f;
 		
-		/*
-		// add the helper coefficients to find final ux, uy, uz
+		// add the helper coefficients to find final ux, uy, uz 
 		ux += -2.f * A11 - 2.f * C13 - 2 * B12;
 		uy += -2.f * B22 - 2.f * C23 - 2 * A12;
 		uz += -2.f * C33 - 2.f * B23 - 2 * A13;
-		*/
 		
 		// divide ux, uy, uz by 16
 		ux *= 0.0625f; uy *= 0.0625f; uz *= 0.0625f;
