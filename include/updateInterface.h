@@ -466,11 +466,28 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			const float uy = uyBase + bx * dx + by * dy + bz * dz + bxy * dx * dy + bxz * dx * dz + byz * dy * dz + bxx * dx * dx + byy * dy * dy + bzz * dz * dz;
 			const float uz = uzBase + cx * dx + cy * dy + cz * dz + cxy * dx * dy + cxz * dx * dz + cyz * dy * dz + cxx * dx * dx + cyy * dy * dy + czz * dz * dz;
 			
+			/*
 			float f[27];
 			useInterpolatedVariables( 	rho, ux, uy, uz, 
 										k_000Base,
 										k_100Base, k_010Base, k_001Base, 
 										k_200Base, k_020Base, k_002Base, 
+										k_011Base, k_101Base, k_110Base, 
+										f );
+			*/
+			
+			// ADJUST MOMENTS TO MATCH INTERPOLATED DENSITY -> this part seems to help slightly
+			const float k_000_interp = rho;
+			const float deltaRho3 = (rho - rhoBase) / 3.f;
+			const float k_200_interp = k_200Base + deltaRho3;
+			const float k_020_interp = k_020Base + deltaRho3;
+			const float k_002_interp = k_002Base + deltaRho3;
+			
+			float f[27];
+			useInterpolatedVariables( 	rho, ux, uy, uz, 
+										k_000_interp,
+										k_100Base, k_010Base, k_001Base, 
+										k_200_interp, k_020_interp, k_002_interp, 
 										k_011Base, k_101Base, k_110Base, 
 										f );
 			

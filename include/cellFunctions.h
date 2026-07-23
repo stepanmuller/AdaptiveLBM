@@ -425,6 +425,7 @@ __host__ __device__ void getInterpolationVariables( float &rho, float &ux, float
 	localDu.duydzCross = - (3.f * omega1) * k_011;
 	localDu.duxdzCross = - (3.f * omega1) * k_101;
 }
+
 __host__ __device__ void rescaleCentralMoments(	float &k_200, float &k_020, float &k_002, 
 												float &k_011, float &k_101, float &k_110,
 												const bool &coarseToFine )
