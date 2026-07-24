@@ -6,7 +6,7 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 2;
+static constexpr int GRID_LEVEL_COUNT = 3;
 static constexpr float SMAGORINSKY_CONSTANT = 0.0f;
 
 int iterationChunk = 500;
@@ -190,7 +190,6 @@ int main(int argc, char **argv)
 	{
 		if ( iteration % iterationChunk == 0 )
 		{
-			if ( iteration > 10000 ) iterationChunk = 1;
 			std::cout << std::endl;
 			std::cout << "Finished iteration " << iteration << std::endl;
 			
