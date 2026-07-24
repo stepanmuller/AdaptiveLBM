@@ -7,7 +7,7 @@ static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
 static constexpr int GRID_LEVEL_COUNT = 3;
-static constexpr float SMAGORINSKY_CONSTANT = 0.0f;
+static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
 int iterationChunk = 500;
 constexpr int iterationCount = 30000;
@@ -39,7 +39,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( Marker.bounceback ) return;
 	if ( Marker.movingBounceback ) return;
 	if ( kCell == 0 ) Marker.refinement = 1;
-	if ( kCell > Info.cellCountZ - 20 ) Marker.refinement = 1;
+	if ( kCell > Info.cellCountZ - 50 ) Marker.refinement = 1;
 	if ( kCell == 0 ) Marker.BCU = 1;
 	else if ( kCell == Info.cellCountZ-1 ) Marker.BCRho = 1;
 	else Marker.fluid = 1;
