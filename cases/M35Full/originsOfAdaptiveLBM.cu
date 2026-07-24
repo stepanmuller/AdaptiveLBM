@@ -6,13 +6,13 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.0f;
 
 int iterationChunk = 500;
 constexpr int iterationCount = 30000;
 
-constexpr float resGlobal = 0.30f; 														// mm
+constexpr float resGlobal = 0.3f; 														// mm
 
 constexpr float uzInlet = 0.008f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -25,6 +25,7 @@ constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
 constexpr float angularVelocity = 2000.f;												// rad/s
 const float boundaryLayerThickness = 0.2f;												// mm
+const float shaftRotationStartDistance = 10.f;											// mm
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -86,10 +87,15 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 	const float wallDistancePhys = std::max(0.f, std::min(r - RIn, ROut - r));
 	const float delta = std::max( 0.f, std::min( 1.f, wallDistancePhys / boundaryLayerThickness ));
 	const float velocityMultiplier = delta * delta * (3.0f - 2.0f * delta);
+		
+	const float inletDistancePhys = z - Info.oz;
+	const float rotationDelta = std::max( 0.f, std::min( 1.f, inletDistancePhys / shaftRotationStartDistance ));
+	const float rotationMultiplier = rotationDelta * rotationDelta * (3.0f - 2.0f * rotationDelta);
+	
 	if ( Marker.movingBounceback )
 	{
-		BCRhoUG.ux = - vt * (y / r);
-		BCRhoUG.uy = vt * (x / r);
+		BCRhoUG.ux = - vt * (y / r) * rotationMultiplier;
+		BCRhoUG.uy = vt * (x / r) * rotationMultiplier;
 		BCRhoUG.uz = 0.f;
 	}
 	else
@@ -199,11 +205,11 @@ int main(int argc, char **argv)
 			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
-			/*
-			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2 + 75;
+			
+			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
 			exportSectionCutPlotZY( grids, iCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
-			*/
+			
 			
 			lapTimer.reset();
 			lapTimer.start();

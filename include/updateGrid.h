@@ -12,8 +12,6 @@
 
 void updateGrid( GridStruct &Grid )
 {
-	// applyStreaming( Grid );
-	
 	InfoStruct &Info = Grid.Info;
 	const bool &esotwistFlipper = Grid.esotwistFlipper;
 	
