@@ -238,12 +238,11 @@ void markFinestBounceback( BoolArrayType &markerArray, const rayMapStruct &rayMa
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCount, cellLambda );	
 }
 
-void markBoundaryAdditive( BoolArrayType &markerArray, const GridStruct &Grid, const int &upperBound )
+void applyUserRefinementModification( BoolArrayType &markerArray, const GridStruct &Grid, const int &upperBound )
 {
-	// additively marks all boundary cells. This is used to ensure that boundary cells will be refined. Marker for other cells remains unchanged.
-	const int cellCountX = Grid.Info.cellCountX;
-	const int cellCountY = Grid.Info.cellCountY;
-	const int cellCountZ = Grid.Info.cellCountZ;
+	// uses the getMarkers function defined in the main file to adjust refinement area. 
+	// Beware, the current version isnt able to handle interface on walls or boundaries.
+	const InfoStruct &Info = Grid.Info;
 	auto iView = Grid.IJK.iArray.getConstView();
 	auto jView = Grid.IJK.jArray.getConstView();
 	auto kView = Grid.IJK.kArray.getConstView();
@@ -251,17 +250,13 @@ void markBoundaryAdditive( BoolArrayType &markerArray, const GridStruct &Grid, c
 
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
-		const int iCoarse = iView[ cell ];
-		const int jCoarse = jView[ cell ];
-		const int kCoarse = kView[ cell ];
-		// mark cell if we are on the boundary: 
-		if ( iCoarse == 0 || iCoarse == cellCountX-1 
-				|| jCoarse == 0 || jCoarse == cellCountY-1 
-				|| kCoarse == 0 || kCoarse == cellCountZ-1
-				 ) 
-			{
-				markerView[ cell ] = true;
-			}	
+		const int iCell = iView[ cell ];
+		const int jCell = jView[ cell ];
+		const int kCell = kView[ cell ];
+		MarkerStruct Marker;
+		Marker.refinement = markerView( cell );		
+		getMarkers( iCell, jCell, kCell, Marker, Info );
+		markerView( cell ) = Marker.refinement;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
@@ -419,7 +414,7 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	markKeepCells( Grid, Voxelizer, upperBound );
 	// search deep refinement area
 	markFinestBounceback( Grid.deepRefinementMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
-	markBoundaryAdditive( Grid.deepRefinementMarkerArray, Grid, upperBound );
+	applyUserRefinementModification( Grid.deepRefinementMarkerArray, Grid, upperBound );
 	for ( int spread = 0; spread < WALL_REFINEMENT_COUNT; spread++ )
 	{
 		Grid.deepRefinementMarkerArray.swap( Grid.markerBuffer );

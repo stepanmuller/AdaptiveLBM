@@ -94,7 +94,7 @@ struct InfoStruct { float gridID = 0; float gridMemoryMB; int iterationsFinished
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
 						bool BCRho = 0; bool BCU = 0; bool BCNonReflectiveOutlet = 0; 
-						bool refinement = 0; bool deepRefinement = 0; };
+						bool refinement = 0; bool deepRefinement = 0; bool fineToCoarse = 0; };
 						
 struct BCRhoUGStruct { float rho = 1.f; float ux = 0.f; float uy = 0.f; float uz = 0.f; float gx = 0.f; float gy = 0.f; float gz = 0.f; };
 

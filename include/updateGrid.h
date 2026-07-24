@@ -12,7 +12,7 @@
 
 void updateGrid( GridStruct &Grid )
 {
-	applyStreaming( Grid );
+	// applyStreaming( Grid );
 	
 	InfoStruct &Info = Grid.Info;
 	const bool &esotwistFlipper = Grid.esotwistFlipper;
@@ -114,6 +114,9 @@ void updateGrid( GridStruct &Grid )
 		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, cellLambda );
+	
+	applyStreaming( Grid );
+	
 	Info.updatesSinceRebuild++; 
 	Info.updatesSinceMovingBouncebackUpdate++;
 	Info.iterationsFinished++;

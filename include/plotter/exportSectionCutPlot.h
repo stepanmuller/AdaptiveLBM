@@ -55,7 +55,7 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 	auto gridIDArrayView = SectionCut.gridIDArray.getView();
 	
 	// 2. Loop through ALL grids (none are dropped)
-	for ( int level = 0; level < levelCount; level++ )
+	for ( int level = levelCount - 1; level >= 0; level-- )
 	{
 		GridStruct &Grid = grids[level];
 		const InfoStruct &Info = Grid.Info;
@@ -67,9 +67,11 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
 		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
 		bool useRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
+		bool useFineToCoarseMarkerArray = ( Grid.fineToCoarseMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
 		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
 		auto deepRefinementMarkerArrayView = Grid.deepRefinementMarkerArray.getConstView();
+		auto fineToCoarseMarkerArrayView = Grid.fineToCoarseMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
@@ -121,7 +123,7 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			float f[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+			getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
@@ -131,6 +133,10 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
 			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
 			if ( useRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerArrayView( cell );
+			if ( useFineToCoarseMarkerArray ) Marker.fineToCoarse = fineToCoarseMarkerArrayView( cell );
+			
+			if ( Marker.deepRefinement || Marker.fineToCoarse ) return; // there will be fine grid on top so we dont write this
+			
 			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.deepRefinement;
 			
 			// 3. Mapping coordinates to the scaled-down output array
@@ -278,8 +284,8 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 	int iOriginFinest, jOriginFinest, kOriginFinest;
 	getIJKCellIndexFromXYZ( iOriginFinest, jOriginFinest, kOriginFinest, 0.f, 0.f, 0.f, FinestInfo );
 
-	// 2. Loop through ALL grids (coarse to fine, allowing fine to overwrite coarse)
-	for ( int level = 0; level < levelCount; level++ )
+	// 2. Loop through ALL grids (fine to coarse, allowing coarse to overwrite fine)
+	for ( int level = levelCount-1; level >= 0; level-- )
 	{
 		GridStruct &Grid = grids[level];
 		InfoStruct Info = Grid.Info;
@@ -291,9 +297,11 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
 		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
 		bool useRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
+		bool useFineToCoarseMarkerArray = ( Grid.fineToCoarseMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
 		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
 		auto deepRefinementMarkerArrayView = Grid.deepRefinementMarkerArray.getConstView();
+		auto fineToCoarseMarkerArrayView = Grid.fineToCoarseMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
@@ -340,7 +348,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			float f[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+			getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
@@ -350,6 +358,10 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
 			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
 			if ( useRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerArrayView( cell );
+			if ( useFineToCoarseMarkerArray ) Marker.fineToCoarse = fineToCoarseMarkerArrayView( cell );
+			
+			if ( Marker.deepRefinement || Marker.fineToCoarse ) return; // there will be fine grid on top so we dont write this
+			
 			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.deepRefinement;
 			
 			// 3. Mapping coordinates to the scaled-down 2D unrolled array

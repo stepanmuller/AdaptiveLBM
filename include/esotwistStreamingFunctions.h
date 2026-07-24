@@ -41,7 +41,7 @@ __cuda_callable__ void getPreCollisionIndex( int (&cellIndex)[27], int (&fIndex)
     cellIndex[25] = NBR.ijkPlus;
     cellIndex[26] = NBR.self;
 
-    if ( esotwistFlipper )
+    if ( !esotwistFlipper )
     {
         fIndex[0]  = 0;   fIndex[1]  = 1;   fIndex[2]  = 2;
         fIndex[3]  = 3;   fIndex[4]  = 4;   fIndex[5]  = 5;
@@ -97,7 +97,7 @@ __cuda_callable__ void getPostCollisionIndex( int (&cellIndex)[27], int (&fIndex
     cellIndex[25] = NBR.self;
     cellIndex[26] = NBR.ijkPlus;
 
-    if ( esotwistFlipper )
+    if ( !esotwistFlipper )
     {
         fIndex[0]  = 0;   fIndex[1]  = 2;   fIndex[2]  = 1;
         fIndex[3]  = 4;   fIndex[4]  = 3;   fIndex[5]  = 6;
@@ -121,4 +121,10 @@ __cuda_callable__ void getPostCollisionIndex( int (&cellIndex)[27], int (&fIndex
         fIndex[21] = 21;  fIndex[22] = 22;  fIndex[23] = 23;
         fIndex[24] = 24;  fIndex[25] = 25;  fIndex[26] = 26;
     }
+}
+
+__cuda_callable__ void getPreviousPostCollisionIndex( int (&cellIndex)[27], int (&fIndex)[27], const NBRStruct &NBR, const bool &esotwistFlipper, const InfoStruct &Info ) 
+{ 
+	const bool previousEsotwistFlipper = !esotwistFlipper; 
+	getPostCollisionIndex( cellIndex, fIndex, NBR, previousEsotwistFlipper, Info ); 
 }

@@ -696,7 +696,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	markGeometricNBRPlus( GridFine, cellCountFullFine );
 }
 
-void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int postCollisionLocation )
+void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int preCollisionLocation )
 {
 	auto fView  = Grid.fArray.getView();
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
@@ -707,13 +707,13 @@ void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{	
 		int readIndex;
-		if      ( postCollisionLocation == 0 ) readIndex = cell;
-		else if ( postCollisionLocation == 1 ) readIndex = cell + 1; 
-		else if ( postCollisionLocation == 2 ) readIndex = jPlusView( cell ); 
-		else if ( postCollisionLocation == 3 ) readIndex = jPlusView( cell ) + 1;
-		else if ( postCollisionLocation == 4 ) readIndex = kPlusView( cell ); 
-		else if ( postCollisionLocation == 5 ) readIndex = kPlusView( cell ) + 1; 
-		else if ( postCollisionLocation == 6 ) readIndex = jkPlusView( cell ); 
+		if      ( preCollisionLocation == 0 ) readIndex = cell;
+		else if ( preCollisionLocation == 1 ) readIndex = cell + 1; 
+		else if ( preCollisionLocation == 2 ) readIndex = jPlusView( cell ); 
+		else if ( preCollisionLocation == 3 ) readIndex = jPlusView( cell ) + 1;
+		else if ( preCollisionLocation == 4 ) readIndex = kPlusView( cell ); 
+		else if ( preCollisionLocation == 5 ) readIndex = kPlusView( cell ) + 1; 
+		else if ( preCollisionLocation == 6 ) readIndex = jkPlusView( cell ); 
 		else    							   readIndex = jkPlusView( cell ) + 1;		
 		if ( readIndex >= cellCountOld ) readIndex = 0;
 		const float f = fView( direction, readIndex );
@@ -731,7 +731,7 @@ void pullFArrayIntoCells( GridStruct &Grid )
 	{
 		throw std::runtime_error("pullFArrayIntoCells failed, bool esotwistFlipper is 1. This function can only be called when esotwistFlipper is 0.");
 	}
-	// 						  List of post collision memory locations
+	// 						  List of pre collision memory locations
 	// 						  0 = self
 	// 						  1 = iPlus 
 	// 						  2 = jPlus
@@ -741,11 +741,11 @@ void pullFArrayIntoCells( GridStruct &Grid )
 	// 						  6 = jkPlus
 	// 						  7 = ijkPlus
 	//						  direction   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26}
-	const int postCollisionLocation[27] = { 0, 1, 0, 0, 4, 0, 2, 1, 4, 5, 0, 0, 3, 2, 4, 2, 1, 6, 0, 2, 5, 4, 3, 1, 6, 0, 7 };	
-	for ( int direction = 26; direction >= 0; direction-- ) pullSingleFArrayIntoCells( Grid, direction, postCollisionLocation[ direction ] );
+	const int preCollisionLocation[27] = { 0, 0, 1, 4, 0, 2, 0, 4, 1, 0, 5, 3, 0, 4, 2, 1, 2, 0, 6, 5, 2, 3, 4, 6, 1, 7, 0 };	
+	for ( int direction = 26; direction >= 0; direction-- ) pullSingleFArrayIntoCells( Grid, direction, preCollisionLocation[ direction ] );
 }
 
-void oldToKeepSingleTransform( GridStruct &Grid, const int direction, const int postCollisionLocation )
+void oldToKeepSingleTransform( GridStruct &Grid, const int direction, const int preCollisionLocation )
 {
 	auto oldToKeepView = Grid.intBuffer3.getConstView();
 	auto fView  = Grid.fArray.getView();
@@ -760,13 +760,13 @@ void oldToKeepSingleTransform( GridStruct &Grid, const int direction, const int 
 		if ( cellNew < 0 ) return;
 		const float f = fView( direction + 1, cellOld );
 		int writeIndex;
-		if      ( postCollisionLocation == 0 ) writeIndex = cellNew;
-		else if ( postCollisionLocation == 1 ) writeIndex = cellNew + 1; 
-		else if ( postCollisionLocation == 2 ) writeIndex = jPlusView( cellNew ); 
-		else if ( postCollisionLocation == 3 ) writeIndex = jPlusView( cellNew ) + 1;
-		else if ( postCollisionLocation == 4 ) writeIndex = kPlusView( cellNew ); 
-		else if ( postCollisionLocation == 5 ) writeIndex = kPlusView( cellNew ) + 1; 
-		else if ( postCollisionLocation == 6 ) writeIndex = jPlusView(kPlusView(cellNew));  
+		if      ( preCollisionLocation == 0 ) writeIndex = cellNew;
+		else if ( preCollisionLocation == 1 ) writeIndex = cellNew + 1; 
+		else if ( preCollisionLocation == 2 ) writeIndex = jPlusView( cellNew ); 
+		else if ( preCollisionLocation == 3 ) writeIndex = jPlusView( cellNew ) + 1;
+		else if ( preCollisionLocation == 4 ) writeIndex = kPlusView( cellNew ); 
+		else if ( preCollisionLocation == 5 ) writeIndex = kPlusView( cellNew ) + 1; 
+		else if ( preCollisionLocation == 6 ) writeIndex = jPlusView(kPlusView(cellNew));  
 		else    							   writeIndex = jPlusView(kPlusView(cellNew)) + 1;		
 		if ( writeIndex >= cellCount ) writeIndex = 0;
 		fView( direction, writeIndex ) = f;
@@ -792,8 +792,8 @@ void oldToKeepTransform( GridStruct &Grid )
 	// 						  6 = jkPlus
 	// 						  7 = ijkPlus
 	//						  direction   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26}
-	const int postCollisionLocation[27] = { 0, 1, 0, 0, 4, 0, 2, 1, 4, 5, 0, 0, 3, 2, 4, 2, 1, 6, 0, 2, 5, 4, 3, 1, 6, 0, 7 };	
-	for ( int direction = 0; direction < 27; direction++ ) oldToKeepSingleTransform( Grid, direction, postCollisionLocation[ direction ] );
+	const int preCollisionLocation[27] = { 0, 0, 1, 4, 0, 2, 0, 4, 1, 0, 5, 3, 0, 4, 2, 1, 2, 0, 6, 5, 2, 3, 4, 6, 1, 7, 0 };	
+	for ( int direction = 0; direction < 27; direction++ ) oldToKeepSingleTransform( Grid, direction, preCollisionLocation[ direction ] );
 }
 
 void fullToKeepTransform( IntArrayType &dataArray, const BoolArrayType &keepCellMarkerArray, const IntArrayType &fullToKeepArray, IntArrayType &intBuffer, const int &upperBound )
