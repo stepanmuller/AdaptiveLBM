@@ -7,7 +7,7 @@ static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
 static constexpr int GRID_LEVEL_COUNT = 2;
-static constexpr float SMAGORINSKY_CONSTANT = 0.1;
+static constexpr float SMAGORINSKY_CONSTANT = 0.0f;
 
 int iterationChunk = 1000;
 constexpr int iterationCount = 5000;
