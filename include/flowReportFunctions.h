@@ -1,5 +1,5 @@
-// DIAD Version that dynamically downsamples finest grids and clips to specified bounds
-void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutIndex, XYZBoundsStruct &Bounds, FlowReportStruct &FlowReport, PlaneEnum plane )
+//  Version that dynamically downsamples finest grids and clips to specified bounds
+void getFlowReportGeneral( std::vector<GridStruct> &grids, const int &cutIndex, BoundsStruct &Bounds, FlowReportStruct &FlowReport, PlaneEnum plane )
 {
 	const int levelCount = grids.size();
 	
@@ -83,29 +83,30 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 	// 3. Loop through ALL grids
 	for ( int level = 0; level < levelCount; level++ )
 	{
-		DIADGridStruct &Grid = grids[level];
+		GridStruct &Grid = grids[level];
 		InfoStruct Info = Grid.Info;
 		
 		const int cellScale = static_cast<int>(pow(2, levelCount - Info.gridID - 1));
 		
 		auto fArrayView  = Grid.fArray.getConstView();
 		bool useBouncebackArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
+		bool useMovingBouncebackArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
+		bool useRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
+		bool useFineToCoarseMarkerArray = ( Grid.fineToCoarseMarkerArray.getSize() > 0 );
 		auto bouncebackMarkerArrayView = Grid.bouncebackMarkerArray.getConstView();
-		bool useForcedVelocityArray = ( Grid.forcedVelocityMarkerArray.getSize() > 0 );
-		auto forcedVelocityMarkerArrayView = Grid.forcedVelocityMarkerArray.getConstView();
+		auto movingBouncebackMarkerArrayView = Grid.movingBouncebackMarkerArray.getConstView();
+		auto deepRefinementMarkerArrayView = Grid.deepRefinementMarkerArray.getConstView();
+		auto fineToCoarseMarkerArrayView = Grid.fineToCoarseMarkerArray.getConstView();
 		
 		auto iView = Grid.IJK.iArray.getConstView();
 		auto jView = Grid.IJK.jArray.getConstView();
 		auto kView = Grid.IJK.kArray.getConstView();
 		
-		bool esotwistFlipper = Grid.esotwistFlipper;
-		auto iNBRView = Grid.EsotwistNBRArray.iNBRArray.getConstView();
-		auto jNBRView = Grid.EsotwistNBRArray.jNBRArray.getConstView();
-		auto kNBRView = Grid.EsotwistNBRArray.kNBRArray.getConstView();
-		auto ijNBRView = Grid.EsotwistNBRArray.ijNBRArray.getConstView();
-		auto ikNBRView = Grid.EsotwistNBRArray.ikNBRArray.getConstView();
-		auto jkNBRView = Grid.EsotwistNBRArray.jkNBRArray.getConstView();
-		auto ijkNBRView = Grid.EsotwistNBRArray.ijkNBRArray.getConstView();
+		const bool &esotwistFlipper = Grid.esotwistFlipper;
+		
+		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -138,19 +139,17 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 				indexHorizontal = kCellScaled; 
 			}
 			
-			DIADEsotwistNBRStruct NBR;
-			NBR.i = iNBRView( cell );
-			NBR.j = jNBRView( cell );
-			NBR.k = kNBRView( cell );
-			NBR.ij = ijNBRView( cell );
-			NBR.ik = ikNBRView( cell );
-			NBR.jk = jkNBRView( cell );
-			NBR.ijk = ijkNBRView( cell );
+			NBRStruct NBR;
+			NBR.self = cell;
+			NBR.jPlus = jPlusView( cell );
+			NBR.kPlus = kPlusView( cell );
+			NBR.jkPlus = jkPlusView( cell );
+			finishNBRPlus( NBR, Info );
 			
 			float f[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getPostCollisionIndex( cell, cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info ); 
+			getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fArrayView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			float rho, ux, uy, uz;
@@ -158,9 +157,13 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 
 			MarkerStruct Marker;
 			if ( useBouncebackArray ) Marker.bounceback = bouncebackMarkerArrayView( cell );
-			if ( useForcedVelocityArray ) Marker.forcedVelocity = forcedVelocityMarkerArrayView( cell );
-			getMarkers( iCell, jCell, kCell, Marker, Info );
-			const float marker = (Marker.bounceback || Marker.forcedVelocity);
+			if ( useMovingBouncebackArray ) Marker.movingBounceback = movingBouncebackMarkerArrayView( cell );
+			if ( useRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerArrayView( cell );
+			if ( useFineToCoarseMarkerArray ) Marker.fineToCoarse = fineToCoarseMarkerArrayView( cell );
+			
+			if ( Marker.deepRefinement || Marker.fineToCoarse ) return; // there will be fine grid on top so we dont write this
+			
+			const float marker = Marker.bounceback + Marker.movingBounceback + Marker.deepRefinement;
 			
 			int outYStart = (indexVertical / targetScale) - vMinTarget;
 			int outXStart = (indexHorizontal / targetScale) - hMinTarget;
@@ -250,15 +253,15 @@ void getFlowReportGeneral( std::vector<DIADGridStruct> &grids, const int &cutInd
 	}
 }
 
-void getFlowReportXY( std::vector<DIADGridStruct> &grids, const int &kCell, XYZBoundsStruct &Bounds, FlowReportStruct &FlowReport )
+void getFlowReportXY( std::vector<GridStruct> &grids, const int &kCell, BoundsStruct &Bounds, FlowReportStruct &FlowReport )
 {
 	getFlowReportGeneral( grids, kCell, Bounds, FlowReport, XY );
 }
-void getFlowReportZY( std::vector<DIADGridStruct> &grids, const int &iCell, XYZBoundsStruct &Bounds, FlowReportStruct &FlowReport )
+void getFlowReportZY( std::vector<GridStruct> &grids, const int &iCell, BoundsStruct &Bounds, FlowReportStruct &FlowReport )
 {
 	getFlowReportGeneral( grids, iCell, Bounds, FlowReport, ZY );
 }
-void getFlowReportZX( std::vector<DIADGridStruct> &grids, const int &jCell, XYZBoundsStruct &Bounds, FlowReportStruct &FlowReport )
+void getFlowReportZX( std::vector<GridStruct> &grids, const int &jCell, BoundsStruct &Bounds, FlowReportStruct &FlowReport )
 {
 	getFlowReportGeneral( grids, jCell, Bounds, FlowReport, ZX );
 }

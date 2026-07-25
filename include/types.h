@@ -93,7 +93,7 @@ struct InfoStruct { float gridID = 0; unsigned long long gridMemoryBytes = 0LL; 
 					int memoryCount = 0; int memoryCountFull = 0; 
 					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0;
 					bool esotwistFlipper = 0; int updatesSinceRebuild = 0; int updatesSinceMovingBouncebackUpdate = 0;
-					float pRegulator = 0.f; float iRegulator = 0.f; };
+					float iRegulatorInlet = 0.f; float iRegulatorOutlet = 0.f; };
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
 						bool BCRho = 0; bool BCU = 0; bool BCNonReflectiveOutlet = 0; 

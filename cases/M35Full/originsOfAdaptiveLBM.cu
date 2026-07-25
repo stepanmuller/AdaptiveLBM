@@ -6,26 +6,33 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
-int iterationChunk = 500;
-constexpr int iterationCount = 30000;
+int reportChunk = 19;
+int plotterChunk = 1000;
+constexpr int iterationCount = 50000;
 
-constexpr float resGlobal = 0.3f; 														// mm
+constexpr float resGlobal = 0.1f; 														// mm
 
-constexpr float uzInlet = 0.008f; 														// also works as nominal LBM Mach number	
+constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
 constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
-constexpr float uzInletPhys = 4.5986f; 													// m/s
+constexpr float uzInletPhys = 4.5986f;													// m/s
 constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
-constexpr float invSqrt3 = 0.577350269f; 
-constexpr float soundspeedPhys = invSqrt3 * (resGlobal/1000) / dtPhysGlobal; 			// m/s
+constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
 constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
 constexpr float angularVelocity = 2000.f;												// rad/s
 const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
+
+constexpr float targetInletPower = 0.f;													// W
+constexpr float iRegulatorInletStrength = 0.25f * 1e-7f;
+
+constexpr int expAvgIterationSpan = 10000;
+constexpr float iRegulatorOutletStrength = 1e-2f;
+constexpr float iRegulatorOutletDecayPerIteration = 0.01f;
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -102,9 +109,9 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 	{
 		BCRhoUG.ux = 0.f;
 		BCRhoUG.uy = 0.f;
-		BCRhoUG.uz = uzInlet * velocityMultiplier;
+		BCRhoUG.uz = ( uzInlet + Info.iRegulatorInlet ) * velocityMultiplier;
 	}
-	BCRhoUG.rho = 1.f;
+	if ( Marker.BCRho ) BCRhoUG.rho = 1.f + Info.iRegulatorOutlet;
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -114,6 +121,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 #include "../../include/updateInterface.h"
 #include "../../include/updateMovingBounceback.h"
 #include "../../include/plotter/exportSectionCutPlot.h"
+#include "../../include/flowReportFunctions.h"
 
 void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStruct &Voxelizer, STLStruct &STLImpellerStationary, STLStruct &STLImpellerMoving ) 
 {
@@ -141,6 +149,28 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
         for ( int i = 0; i < 2; i++) applyGlobalUpdate(grids, level + 1, Voxelizer, STLImpellerStationary, STLImpellerMoving );
         updateInterface(grids[level], grids[level + 1]);
     }
+}
+
+void exportHistoryData( const std::vector<float>& historyInletPower, 
+                        const std::vector<float>& historyMassFlow, 
+                        const std::vector<float>& historyTorque, 
+                        const int &currentIteration, int fileNumber ) {
+    FILE* fp = fopen("/dev/shm/historyData.bin", "wb");
+    if (!fp) return;
+    
+    int count = currentIteration + 1;
+    fwrite(&count, sizeof(int), 1, fp);
+    
+    // Write all three vectors sequentially
+    fwrite(historyInletPower.data(), sizeof(float), count, fp);
+    fwrite(historyMassFlow.data(), sizeof(float), count, fp);
+    fwrite(historyTorque.data(), sizeof(float), count, fp);
+    
+    fclose(fp);
+    
+    // Construct the command string to pass the number as an argument
+    std::string cmd = "python3 historyPlotter.py " + std::to_string(fileNumber) + " &";
+    if (system(cmd.c_str()) != 0) {}
 }
 
 int main(int argc, char **argv)
@@ -182,22 +212,85 @@ int main(int argc, char **argv)
 	
 	std::cout << "Maximum cells travelled by MBB per iteration: " << dtPhysGlobal * angularVelocity * 17.5f / resGlobal << std::endl;
 	
+	std::vector<float> historyInletPower( iterationCount, 0.f );
+	std::vector<float> historyMassFlow( iterationCount, 0.f );
+	std::vector<float> historyTorque( iterationCount, 0.f );
+	
+	float uzOutExpAvg = 0.f;
+	
 	TNL::Timer lapTimer;
 	lapTimer.reset();
 	lapTimer.start();
 	
 	for ( int iteration = 0; iteration <= iterationCount; iteration++ )
 	{
-		if ( iteration % iterationChunk == 0 )
+		if ( iteration % reportChunk == 0 )
+		{
+			BoundsStruct Bounds;
+			Bounds = STLMain.Bounds;
+			
+			// get inlet data
+			FlowReportStruct FlowReportIn;
+			int kCut = 0;
+			getFlowReportXY( grids, kCut, Bounds, FlowReportIn );
+			float pIn = FlowReportIn.rho;
+			float uzIn = FlowReportIn.uz;
+			convertToPhysicalPressure( pIn );
+			float uTemp = 0.f;
+			convertToPhysicalVelocity( uzIn, uTemp, uTemp, grids[0].Info );
+			const float pTotalIn = 0.5f * rhoNominalPhys * uzIn * uzIn + pIn;
+			const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
+			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
+			
+			// get outlet data
+			FlowReportStruct FlowReportOut;
+			kCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountZ-1 - 2;
+			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
+			float uzOut = FlowReportOut.uz;
+			
+			// regulate inlet
+			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength;
+			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
+			
+			// regulate outlet to dampen waves
+			const float alpha = 2.f / (float)( std::min( iteration, expAvgIterationSpan ) / reportChunk + 2);
+			uzOutExpAvg = uzOutExpAvg * ( 1.f - alpha ) + alpha * uzOut;
+			const float densityCorrection = ( 1.f / 0.577350269f) * ( uzOut - uzOutExpAvg );
+			grids[0].Info.iRegulatorOutlet += densityCorrection * iRegulatorOutletStrength;
+			grids[0].Info.iRegulatorOutlet = grids[0].Info.iRegulatorOutlet * std::pow( ( 1.f - iRegulatorOutletDecayPerIteration ), reportChunk );
+			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorOutlet = grids[0].Info.iRegulatorOutlet;
+			
+			float regulatedPOut = 1.f + grids[0].Info.iRegulatorOutlet;
+			convertToPhysicalPressure( regulatedPOut );
+			//float torque = 0.f;
+			//for ( int level = 0; level < gridLevelCount; level++ )
+			//{
+			//	torque += getTorque( grids[level] );
+			//}
+			
+			for ( int shifter = 0; shifter <= reportChunk; shifter++ )
+			{
+				if ( iteration+shifter < iterationCount )
+				{
+					historyInletPower[iteration+shifter] = inletPower;
+					historyMassFlow[iteration+shifter] = massFlow;
+					historyTorque[iteration+shifter] = regulatedPOut; //0.f; //torque;
+				}
+			}
+		}
+		
+		if ( iteration % plotterChunk == 0 )
 		{
 			std::cout << std::endl;
 			std::cout << "Finished iteration " << iteration << std::endl;
 			
 			lapTimer.stop();
 			auto lapTime = lapTimer.getRealTime();
-			const float updateCount = (float)usefulCellUpdatesPerIteration * (float)iterationChunk;
+			const float updateCount = (float)usefulCellUpdatesPerIteration * (float)plotterChunk;
 			const float glups = updateCount / lapTime / 1000000000.f;
 			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
+			
+			if ( iteration > 0 ) exportHistoryData( historyInletPower, historyMassFlow, historyTorque, iteration, 0 );
 			
 			const int r = 14.f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
@@ -207,7 +300,7 @@ int main(int argc, char **argv)
 			
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
 			exportSectionCutPlotZY( grids, iCut, iteration+1 );
-			if (system("python3 ../../include/plotter/plotterGridID.py") != 0) {}
+			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
 			
 			
 			lapTimer.reset();

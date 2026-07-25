@@ -19,15 +19,17 @@ uHorizontal = data[:, :, 1]
 uVertical = data[:, :, 2]
 uNormal = data[:, :, 3]
 mask = data[:, :, 4] 
+gridID = data[:, :, 5]
 
 uPlanar = np.sqrt(uHorizontal**2 + uVertical**2)
 
 # 3. Setup Figure (FIXED: 3 plots side-by-side)
-fig = plt.figure(figsize=(15, 5), constrained_layout=True)
-gs = fig.add_gridspec(1, 3)
+fig = plt.figure(figsize=(20, 5), constrained_layout=True)
+gs = fig.add_gridspec(1, 4)
 ax0 = fig.add_subplot(gs[0])
 ax1 = fig.add_subplot(gs[1])
 ax2 = fig.add_subplot(gs[2])
+ax3 = fig.add_subplot(gs[3])
 
 is_solid = mask > 0.5 
 
@@ -35,11 +37,12 @@ def setup_plot(ax, data_array, label):
 	# Get only the fluid data (ignore solid mask for scale calculation)
     fluid_data = data_array[mask <= 0.5]
     
+    # Calculate 5th and 95th percentiles (removes 2% smallest and 2% largest)
     vmin = np.nanpercentile(fluid_data, 1)
     vmax = np.nanpercentile(fluid_data, 99)
     
     # If the range is zero (constant field), default to data min/max
-    if vmin == vmax:
+    if (vmin == vmax) or label == "Grid ID [1]":
         vmin, vmax = np.min(fluid_data), np.max(fluid_data)
         
     masked_data = ma.array(data_array, mask=is_solid)
@@ -63,6 +66,9 @@ verticalVals = np.arange(nVertical)
 uH_stream = np.where(is_solid, np.nan, uHorizontal)
 uV_stream = np.where(is_solid, np.nan, uVertical)
 ax0.streamplot(horizontalVals, verticalVals, uH_stream, uV_stream, color="white", linewidth=0.3, density=1.2, arrowsize=0.4)
+# Enforce strict axes limits to prevent streamline arrows from modifying the bounding box
+ax0.set_xlim(-0.5, nHorizontal - 0.5)
+ax0.set_ylim(-0.5, nVertical - 0.5)
 
 # Plot 2: Normal Velocity
 setup_plot(ax1, uNormal, "Normal velocity [m/s]")
@@ -70,7 +76,10 @@ setup_plot(ax1, uNormal, "Normal velocity [m/s]")
 # Plot 3: Pressure
 setup_plot(ax2, p, "Static pressure [Pa]")
 
-# 4. Save
+# Plot 4: Grid ID
+setup_plot(ax3, gridID, "Grid ID [1]")
+
+# 5. Save
 os.makedirs("results", exist_ok=True)
 plt.savefig(f"results/{plotNumber}.png", dpi=min(1000, max([300, nVertical/2, nHorizontal/2])), bbox_inches="tight")
 plt.close()
