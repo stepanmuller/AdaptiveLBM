@@ -83,7 +83,7 @@ using IntTripleType = TNL::Containers::StaticArray< 3, int >;
 //--------------------------------- STRUCTS  -----------------------------------------
 //------------------------------------------------------------------------------------
 
-struct InfoStruct { float gridID = 0; long long gridMemoryBytes; int iterationsFinished = 0;
+struct InfoStruct { float gridID = 0; unsigned long long gridMemoryBytes = 0LL; int iterationsFinished = 0;
 					float res = 1.f; float ox = 0.f; float oy = 0.f; float oz = 0.f; 
 					float nu = 1.f; float dtPhys = 1.f; 
 					int cellCountX = 0; int cellCountY = 0; int cellCountZ = 0; 
