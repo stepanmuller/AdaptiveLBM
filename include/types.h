@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream> 
 #include <cstdlib>
+#include <cstdint>
 #include <limits>
 #include <climits>
 #include <string>
@@ -72,6 +73,8 @@ using FloatArray3DTypeCPU = TNL::Containers::NDArray< float,
 												TNL::Containers::SizesHolder< size_t, 0, 0, 0 >,
 												std::index_sequence< 0, 1, 2 >,
 												TNL::Devices::Host >;
+												
+using Uint8_tArrayType = TNL::Containers::Vector< uint8_t, TNL::Devices::Cuda, size_t >;
 
 using IntPairType = TNL::Containers::StaticArray< 2, int >;											
 using IntTripleType = TNL::Containers::StaticArray< 3, int >;
@@ -80,7 +83,7 @@ using IntTripleType = TNL::Containers::StaticArray< 3, int >;
 //--------------------------------- STRUCTS  -----------------------------------------
 //------------------------------------------------------------------------------------
 
-struct InfoStruct { float gridID = 0; float gridMemoryMB; int iterationsFinished = 0;
+struct InfoStruct { float gridID = 0; long long gridMemoryBytes; int iterationsFinished = 0;
 					float res = 1.f; float ox = 0.f; float oy = 0.f; float oz = 0.f; 
 					float nu = 1.f; float dtPhys = 1.f; 
 					int cellCountX = 0; int cellCountY = 0; int cellCountZ = 0; 
@@ -135,16 +138,15 @@ struct VoxelizerStruct { 	InfoStruct Info;
 // Connectivity for Esotwist: indexes of 3 neighbours in the positive direction jPlus, kPlus, jkPlus. 
 // Thanks to cell sorting where X runs the fastest, the indexes for remaining 4 neighbours iPlus, ijPlus, ikPlus, ijkPlus are just +1 to self, jPlus, kPlus, jkPlus.
 // Then it holds 2 more neighbour indexes in the main negative directions jMinus, kMinus (iMinus would be self-1)
-// In addition to that it holds a list of 7 bool vectors which are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
-// These 7 vectors are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus
+// In addition to that it holds a bit packed array of uint8_t, whose bits are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
+// There 7 used bits are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus
 struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
-						BoolArray2DType isGeometricMarkerArray; }; 
+						Uint8_tArrayType isGeometricBitPackedMarkerArray; }; 
 										
 struct NBRStruct { 	int self;
 					int iPlus; int jPlus; int kPlus; int ijPlus; int ikPlus; int jkPlus; int ijkPlus; 
-					int iMinus; int jMinus; int kMinus;
-					int isGeometricMarker[10]; }; 
+					int iMinus; int jMinus; int kMinus; }; 
 					
 struct NBRHoleMapStruct { IntArray3DType holeStartArray; IntArray2DType startCounterArray; IntArray3DType holeEndArray; IntArray2DType endCounterArray; };
 

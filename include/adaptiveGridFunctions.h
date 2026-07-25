@@ -885,16 +885,16 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Grid.NBR.jkPlusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.jMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.kMinusArray.setSize( Info.memoryCountFull );
-		Grid.NBR.isGeometricMarkerArray.setSizes( 7, Info.memoryCountFull );
+		Grid.NBR.isGeometricBitPackedMarkerArray.setSize( Info.memoryCountFull );
 		Grid.parentMapArray.setSize( Info.memoryCountFull );
 		Grid.keepCellMarkerArray.setSize( Info.memoryCountFull );	
 		Grid.movingBouncebackMarkerArray.setSize( Info.memoryCountFull );
 		Grid.markerBuffer.setSize( Info.memoryCountFull );
-		Info.gridMemoryMB += (float)(32 * 9 + 10 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 9 int arrays, 10 bool arrays
+		Info.gridMemoryBytes += (float)(32 * 9 + 3 * 8 + 1 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 9 int arrays, 3 bool arrays, 1 uint8_t
 		if ( iAmFinest )
 		{
 			Grid.bouncebackMarkerArray.setSize( Info.memoryCountFull );
-			Info.gridMemoryMB += (float)(1 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 1 bool array
+			Info.gridMemoryBytes += (float)(1 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 1 bool array
 		}
 		else
 		{
@@ -903,7 +903,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 			Grid.deepRefinementMarkerArray.setSize( Info.memoryCountFull );
 			Grid.fineToCoarseMarkerArray.setSize( Info.memoryCountFull );
 			Grid.coarseToFineMarkerArray.setSize( Info.memoryCountFull );
-			Info.gridMemoryMB += (float)(32 + 4 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 1 int array, 4 bool arrays
+			Info.gridMemoryBytes += (float)(32 + 4 * 8) * (float)(Info.memoryCountFull) / 8000000.f; // 1 int array, 4 bool arrays
 		}
 	}
 	else if ( Info.cellCountFull > Info.memoryCountFull )
@@ -925,7 +925,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Info.memoryCount = Info.cellCount + ( ( Info.cellCount * MEMORY_RESERVE_PERCENTAGE ) / 100 );
 		// std::cout 	<< "Grid level " << level << " allocated memoryCount = " << Info.memoryCount << std::endl;
 		Grid.fArray.setSizes( 28, Info.memoryCount );
-		Info.gridMemoryMB += (float)(32 * 28) * (float)(Info.memoryCount) / 8000000.f; // 28 float arrays
+		Info.gridMemoryBytes += (float)(32 * 28) * (float)(Info.memoryCount) / 8000000.f; // 28 float arrays
 	}
 	else if ( Info.cellCount > Info.memoryCount )
 	{
@@ -1012,7 +1012,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		{
 			InfoCoarse.fineToCoarseMemoryCount = GridCoarse.Info.fineToCoarseCount + ( ( GridCoarse.Info.fineToCoarseCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
 			GridCoarse.fineToCoarseIndexArray.setSize( InfoCoarse.fineToCoarseMemoryCount );
-			InfoCoarse.gridMemoryMB += (float)(32) * (float)(InfoCoarse.fineToCoarseMemoryCount) / 8000000.f; // 1 int array
+			InfoCoarse.gridMemoryBytes += (float)(32) * (float)(InfoCoarse.fineToCoarseMemoryCount) / 8000000.f; // 1 int array
 		}
 		else if ( GridCoarse.Info.fineToCoarseCount > GridCoarse.Info.fineToCoarseMemoryCount )
 		{
@@ -1041,7 +1041,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		{
 			InfoCoarse.coarseToFineMemoryCount = GridCoarse.Info.coarseToFineCount + ( ( GridCoarse.Info.coarseToFineCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
 			GridCoarse.coarseToFineIndexArray.setSize( InfoCoarse.coarseToFineMemoryCount );
-			InfoCoarse.gridMemoryMB += (float)(32) * (float)(InfoCoarse.coarseToFineMemoryCount) / 8000000.f; // 1 int array
+			InfoCoarse.gridMemoryBytes += (float)(32) * (float)(InfoCoarse.coarseToFineMemoryCount) / 8000000.f; // 1 int array
 		}
 		else if ( GridCoarse.Info.coarseToFineCount > GridCoarse.Info.coarseToFineMemoryCount )
 		{
@@ -1093,12 +1093,12 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		if ( !iAmCoarsest ) 
 		{
 			applyInitialCondition( grids[ level-1 ] );
-			std::cout << "Grid level " << level-1 << " allocated on GPU, it takes " << grids[level-1].Info.gridMemoryMB << " MB" << std::endl;
+			std::cout << "Grid level " << level-1 << " allocated on GPU, it takes " << grids[level-1].Info.gridMemoryBytes << " MB" << std::endl;
 		}
 		if ( iAmFinest ) 
 		{
 			applyInitialCondition( Grid );
-			std::cout << "Grid level " << level << " allocated on GPU, it takes " << Grid.Info.gridMemoryMB << " MB" << std::endl;
+			std::cout << "Grid level " << level << " allocated on GPU, it takes " << Grid.Info.gridMemoryBytes << " MB" << std::endl;
 		}
 	}
 	
@@ -1172,8 +1172,8 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 		SkeletonGrid.NBRHoleMap.startCounterArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) );
 		SkeletonGrid.NBRHoleMap.endCounterArray.setSizes( SkeletonInfo.cellCountX, TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) );
 		
-		Info.gridMemoryMB += (float)(3 * 32 + 3 * 8) * (float)SkeletonInfo.cellCount / 8000000.f; // 3 int buffers + 3 marker arrays
-		Info.gridMemoryMB += (float)(32) * (float)(SkeletonInfo.cellCountX * TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) * (RAY_MAP_DEPTH / 2 * 2 + 2)) / 8000000.f; // NBRHoleMap
+		Info.gridMemoryBytes += (float)(3 * 32 + 3 * 8) * (float)SkeletonInfo.cellCount / 8000000.f; // 3 int buffers + 3 marker arrays
+		Info.gridMemoryBytes += (float)(32) * (float)(SkeletonInfo.cellCountX * TNL::max( SkeletonInfo.cellCountY, SkeletonInfo.cellCountZ ) * (RAY_MAP_DEPTH / 2 * 2 + 2)) / 8000000.f; // NBRHoleMap
 			
 		Info.cellCountX = SkeletonInfo.cellCountX * 2;
 		Info.cellCountY = SkeletonInfo.cellCountY * 2;
@@ -1206,7 +1206,7 @@ void initializeGrids( std::vector<GridStruct> &grids, const BoundsStruct &Bounds
 	Grid.NBRHoleMap.startCounterArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ) );
 	Grid.NBRHoleMap.endCounterArray.setSizes( Info.cellCountX, TNL::max( Info.cellCountY, Info.cellCountZ ) );
 	
-	Info.gridMemoryMB += (float)(32) * (float)(Info.cellCountX * TNL::max( Info.cellCountY, Info.cellCountZ ) * (RAY_MAP_DEPTH / 2 * 2 + 2)) / 8000000.f; // NBRHoleMap
+	Info.gridMemoryBytes += (float)(32) * (float)(Info.cellCountX * TNL::max( Info.cellCountY, Info.cellCountZ ) * (RAY_MAP_DEPTH / 2 * 2 + 2)) / 8000000.f; // NBRHoleMap
 	
 	if ( !iAmFinest ) initializeGrids( grids, Bounds, level+1 );
 }

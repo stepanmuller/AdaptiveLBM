@@ -3,6 +3,7 @@
 #include "./types.h"
 #include "./genericArrayFunctions.h"
 #include "./voxelizerFunctions.h"
+#include "./NBRFunctions.h"
 
 void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
@@ -269,7 +270,7 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
-	auto isGeometricMarkerView = Grid.NBR.isGeometricMarkerArray.getView();
+	auto isGeometricBitPackedMarkerView = Grid.NBR.isGeometricBitPackedMarkerArray.getView();
 	
 	targetMarkerArray = sourceMarkerArray; // initialize as source
 
@@ -283,8 +284,10 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 		nbrPlus[4] = (nbrPlus[3] + 1 < upperBound) ? nbrPlus[3] + 1 : 0;		// ikPlus
 		nbrPlus[5] = jkPlusView[ cell ];										// jkPlus
 		nbrPlus[6] = (nbrPlus[5] + 1 < upperBound) ? nbrPlus[5] + 1 : 0;		// ijkPlus
-		bool isGeometricMarker[7];
-		for ( int q = 0; q < 7; q++ ) isGeometricMarker[q] = isGeometricMarkerView(q, cell);
+		
+		bool isGeometricMarker[8] = {false};
+		const uint8_t isGeometricBitPack = isGeometricBitPackedMarkerView( cell );
+		byteToBools( isGeometricBitPack, isGeometricMarker );
 		
 		bool marker = sourceMarkerView[ cell ];
 		if ( !marker )

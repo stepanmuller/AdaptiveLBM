@@ -20,6 +20,28 @@ __host__ __device__ void finishNBRAll( NBRStruct &NBR, const InfoStruct &Info )
 	NBR.iMinus = NBR.self - 1; if ( NBR.iPlus < 0 ) NBR.iPlus = Info.cellCount-1;		
 }
 
+// this is used to bit unpack the information from Grid.NBR.isGeometricBitPackedMarkerArray
+__host__ __device__ inline void byteToBools( const uint8_t &value, bool (&bools)[8] )
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        bools[i] = ((value >> i) & uint8_t{1}) != 0;
+    }
+}
+
+// this is used to bit pack the information for Grid.NBR.isGeometricBitPackedMarkerArray
+__host__ __device__ inline void boolsToByte( uint8_t& value, const bool (&bools)[8] )
+{
+    value = 0;
+    for (int i = 0; i < 8; i++ )
+    {
+        if (bools[i])
+        {
+            value |= static_cast<uint8_t>(uint8_t{1} << i);
+        }
+    }
+}
+
 void getNBRArrayForSkeleton( IntArrayType &nbrArray, const int jPlus, const int kPlus, const SkeletonGridStruct &SkeletonGrid )
 {
 	const int cellCount = SkeletonGrid.Info.cellCount;
@@ -53,7 +75,7 @@ void markGeometricNBRPlus( GridStruct &Grid, const int &upperBound )
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
-	auto isGeometricMarkerView = Grid.NBR.isGeometricMarkerArray.getView();
+	auto isGeometricBitPackedMarkerView = Grid.NBR.isGeometricBitPackedMarkerArray.getView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
@@ -69,13 +91,20 @@ void markGeometricNBRPlus( GridStruct &Grid, const int &upperBound )
 		const int jkPlus = jkPlusView[ cell ];		
 		const int ijkPlus = (jkPlus + 1 < upperBound) ? jkPlus + 1 : 0;
 		
-		isGeometricMarkerView(0, cell) = ( iView[iPlus]==iCell+1 && jView[iPlus]==jCell && kView[iPlus]==kCell );
-		isGeometricMarkerView(1, cell) = ( iView[jPlus]==iCell && jView[jPlus]==jCell+1 && kView[jPlus]==kCell );
-		isGeometricMarkerView(2, cell) = ( iView[ijPlus]==iCell+1 && jView[ijPlus]==jCell+1 && kView[ijPlus]==kCell );
-		isGeometricMarkerView(3, cell) = ( iView[kPlus]==iCell && jView[kPlus]==jCell && kView[kPlus]==kCell+1 );
-		isGeometricMarkerView(4, cell) = ( iView[ikPlus]==iCell+1 && jView[ikPlus]==jCell && kView[ikPlus]==kCell+1 );
-		isGeometricMarkerView(5, cell) = ( iView[jkPlus]==iCell && jView[jkPlus]==jCell+1 && kView[jkPlus]==kCell+1 );
-		isGeometricMarkerView(6, cell) = ( iView[ijkPlus]==iCell+1 && jView[ijkPlus]==jCell+1 && kView[ijkPlus]==kCell+1 );
+		bool isGeometricMarker[8] = {false};
+		
+		isGeometricMarker[0] = ( iView[iPlus]==iCell+1 && jView[iPlus]==jCell && kView[iPlus]==kCell );
+		isGeometricMarker[1] = ( iView[jPlus]==iCell && jView[jPlus]==jCell+1 && kView[jPlus]==kCell );
+		isGeometricMarker[2] = ( iView[ijPlus]==iCell+1 && jView[ijPlus]==jCell+1 && kView[ijPlus]==kCell );
+		isGeometricMarker[3] = ( iView[kPlus]==iCell && jView[kPlus]==jCell && kView[kPlus]==kCell+1 );
+		isGeometricMarker[4] = ( iView[ikPlus]==iCell+1 && jView[ikPlus]==jCell && kView[ikPlus]==kCell+1 );
+		isGeometricMarker[5] = ( iView[jkPlus]==iCell && jView[jkPlus]==jCell+1 && kView[jkPlus]==kCell+1 );
+		isGeometricMarker[6] = ( iView[ijkPlus]==iCell+1 && jView[ijkPlus]==jCell+1 && kView[ijkPlus]==kCell+1 );
+		
+		uint8_t isGeometricBitPack;
+		boolsToByte( isGeometricBitPack, isGeometricMarker );
+		
+		isGeometricBitPackedMarkerView( cell ) = isGeometricBitPack;
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
