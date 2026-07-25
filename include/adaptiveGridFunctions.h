@@ -782,7 +782,7 @@ void oldToKeepTransform( GridStruct &Grid )
 	{
 		throw std::runtime_error("pullFArrayIntoCells failed, bool esotwistFlipper is 1. This function can only be called when esotwistFlipper is 0.");
 	}
-	// 						  List of post collision memory locations
+	// 						  List of pret collision memory locations
 	// 						  0 = self
 	// 						  1 = iPlus 
 	// 						  2 = jPlus
