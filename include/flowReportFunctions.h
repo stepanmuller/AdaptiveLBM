@@ -391,9 +391,17 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 		const float wallUx = BCRhoUG.ux;
 		const float wallUy = BCRhoUG.uy;
 		const float wallUz = BCRhoUG.uz;
-
+		
 		for (int q = 1; q < 27; q++) {
 			if (isNotFluid[q]) continue; // we are only interested if the neighbour is fluid
+			//const int nx = -cx[q]; const int ny = -cy[q]; const int nz = -cz[q];
+			//const int iExpected = iCell + nx; const int jExpected = jCell + ny; const int kExpected = kCell + nz;
+			//const int iActual = iView( fullNBRList[q] ); const int jActual = jView( fullNBRList[q] ); const int kActual = kView( fullNBRList[q] );
+			//if ( iActual != iExpected || jActual != jExpected || kActual != kExpected ) 
+			//{
+			//	printf("hey something is wrong here");
+			//	continue;
+			//}
 
 			gx += (cx[q] - wallUx) * fIn[q] - (cx[inverseDirection[q]] - wallUx) * fOut[inverseDirection[q]];
 
