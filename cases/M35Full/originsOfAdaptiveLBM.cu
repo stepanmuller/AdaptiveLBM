@@ -9,8 +9,8 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
-int reportChunk = 19;
-int plotterChunk = 1000;
+int reportChunk = 1;
+int plotterChunk = 100;
 constexpr int iterationCount = 1000000;
 
 constexpr float resGlobal = 0.15f; 														// mm
@@ -28,7 +28,7 @@ const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
 
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.25f * 1e-7f;
+constexpr float iRegulatorInletStrength = 0.125f * 1e-8f;
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -239,10 +239,10 @@ int main(int argc, char **argv)
 			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
 			
 			// regulate inlet
-			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength;
+			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk;
 			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
 			
-			float torque = getMovingBouncebackTorqueZ( grids[GRID_LEVEL_COUNT - 1] );
+			float torque = - getMovingBouncebackTorqueZ( grids[GRID_LEVEL_COUNT - 1] );
 			
 			for ( int shifter = 0; shifter <= reportChunk; shifter++ )
 			{

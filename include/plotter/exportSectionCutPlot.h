@@ -211,23 +211,23 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 
 void exportSectionCutPlotXY( std::vector<GridStruct> &grids, const int &kCell, const int &plotNumber )
 {
-	std::cout << "Exporting DIAD XY section cut plot " << plotNumber << std::endl;
+	std::cout << "Exporting XY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, kCell, plotNumber, XY );
 }
 void exportSectionCutPlotZY( std::vector<GridStruct> &grids, const int &iCell, const int &plotNumber )
 {
-	std::cout << "Exporting DIAD ZY section cut plot " << plotNumber << std::endl;
+	std::cout << "Exporting ZY section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, iCell, plotNumber, ZY );
 }
 void exportSectionCutPlotZX( std::vector<GridStruct> &grids, const int &jCell, const int &plotNumber )
 {
-	std::cout << "Exporting DIAD ZX section cut plot " << plotNumber << std::endl;
+	std::cout << "Exporting ZX section cut plot " << plotNumber << std::endl;
 	exportSectionCutPlotGeneral( grids, jCell, plotNumber, ZX );
 }
 
 void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const float &r, const int &plotNumber )
 {
-	std::cout << "Exporting DIAD Toilet Paper Z section cut plot " << plotNumber << " at radius " << r << " mm" << std::endl;
+	std::cout << "Exporting Toilet Paper Z section cut plot " << plotNumber << " at radius " << r << " mm" << std::endl;
 
 	const int levelCount = grids.size();
 	InfoStruct FinestInfo = grids[levelCount - 1].Info;
@@ -434,7 +434,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			float uTangential = -ux * sinf(theta) + uy * cosf(theta);
 			float uRadial = ux * cosf(theta) + uy * sinf(theta);
 			
-			// Outputs 6 components matching the typical DIAD generic plot shape
+			// Outputs 6 components matching the typical generic plot shape
 			float data[6] = {p, uz, uTangential, uRadial, marker, (float)gridID};
 			fwrite(data, sizeof(float), 6, fp);
 		}

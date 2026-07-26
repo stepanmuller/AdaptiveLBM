@@ -406,6 +406,11 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 		getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );		
 		convertToPhysicalForce( gx, gy, gz, Info );
 		float T = - gx * y + gy * x;
+		// JUST A TEST START
+		// const float r = std::sqrt( x * x + y * y );
+		// if ( r > 16.0f ) return 0.f; 
+		// if ( r < 11.f ) return 0.f;
+		// JUST A TEST END
 		return T;
 	};
 	auto reduction = [] __cuda_callable__( const float& a, const float& b )
