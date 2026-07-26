@@ -9,6 +9,7 @@
 #include "./boundaryConditions/restoreRho.h"
 #include "./boundaryConditions/restoreUxUyUz.h"
 #include "./boundaryConditions/applyMBBC.h"
+#include "./boundaryConditions/applyNonReflectiveOutlet.h"
 
 void updateGrid( GridStruct &Grid )
 {
@@ -83,7 +84,7 @@ void updateGrid( GridStruct &Grid )
 		{
 			// do nothing, just skip the else block below
 		}
-		else if ( Marker.BCNonReflectiveOutlet )
+		else if ( Marker.nonReflectiveOutlet )
 		{
 			// also do nothing, just skip the else block below
 		}

@@ -89,14 +89,14 @@ struct InfoStruct { float gridID = 0; unsigned long long gridMemoryBytes = 0LL; 
 					int cellCountX = 0; int cellCountY = 0; int cellCountZ = 0; 
 					int cellCount = 0; int cellCountFull = 0; int cellCountOld = 0;
 					int refinementCount = 0; int deepRefinementCount = 0; 
-					int fineToCoarseCount = 0; int coarseToFineCount = 0; 
+					int fineToCoarseCount = 0; int coarseToFineCount = 0; int nonReflectiveOutletCount = 0;
 					int memoryCount = 0; int memoryCountFull = 0; 
-					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0;
+					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0; int nonReflectiveOutletMemoryCount = 0;
 					bool esotwistFlipper = 0; int updatesSinceRebuild = 0; int updatesSinceMovingBouncebackUpdate = 0;
 					float iRegulatorInlet = 0.f; float iRegulatorOutlet = 0.f; };
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
-						bool BCRho = 0; bool BCU = 0; bool BCNonReflectiveOutlet = 0; 
+						bool BCRho = 0; bool BCU = 0; bool nonReflectiveOutlet = 0; 
 						bool refinement = 0; bool deepRefinement = 0; bool fineToCoarse = 0; };
 						
 struct BCRhoUGStruct { float rho = 1.f; float ux = 0.f; float uy = 0.f; float uz = 0.f; float gx = 0.f; float gy = 0.f; float gz = 0.f; };
@@ -158,7 +158,7 @@ struct SkeletonGridStruct { InfoStruct Info;
 struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR; 
 					FloatArray2DType fArray; bool esotwistFlipper = false;
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
-					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray;
+					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray; IntArrayType nonReflectiveOutletIndexArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer3; // This will point to NBR.jkPlusArray which we temporarily use as a buffer and then refill it correctly

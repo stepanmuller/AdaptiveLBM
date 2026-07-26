@@ -6,14 +6,14 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 1;
+static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
 int reportChunk = 19;
 int plotterChunk = 1000;
-constexpr int iterationCount = 50000;
+constexpr int iterationCount = 1000000;
 
-constexpr float resGlobal = 0.1f; 														// mm
+constexpr float resGlobal = 0.15f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -30,10 +30,6 @@ const float shaftRotationStartDistance = 10.f;											// mm
 constexpr float targetInletPower = 0.f;													// W
 constexpr float iRegulatorInletStrength = 0.25f * 1e-7f;
 
-constexpr int expAvgIterationSpan = 10000;
-constexpr float iRegulatorOutletStrength = 1e-2f;
-constexpr float iRegulatorOutletDecayPerIteration = 0.01f;
-
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
 
@@ -45,8 +41,10 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 {
 	if ( Marker.bounceback ) return;
 	if ( Marker.movingBounceback ) return;
+	
 	if ( kCell == 0 ) Marker.refinement = 1;
 	if ( kCell > Info.cellCountZ - 50 ) Marker.refinement = 1;
+	
 	if ( kCell == 0 ) Marker.BCU = 1;
 	else if ( kCell == Info.cellCountZ-1 ) Marker.BCRho = 1;
 	else Marker.fluid = 1;
@@ -111,7 +109,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = ( uzInlet + Info.iRegulatorInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho ) BCRhoUG.rho = 1.f + Info.iRegulatorOutlet;
+	if ( Marker.BCRho ) BCRhoUG.rho = 1.f;
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -142,7 +140,7 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 		for ( int sublevel = std::max(1, level); sublevel < GRID_LEVEL_COUNT; sublevel++) updateInterface(grids[sublevel-1], grids[sublevel]);
 		rebuildGrids( grids, Voxelizer, level );
 	}
-	//applyNonReflectiveOutletZ(grids[level]);
+	applyNonReflectiveOutletZ(grids[level]);
     updateGrid(grids[level]);
     if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
     {
@@ -216,8 +214,6 @@ int main(int argc, char **argv)
 	std::vector<float> historyMassFlow( iterationCount, 0.f );
 	std::vector<float> historyTorque( iterationCount, 0.f );
 	
-	float uzOutExpAvg = 0.f;
-	
 	TNL::Timer lapTimer;
 	lapTimer.reset();
 	lapTimer.start();
@@ -242,31 +238,11 @@ int main(int argc, char **argv)
 			const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
 			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
 			
-			// get outlet data
-			FlowReportStruct FlowReportOut;
-			kCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountZ-1 - 2;
-			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
-			float uzOut = FlowReportOut.uz;
-			
 			// regulate inlet
 			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength;
 			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
 			
-			// regulate outlet to dampen waves
-			const float alpha = 2.f / (float)( std::min( iteration, expAvgIterationSpan ) / reportChunk + 2);
-			uzOutExpAvg = uzOutExpAvg * ( 1.f - alpha ) + alpha * uzOut;
-			const float densityCorrection = ( 1.f / 0.577350269f) * ( uzOut - uzOutExpAvg );
-			grids[0].Info.iRegulatorOutlet += densityCorrection * iRegulatorOutletStrength;
-			grids[0].Info.iRegulatorOutlet = grids[0].Info.iRegulatorOutlet * std::pow( ( 1.f - iRegulatorOutletDecayPerIteration ), reportChunk );
-			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorOutlet = grids[0].Info.iRegulatorOutlet;
-			
-			float regulatedPOut = 1.f + grids[0].Info.iRegulatorOutlet;
-			convertToPhysicalPressure( regulatedPOut );
-			//float torque = 0.f;
-			//for ( int level = 0; level < gridLevelCount; level++ )
-			//{
-			//	torque += getTorque( grids[level] );
-			//}
+			float torque = getMovingBouncebackTorqueZ( grids[GRID_LEVEL_COUNT - 1] );
 			
 			for ( int shifter = 0; shifter <= reportChunk; shifter++ )
 			{
@@ -274,7 +250,7 @@ int main(int argc, char **argv)
 				{
 					historyInletPower[iteration+shifter] = inletPower;
 					historyMassFlow[iteration+shifter] = massFlow;
-					historyTorque[iteration+shifter] = regulatedPOut; //0.f; //torque;
+					historyTorque[iteration+shifter] = torque;
 				}
 			}
 		}

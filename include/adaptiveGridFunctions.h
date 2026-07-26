@@ -1063,6 +1063,39 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, GridCoarse.Info.cellCount, cellLambdaCoarseToFine );
 	}
 	
+	// 13) build non reflective outlet cell list for the finest grid
+	if ( iAmFinest )
+	{
+		applyNonReflectiveOutletMarker( Grid.markerBuffer, Grid, Info.cellCount );
+		Info.nonReflectiveOutletCount = countOnesInBoolArray( Grid.markerBuffer, Info.cellCount );
+		if ( initPass )
+		{
+			Info.nonReflectiveOutletMemoryCount = Info.nonReflectiveOutletCount + ( ( Info.nonReflectiveOutletCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			Grid.nonReflectiveOutletIndexArray.setSize( Info.nonReflectiveOutletMemoryCount );
+			Info.gridMemoryBytes += (long long)(4) * (long long)(Info.nonReflectiveOutletMemoryCount); // 1 int array
+		}
+		else if ( Info.nonReflectiveOutletCount > Info.nonReflectiveOutletMemoryCount )
+		{
+			std::cout 	<< "rebuildGrid failed on level " << level << ", nonReflectiveOutletMemoryCount = " << Info.nonReflectiveOutletMemoryCount 
+						<< ", nonReflectiveOutletCount = " << GridCoarse.Info.nonReflectiveOutletCount << std::endl;
+			throw std::runtime_error("rebuildGrid failed, nonReflectiveOutletCount exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE_INTERFACE in your main file.");
+		}
+		intArrayFromBoolArray( Grid.intBuffer1, Grid.markerBuffer, Grid.Info.cellCount );
+		TNL::Algorithms::inplaceExclusiveScan( Grid.intBuffer1, 0, Grid.Info.cellCount, TNL::Plus{} );
+		auto nonReflectiveOutletMarkerView = Grid.markerBuffer.getConstView();
+		auto intBuffer1View = Grid.intBuffer1.getConstView();
+		auto nonReflectiveOutletIndexView = Grid.nonReflectiveOutletIndexArray.getView();
+		auto cellLambdaNonReflectiveOutlet = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			if ( nonReflectiveOutletMarkerView[ cell ] )
+			{
+				const int index = intBuffer1View[ cell ];
+				nonReflectiveOutletIndexView[ index ] = cell;
+			}
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Grid.Info.cellCount, cellLambdaNonReflectiveOutlet );
+	}
+	
 	// 13) fill jkPlus and NBR minus
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();

@@ -1,3 +1,7 @@
+#pragma once
+
+#include "./boundaryConditions/applyMovingBounceback.h"
+
 //  Version that dynamically downsamples finest grids and clips to specified bounds
 void getFlowReportGeneral( std::vector<GridStruct> &grids, const int &cutIndex, BoundsStruct &Bounds, FlowReportStruct &FlowReport, PlaneEnum plane )
 {
@@ -265,3 +269,152 @@ void getFlowReportZX( std::vector<GridStruct> &grids, const int &jCell, BoundsSt
 {
 	getFlowReportGeneral( grids, jCell, Bounds, FlowReport, ZX );
 }
+
+float getMovingBouncebackTorqueZ( GridStruct &Grid )
+{
+	if ( Grid.movingBouncebackMarkerArray.getSize() < 1) return 0.f;
+	
+	InfoStruct &Info = Grid.Info;
+	const bool &esotwistFlipper = Grid.esotwistFlipper;
+	
+	auto fView  = Grid.fArray.getView();
+	
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+	auto jMinusView = Grid.NBR.jMinusArray.getView();
+	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
+	
+	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getConstView();
+	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
+	bool useBouncebackMarkerArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
+	
+	auto fetch = [ = ] __cuda_callable__( const int cell )
+	{		
+		const int iCell = iView( cell );
+		const int jCell = jView( cell );
+		const int kCell = kView( cell );
+		
+		if ( iCell == 0 || iCell == Info.cellCountX-1 || jCell == 0 || jCell == Info.cellCountY-1 || kCell == 0 || kCell == Info.cellCountZ-1 ) return 0.f;
+		
+		if ( !movingBouncebackMarkerView( cell ) ) return 0.f;
+		
+		NBRStruct NBR;
+		NBR.self = cell;
+		NBR.jPlus = jPlusView( cell );
+		NBR.kPlus = kPlusView( cell );
+		NBR.jkPlus = jkPlusView( cell );
+		NBR.jMinus = jMinusView( cell );
+		NBR.kMinus = kMinusView( cell );
+		finishNBRAll( NBR, Info );
+		
+		// id: { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26 };
+		// cx: { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+		// cy: { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+		// cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+		
+		int fullNBRList[27];
+		// for each direction this holds the neighbour where f[i] will be pulled from in the next iteration
+		// 0: Center
+		fullNBRList[0]  = cell;
+		// 1-6: Straight directions (Faces)
+		fullNBRList[1]  = NBR.iMinus; 			// cx=1  -> nx=-1
+		fullNBRList[2]  = NBR.iPlus;  			// cx=-1 -> nx=1
+		fullNBRList[3]  = NBR.kPlus;  			// cz=-1 -> nz=1
+		fullNBRList[4]  = NBR.kMinus; 			// cz=1  -> nz=-1
+		fullNBRList[5]  = NBR.jPlus;  			// cy=-1 -> ny=1
+		fullNBRList[6]  = NBR.jMinus; 			// cy=1  -> ny=-1
+		// 7-18: Diagonal directions (Edges)
+		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cx=1,  cz=-1 -> nx=-1, nz=1
+		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cx=-1, cz=1  -> nx=1,  nz=-1
+		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cx=1,  cz=1  -> nx=-1, nz=-1
+		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cx=-1, cz=-1 -> nx=1,  nz=1
+		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cx=-1, cy=-1 -> nx=1,  ny=1
+		fullNBRList[12] = jMinusView( NBR.iMinus );	// cx=1,  cy=1  -> nx=-1, ny=-1
+		fullNBRList[13] = kPlusView( NBR.jMinus );	// cy=1,  cz=-1 -> ny=-1, nz=1
+		fullNBRList[14] = kMinusView( NBR.jPlus );	// cy=-1, cz=1  -> ny=1,  nz=-1
+		fullNBRList[15] = jMinusView( NBR.iPlus );	// cx=-1, cy=1  -> nx=1,  ny=-1
+		fullNBRList[16] = jPlusView( NBR.iMinus );	// cx=1,  cy=-1 -> nx=-1, ny=1
+		fullNBRList[17] = kMinusView( NBR.jMinus );	// cy=1,  cz=1  -> ny=-1, nz=-1
+		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cy=-1, cz=-1 -> ny=1,  nz=1
+		// 19-26: Corner directions (Vertices)
+		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=-1 -> nx=1,  ny=-1, nz=1
+		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=1  -> nx=-1, ny=1,  nz=-1
+		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cx=-1, cy=-1, cz=1  -> nx=1,  ny=1,  nz=-1
+		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cx=1,  cy=1,  cz=-1 -> nx=-1, ny=-1, nz=1
+		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=-1 -> nx=-1, ny=1,  nz=1
+		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
+		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
+		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+		// now look at each neighbour if they are MBB
+		bool isNotFluid[27] = {false};
+		for ( int direction = 1; direction < 27; direction++ )
+		{
+			isNotFluid[direction] = movingBouncebackMarkerView( fullNBRList[direction] ) + bouncebackMarkerView( fullNBRList[direction] );
+		}
+		
+		float fIn[27];
+		float fOut[27];
+		int cellReadIndex[27];
+		int fReadIndex[27];
+		getPreCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+		for ( int direction = 0; direction < 27; direction++ ) 
+		{
+			fIn[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
+			fOut[direction] = fIn[direction];
+		}
+		
+		BCRhoUGStruct BCRhoUG;
+		getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, fIn );
+		MarkerStruct Marker;
+		Marker.movingBounceback = true;
+		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+		
+		applyMovingBounceback( fOut, BCRhoUG );
+		
+		const int cx[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+
+		const int cy[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+
+		const int cz[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+
+		const int inverseDirection[27] = { 0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23, 26, 25 };
+
+		float gx = 0.f;
+		float gy = 0.f;
+		float gz = 0.f;
+
+		const float wallUx = BCRhoUG.ux;
+		const float wallUy = BCRhoUG.uy;
+		const float wallUz = BCRhoUG.uz;
+
+		for (int q = 1; q < 27; q++) {
+			if (isNotFluid[q]) continue; // we are only interested if the neighbour is fluid
+
+			gx += (cx[q] - wallUx) * fIn[q] - (cx[inverseDirection[q]] - wallUx) * fOut[inverseDirection[q]];
+
+			gy += (cy[q] - wallUy) * fIn[q] - (cy[inverseDirection[q]] - wallUy) * fOut[inverseDirection[q]];
+
+			gz += (cz[q] - wallUz) * fIn[q] - (cz[inverseDirection[q]] - wallUz) * fOut[inverseDirection[q]];
+		}
+		
+		float x, y, z;
+		getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );		
+		convertToPhysicalForce( gx, gy, gz, Info );
+		float T = - gx * y + gy * x;
+		return T;
+	};
+	auto reduction = [] __cuda_callable__( const float& a, const float& b )
+	{
+		return a + b;
+	};
+	
+	float TSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, Info.cellCount, fetch, reduction, 0.f );
+	TSum = TSum / 1000.f; // converting from Nmm to Nm
+	return TSum;
+}
+

@@ -262,6 +262,27 @@ void applyUserRefinementModification( BoolArrayType &markerArray, const GridStru
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
+void applyNonReflectiveOutletMarker( BoolArrayType &markerArray, const GridStruct &Grid, const int &upperBound )
+{
+	// uses the getMarkers function defined in the main file to mark non reflective outlet cells
+	const InfoStruct &Info = Grid.Info;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	auto markerView = markerArray.getView();
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCell = iView[ cell ];
+		const int jCell = jView[ cell ];
+		const int kCell = kView[ cell ];
+		MarkerStruct Marker;
+		getMarkers( iCell, jCell, kCell, Marker, Info );
+		markerView( cell ) = Marker.nonReflectiveOutlet;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
 void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
 {
 	// The way this is written creates a race condition, one that is harmless because all threads write the same 1
@@ -417,12 +438,12 @@ void markRefinementCells( GridStruct &Grid, const VoxelizerStruct &Voxelizer, co
 	markKeepCells( Grid, Voxelizer, upperBound );
 	// search deep refinement area
 	markFinestBounceback( Grid.deepRefinementMarkerArray, Voxelizer.rayMapTotal, Grid, upperBound );
-	applyUserRefinementModification( Grid.deepRefinementMarkerArray, Grid, upperBound );
 	for ( int spread = 0; spread < WALL_REFINEMENT_COUNT; spread++ )
 	{
 		Grid.deepRefinementMarkerArray.swap( Grid.markerBuffer );
 		spreadMarkers( Grid.deepRefinementMarkerArray, Grid.markerBuffer, Grid, upperBound );
 	}
+	applyUserRefinementModification( Grid.deepRefinementMarkerArray, Grid, upperBound );
 	Grid.deepRefinementMarkerArray = Grid.deepRefinementMarkerArray * Grid.keepCellMarkerArray;
 	// search fine to coarse interface
 	Grid.fineToCoarseMarkerArray = Grid.deepRefinementMarkerArray;
