@@ -81,7 +81,6 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 		
 		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -94,7 +93,7 @@ void exportSectionCutPlotGeneral( std::vector<GridStruct> &grids, const int &cut
 			NBR.self = cell;
 			NBR.jPlus = jPlusView( cell );
 			NBR.kPlus = kPlusView( cell );
-			NBR.jkPlus = jkPlusView( cell );
+			NBR.jkPlus = jPlusView( NBR.kPlus );
 			finishNBRPlus( NBR, Info );
 			
 			int indexHorizontal = 0;
@@ -311,7 +310,6 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 		
 		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -324,7 +322,7 @@ void exportSectionCutPlotToiletPaperZ( std::vector<GridStruct> &grids, const flo
 			NBR.self = cell;
 			NBR.jPlus = jPlusView( cell );
 			NBR.kPlus = kPlusView( cell );
-			NBR.jkPlus = jkPlusView( cell );
+			NBR.jkPlus = jPlusView( NBR.kPlus );
 			finishNBRPlus( NBR, Info );
 			
 			// Compute physical center of this cell (x, y) relative to the origin

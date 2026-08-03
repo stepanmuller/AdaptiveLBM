@@ -74,7 +74,6 @@ void markGeometricNBRPlus( GridStruct &Grid, const int &upperBound )
 	auto kView = Grid.IJK.kArray.getConstView();
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	auto isGeometricBitPackedMarkerView = Grid.NBR.isGeometricBitPackedMarkerArray.getView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
@@ -88,7 +87,7 @@ void markGeometricNBRPlus( GridStruct &Grid, const int &upperBound )
 		const int ijPlus = (jPlus + 1 < upperBound) ? jPlus + 1 : 0;
 		const int kPlus = kPlusView[ cell ];
 		const int ikPlus = (kPlus + 1 < upperBound) ? kPlus + 1 : 0;
-		const int jkPlus = jkPlusView[ cell ];		
+		const int jkPlus = jPlusView[ kPlus ];		
 		const int ijkPlus = (jkPlus + 1 < upperBound) ? jkPlus + 1 : 0;
 		
 		bool isGeometricMarker[8] = {false};

@@ -290,7 +290,6 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 	auto sourceMarkerView = sourceMarkerArray.getConstView();
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	auto isGeometricBitPackedMarkerView = Grid.NBR.isGeometricBitPackedMarkerArray.getView();
 	
 	targetMarkerArray = sourceMarkerArray; // initialize as source
@@ -303,7 +302,7 @@ void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourc
 		nbrPlus[2] = (nbrPlus[1] + 1 < upperBound) ? nbrPlus[1] + 1 : 0;		// ijPlus
 		nbrPlus[3] = kPlusView[ cell ];											// kPlus
 		nbrPlus[4] = (nbrPlus[3] + 1 < upperBound) ? nbrPlus[3] + 1 : 0;		// ikPlus
-		nbrPlus[5] = jkPlusView[ cell ];										// jkPlus
+		nbrPlus[5] = jPlusView[ nbrPlus[3] ];									// jkPlus
 		nbrPlus[6] = (nbrPlus[5] + 1 < upperBound) ? nbrPlus[5] + 1 : 0;		// ijkPlus
 		
 		bool isGeometricMarker[8] = {false};

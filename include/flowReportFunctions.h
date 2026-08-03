@@ -110,7 +110,6 @@ void getFlowReportGeneral( std::vector<GridStruct> &grids, const int &cutIndex, 
 		
 		auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 		auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-		auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 
 		auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 		{
@@ -147,7 +146,7 @@ void getFlowReportGeneral( std::vector<GridStruct> &grids, const int &cutIndex, 
 			NBR.self = cell;
 			NBR.jPlus = jPlusView( cell );
 			NBR.kPlus = kPlusView( cell );
-			NBR.jkPlus = jkPlusView( cell );
+			NBR.jkPlus = jPlusView( NBR.kPlus );
 			finishNBRPlus( NBR, Info );
 			
 			float f[27];
@@ -285,7 +284,6 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	auto jMinusView = Grid.NBR.jMinusArray.getView();
 	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
 	
@@ -307,7 +305,7 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 		NBR.self = cell;
 		NBR.jPlus = jPlusView( cell );
 		NBR.kPlus = kPlusView( cell );
-		NBR.jkPlus = jkPlusView( cell );
+		NBR.jkPlus = jPlusView( NBR.kPlus );
 		NBR.jMinus = jMinusView( cell );
 		NBR.kMinus = kMinusView( cell );
 		finishNBRAll( NBR, Info );
@@ -413,7 +411,7 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 		float x, y, z;
 		getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );		
 		convertToPhysicalForce( gx, gy, gz, Info );
-		float T = - gx * y + gy * x;
+		float T = - ( - gx * y + gy * x );
 		// JUST A TEST START
 		// const float r = std::sqrt( x * x + y * y );
 		// if ( r > 16.0f ) return 0.f; 

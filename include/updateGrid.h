@@ -24,7 +24,6 @@ void updateGrid( GridStruct &Grid )
 
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	
 	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
 	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getConstView();
@@ -54,7 +53,7 @@ void updateGrid( GridStruct &Grid )
 		NBR.self = cell;
 		NBR.jPlus = jPlusView( cell );
 		NBR.kPlus = kPlusView( cell );
-		NBR.jkPlus = jkPlusView( cell );
+		NBR.jkPlus = jPlusView( NBR.kPlus );
 		finishNBRPlus( NBR, Info );
 		
 		float f[27];

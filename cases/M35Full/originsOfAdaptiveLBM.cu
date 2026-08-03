@@ -3,15 +3,16 @@ static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 
-static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
-static constexpr int GRID_REBUILD_PERIOD = 24;
+static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8000;
+static constexpr int GRID_REBUILD_PERIOD = 24000;
+static constexpr int TORQUE_REPORT_PERIOD = 100000;
 
 static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
-int reportChunk = 1;
+int reportChunk = 99;
 int plotterChunk = 100;
-constexpr int iterationCount = 1000000;
+constexpr int iterationCount = 40000;
 
 constexpr float resGlobal = 0.12f; 														// mm
 
@@ -125,6 +126,11 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 {
 	if ( level == GRID_LEVEL_COUNT - 1 ) // I am the finest grid
     {
+		if ( grids[level].Info.iterationsFinished % TORQUE_REPORT_PERIOD == 0 && grids[level].Info.iterationsFinished > 0 )
+		{
+			float torque = getMovingBouncebackTorqueZ( grids[level] );
+			grids[level].Info.torqueReportCumulative += torque * (float)TORQUE_REPORT_PERIOD;
+		}
 		if (grids[level].Info.updatesSinceMovingBouncebackUpdate >= MOVING_BOUNCEBACK_UPDATE_PERIOD )
 		{
 			const float radians = grids[level].Info.iterationsFinished * grids[level].Info.dtPhys * angularVelocity;
@@ -156,7 +162,7 @@ void exportHistoryData( const std::vector<float>& historyInletPower,
     FILE* fp = fopen("/dev/shm/historyData.bin", "wb");
     if (!fp) return;
     
-    int count = currentIteration + 1;
+    int count = std::min({iterationCount-1, currentIteration}) + 1;
     fwrite(&count, sizeof(int), 1, fp);
     
     // Write all three vectors sequentially
@@ -242,7 +248,8 @@ int main(int argc, char **argv)
 			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk;
 			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
 			
-			float torque = - getMovingBouncebackTorqueZ( grids[GRID_LEVEL_COUNT - 1] );
+			float torque = grids[GRID_LEVEL_COUNT - 1].Info.torqueReportCumulative / (float)reportChunk;
+			grids[GRID_LEVEL_COUNT - 1].Info.torqueReportCumulative = 0.f;
 			
 			for ( int shifter = 0; shifter <= reportChunk; shifter++ )
 			{
@@ -273,11 +280,11 @@ int main(int argc, char **argv)
 			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
-			
+			/*
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
 			exportSectionCutPlotZY( grids, iCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
-			
+			*/
 			
 			lapTimer.reset();
 			lapTimer.start();
