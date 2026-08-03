@@ -136,12 +136,13 @@ struct VoxelizerStruct { 	InfoStruct Info;
 							rayMapStruct rayMapTotal; };
 
 // NBR holds:
-// Connectivity for Esotwist: indexes of 3 neighbours in the positive direction jPlus, kPlus, jkPlus. 
+// Connectivity for Esotwist: indexes of 2 neighbours in the positive direction jPlus, kPlus. 
+// jkPlus is always reached as jPlus[kPlus]
 // Thanks to cell sorting where X runs the fastest, the indexes for remaining 4 neighbours iPlus, ijPlus, ikPlus, ijkPlus are just +1 to self, jPlus, kPlus, jkPlus.
 // Then it holds 2 more neighbour indexes in the main negative directions jMinus, kMinus (iMinus would be self-1)
 // In addition to that it holds a bit packed array of uint8_t, whose bits are 1 if the respective neighbour is also truly geometric neighbour (there is no gap between)
 // There 7 used bits are ordered as is iPlus, jPlus, ijPlus, kPlus, ikPlus, jkPlus, ijkPlus
-struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray; IntArrayType jkPlusArray; 
+struct NBRArrayStruct { IntArrayType jPlusArray; IntArrayType kPlusArray;
 						IntArrayType jMinusArray; IntArrayType kMinusArray; 
 						Uint8_tArrayType isGeometricBitPackedMarkerArray; }; 
 										
@@ -162,18 +163,23 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray; IntArrayType nonReflectiveOutletIndexArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
-					IntArrayType &intBuffer3; // This will point to NBR.jkPlusArray which we temporarily use as a buffer and then refill it correctly
+					IntArrayType &intBuffer3; // This will point to bitPackedMarkerArray which we temporarily use as a buffer and then refill it correctly
 					NBRHoleMapStruct NBRHoleMap;
 					BoolArrayType keepCellMarkerArray; 
 					BoolArrayType bouncebackMarkerArray; BoolArrayType movingBouncebackMarkerArray; 
 					BoolArrayType refinementMarkerArray; BoolArrayType deepRefinementMarkerArray;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
 					BoolArrayType markerBuffer;
+					IntArrayType bitPackedMarkerArray; 
+					// bits 1-26 = isFluid? tells if the cell from which f[i] is streamed from is geometric fluid neighbour. This is only kept valid for MBB cells
+					// bit 27 = bouncebackMarker
+					// bit 28 = movingBouncebackMarker
+					// bit 29 = deepRefinementMarker
 					SkeletonGridStruct SkeletonGrid;
 					GridStruct()
 						: intBuffer1(NBR.jMinusArray),
 						  intBuffer2(NBR.kMinusArray),
-						  intBuffer3(NBR.jkPlusArray)
+						  intBuffer3(bitPackedMarkerArray)
 					{}
 					}; 		
 					

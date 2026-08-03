@@ -5,6 +5,139 @@
 #include "./voxelizerFunctions.h"
 #include "./NBRFunctions.h"
 
+// this is used to bit unpack the information from Grid.bitPackedMarkerArray (int array)
+__host__ __device__ inline void intToBools( const int &value, bool (&bools)[32] )
+{
+    for (int i = 0; i < 32; ++i)
+    {
+        bools[i] = ((value >> i) & 1) != 0;
+    }
+}
+
+// this is used to bit pack the information into Grid.bitPackedMarkerArray (int array)
+__host__ __device__ inline void boolsToInt( int& value, const bool (&bools)[32] )
+{
+    value = 0;
+    for (int i = 0; i < 32; i++ )
+    {
+        if (bools[i])
+        {
+            value |= static_cast<int>(1U << i); 
+        }
+    }
+}
+
+void fillBitPackedMarkerArray( GridStruct &Grid, const int &upperBound )
+{
+	const InfoStruct &Info = Grid.Info;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
+	auto jMinusView = Grid.NBR.jMinusArray.getConstView();
+	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
+	
+	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
+	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getConstView();
+	auto deepRefinementMarkerView = Grid.deepRefinementMarkerArray.getConstView();
+	auto bitPackedMarkerView = Grid.bitPackedMarkerArray.getView();
+	
+	bool useBouncebackMarkerArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
+	bool useMovingBouncebackMarkerArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
+	bool useDeepRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
+	
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		bool bitPackedMarkerBits[32] = {false};
+		
+		if ( useBouncebackMarkerArray ) bitPackedMarkerBits[27] = bouncebackMarkerView( cell );
+		if ( useMovingBouncebackMarkerArray ) bitPackedMarkerBits[28] = movingBouncebackMarkerView( cell );
+		if ( useDeepRefinementMarkerArray ) bitPackedMarkerBits[29] = deepRefinementMarkerView( cell );
+		
+		const int iCell = iView[ cell ];
+		const int jCell = jView[ cell ];
+		const int kCell = kView[ cell ];
+		
+		NBRStruct NBR;
+		NBR.self = cell;
+		NBR.jPlus = jPlusView( cell );
+		NBR.kPlus = kPlusView( cell );
+		NBR.jkPlus = jPlusView( kPlusView( cell ) );
+		NBR.jMinus = jMinusView( cell );
+		NBR.kMinus = kMinusView( cell );
+		finishNBRAll( NBR, Info );
+	
+		const int cx[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+		const int cy[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+		const int cz[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+		
+		int fullNBRList[27];
+		// for each direction this holds the neighbour where f[i] will be pulled from in the next iteration
+		// 0: Center
+		fullNBRList[0]  = cell;
+		// 1-6: Straight directions (Faces)
+		fullNBRList[1]  = NBR.iMinus; 			// cx=1  -> nx=-1
+		fullNBRList[2]  = NBR.iPlus;  			// cx=-1 -> nx=1
+		fullNBRList[3]  = NBR.kPlus;  			// cz=-1 -> nz=1
+		fullNBRList[4]  = NBR.kMinus; 			// cz=1  -> nz=-1
+		fullNBRList[5]  = NBR.jPlus;  			// cy=-1 -> ny=1
+		fullNBRList[6]  = NBR.jMinus; 			// cy=1  -> ny=-1
+		// 7-18: Diagonal directions (Edges)
+		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cx=1,  cz=-1 -> nx=-1, nz=1
+		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cx=-1, cz=1  -> nx=1,  nz=-1
+		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cx=1,  cz=1  -> nx=-1, nz=-1
+		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cx=-1, cz=-1 -> nx=1,  nz=1
+		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cx=-1, cy=-1 -> nx=1,  ny=1
+		fullNBRList[12] = jMinusView( NBR.iMinus );	// cx=1,  cy=1  -> nx=-1, ny=-1
+		fullNBRList[13] = kPlusView( NBR.jMinus );	// cy=1,  cz=-1 -> ny=-1, nz=1
+		fullNBRList[14] = kMinusView( NBR.jPlus );	// cy=-1, cz=1  -> ny=1,  nz=-1
+		fullNBRList[15] = jMinusView( NBR.iPlus );	// cx=-1, cy=1  -> nx=1,  ny=-1
+		fullNBRList[16] = jPlusView( NBR.iMinus );	// cx=1,  cy=-1 -> nx=-1, ny=1
+		fullNBRList[17] = kMinusView( NBR.jMinus );	// cy=1,  cz=1  -> ny=-1, nz=-1
+		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cy=-1, cz=-1 -> ny=1,  nz=1
+		// 19-26: Corner directions (Vertices)
+		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=-1 -> nx=1,  ny=-1, nz=1
+		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=1  -> nx=-1, ny=1,  nz=-1
+		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cx=-1, cy=-1, cz=1  -> nx=1,  ny=1,  nz=-1
+		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cx=1,  cy=1,  cz=-1 -> nx=-1, ny=-1, nz=1
+		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=-1 -> nx=-1, ny=1,  nz=1
+		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
+		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
+		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+		
+		// now look at each neighbour if they are geometric fluid neighbour
+		
+		for ( int direction = 1; direction < 27; direction++ )
+		{
+			MarkerStruct Marker;
+			if ( useBouncebackMarkerArray ) Marker.bounceback = bouncebackMarkerView( fullNBRList[direction] );
+			if ( useMovingBouncebackMarkerArray ) Marker.movingBounceback = movingBouncebackMarkerView( fullNBRList[direction] );
+			if ( useDeepRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerView( fullNBRList[direction] );
+			getMarkers( iCell, jCell, kCell, Marker, Info );
+			if ( !Marker.bounceback && !Marker.movingBounceback )
+			{
+				// check position
+				const int nx = -cx[direction]; const int ny = -cy[direction]; const int nz = -cz[direction];
+				const int iExpected = iCell + nx; const int jExpected = jCell + ny; const int kExpected = kCell + nz;
+				const int iActual = iView( fullNBRList[direction] ); 
+				const int jActual = jView( fullNBRList[direction] ); 
+				const int kActual = kView( fullNBRList[direction] );
+				if ( iActual == iExpected && jActual == jExpected && kActual == kExpected ) 
+				{
+					// the cell is neither bounceback, nor moving bounceback AND is geometrically correct -> mark it
+					bitPackedMarkerBits[direction] = true;
+				}
+			}
+		}
+		
+		int bitPackedMarker;
+		boolsToInt( bitPackedMarker, bitPackedMarkerBits );
+		bitPackedMarkerView( cell ) = bitPackedMarker;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
 void applyMarkersFromRayMap( BoolArrayType &markerArray, const rayMapStruct &rayMap, const GridStruct &Grid, const int &upperBound )
 {
 	auto iView = Grid.IJK.iArray.getConstView();

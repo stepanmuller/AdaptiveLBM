@@ -29,9 +29,9 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	const IntArrayType &iArrayCoarse = GridCoarse.IJK.iArray;
 	const IntArrayType &jArrayCoarse = GridCoarse.IJK.jArray;
 	const IntArrayType &kArrayCoarse = GridCoarse.IJK.kArray;
-	IntArrayType &jPlusArrayCoarse = GridCoarse.NBR.jPlusArray;
-	IntArrayType &kPlusArrayCoarse = GridCoarse.NBR.kPlusArray;
-	IntArrayType &jkPlusArrayCoarse = GridCoarse.NBR.jkPlusArray;
+	//IntArrayType &jPlusArrayCoarse = GridCoarse.NBR.jPlusArray;
+	//IntArrayType &kPlusArrayCoarse = GridCoarse.NBR.kPlusArray;
+	//IntArrayType &jkPlusArrayCoarse = GridCoarse.NBR.jkPlusArray;
 	IntArrayType &childMapArrayCoarse = GridCoarse.childMapArray;
 	IntArrayType &intBuffer1Coarse = GridCoarse.intBuffer1;
 	IntArrayType &intBuffer2Coarse = GridCoarse.intBuffer2;
@@ -41,9 +41,9 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	auto iViewCoarse = iArrayCoarse.getConstView();
 	auto jViewCoarse = jArrayCoarse.getConstView();
 	auto kViewCoarse = kArrayCoarse.getConstView();
-	auto jPlusViewCoarse = jPlusArrayCoarse.getConstView();
-	auto kPlusViewCoarse = kPlusArrayCoarse.getConstView();
-	auto jkPlusViewCoarse = jkPlusArrayCoarse.getView();
+	//auto jPlusViewCoarse = jPlusArrayCoarse.getConstView();
+	//auto kPlusViewCoarse = kPlusArrayCoarse.getConstView();
+	//auto jkPlusViewCoarse = jkPlusArrayCoarse.getView();
 	auto childMapViewCoarse = childMapArrayCoarse.getView();
 	auto refinementMarkerViewCoarse = refinementMarkerArrayCoarse.getConstView();
 	
@@ -55,7 +55,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	IntArrayType &kArrayFine = GridFine.IJK.kArray;
 	IntArrayType &jPlusArrayFine = GridFine.NBR.jPlusArray;
 	IntArrayType &kPlusArrayFine = GridFine.NBR.kPlusArray;
-	IntArrayType &jkPlusArrayFine = GridFine.NBR.jkPlusArray;
+	//IntArrayType &jkPlusArrayFine = GridFine.NBR.jkPlusArray;
 	IntArrayType &parentMapArrayFine = GridFine.parentMapArray;
 	IntArrayType &intBuffer1Fine = GridFine.intBuffer1;
 	IntArrayType &intBuffer2Fine = GridFine.intBuffer2;
@@ -65,7 +65,7 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	auto kViewFine = kArrayFine.getView();
 	auto jPlusViewFine = jPlusArrayFine.getView();
 	auto kPlusViewFine = kPlusArrayFine.getView();
-	auto jkPlusViewFine = jkPlusArrayFine.getView();
+	//auto jkPlusViewFine = jkPlusArrayFine.getView();
 	auto parentMapViewFine = parentMapArrayFine.getView();
 	
 	// Because fine grid is 8x bigger than count of the refined coarse cells,
@@ -347,18 +347,18 @@ void buildFinerGrid( GridStruct &GridCoarse, GridStruct &GridFine )
 	
 	
 	// 9) repair coarse jkPlus, because we broke it using intBuffer3
-	auto jkPlusCoarseLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jkPlusViewCoarse[ cell ] = jPlusViewCoarse[ kPlusViewCoarse[ cell ] ];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, jkPlusCoarseLambda );
+	//auto jkPlusCoarseLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	//{	
+	//	jkPlusViewCoarse[ cell ] = jPlusViewCoarse[ kPlusViewCoarse[ cell ] ];
+	//};
+	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountCoarse, jkPlusCoarseLambda );
 	
 	// 10) fill jkPlus from jPlus and kPlus
-	auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jkPlusViewFine[ cell ] = jPlusViewFine[ kPlusViewFine[ cell ] ];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
+	//auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	//{	
+	//	jkPlusViewFine[ cell ] = jPlusViewFine[ kPlusViewFine[ cell ] ];
+	//};
+	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
 	
 	// 11) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
 	markGeometricNBRPlus( GridFine, cellCountFullFine );
@@ -388,7 +388,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	IntArrayType &kArrayFine = GridFine.IJK.kArray;
 	IntArrayType &jPlusArrayFine = GridFine.NBR.jPlusArray;
 	IntArrayType &kPlusArrayFine = GridFine.NBR.kPlusArray;
-	IntArrayType &jkPlusArrayFine = GridFine.NBR.jkPlusArray;
+	//IntArrayType &jkPlusArrayFine = GridFine.NBR.jkPlusArray;
 	IntArrayType &parentMapArrayFine = GridFine.parentMapArray;
 	IntArrayType &intBuffer1Fine = GridFine.intBuffer1;
 	IntArrayType &intBuffer2Fine = GridFine.intBuffer2;
@@ -398,7 +398,7 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	auto kViewFine = kArrayFine.getView();
 	auto jPlusViewFine = jPlusArrayFine.getView();
 	auto kPlusViewFine = kPlusArrayFine.getView();
-	auto jkPlusViewFine = jkPlusArrayFine.getView();
+	//auto jkPlusViewFine = jkPlusArrayFine.getView();
 	auto parentMapViewFine = parentMapArrayFine.getView();
 	
 	// Because fine grid is 8x bigger than count of the refined skeleton cells,
@@ -686,11 +686,11 @@ void buildFinerGrid( SkeletonGridStruct &SkeletonGrid, GridStruct &GridFine )
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, refinementCountSkeleton, IJKNBRLambda );
 	
 	// 8.3) fill jkPlus from jPlus and kPlus
-	auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jkPlusViewFine[ cell ] = jPlusViewFine[ kPlusViewFine[ cell ] ];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
+	//auto jkPlusLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	//{	
+	//	jkPlusViewFine[ cell ] = jPlusViewFine[ kPlusViewFine[ cell ] ];
+	//};
+	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, cellCountFullFine, jkPlusLambda );
 	
 	// 9) Last little step. We have just filled all fine neighbours. Now mark their geometric validity.
 	markGeometricNBRPlus( GridFine, cellCountFullFine );
@@ -701,7 +701,7 @@ void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int
 	auto fView  = Grid.fArray.getView();
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
+	//auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	const int cellCountOld = Grid.Info.cellCountOld;
 
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
@@ -713,8 +713,8 @@ void pullSingleFArrayIntoCells( GridStruct &Grid, const int direction, const int
 		else if ( preCollisionLocation == 3 ) readIndex = jPlusView( cell ) + 1;
 		else if ( preCollisionLocation == 4 ) readIndex = kPlusView( cell ); 
 		else if ( preCollisionLocation == 5 ) readIndex = kPlusView( cell ) + 1; 
-		else if ( preCollisionLocation == 6 ) readIndex = jkPlusView( cell ); 
-		else    							   readIndex = jkPlusView( cell ) + 1;		
+		else if ( preCollisionLocation == 6 ) readIndex = jPlusView( kPlusView( cell ) ); 
+		else    							   readIndex = jPlusView( kPlusView( cell ) ) + 1;		
 		if ( readIndex >= cellCountOld ) readIndex = 0;
 		const float f = fView( direction, readIndex );
 		fView( direction + 1, cell ) = f;
@@ -881,7 +881,7 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Grid.IJK.kArray.setSize( Info.memoryCountFull );
 		Grid.NBR.jPlusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.kPlusArray.setSize( Info.memoryCountFull );
-		Grid.NBR.jkPlusArray.setSize( Info.memoryCountFull );
+		Grid.bitPackedMarkerArray.setSize( Info.memoryCountFull );
 		Grid.NBR.jMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.kMinusArray.setSize( Info.memoryCountFull );
 		Grid.NBR.isGeometricBitPackedMarkerArray.setSize( Info.memoryCountFull );
@@ -1097,14 +1097,13 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	}
 	
 	// 13) fill jkPlus and NBR minus
-	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
-	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getView();
-	auto NBRPlusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRPlusFinishLambda );
+	
+	//auto jkPlusView = Grid.NBR.jkPlusArray.getView();
+	//auto NBRPlusFinishLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	//{	
+	//	jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
+	//};
+	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRPlusFinishLambda );
 	
 	// 14) mark NBR geometric validity
 	markGeometricNBRPlus( Grid, Info.cellCount );
@@ -1136,7 +1135,9 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	// 16) recursion
 	if ( !iAmFinest ) rebuildGrids( grids, Voxelizer, level+1 );
 		
-	// 17) Repair NBR minus of the coarser grid
+	// 17) Repair NBR minus of the coarser grid and fill its bitPackedMarker
+	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
+	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	if ( !iAmCoarsest ) // && grids[level - 1].Info.updatesSinceRebuild != 0 )
 	{
 		auto jPlusViewCoarse = grids[level - 1].NBR.jPlusArray.getConstView();
@@ -1149,9 +1150,11 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 			kMinusViewCoarse[ kPlusViewCoarse[ cell ] ] = cell;
 		};
 		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, grids[level - 1].Info.cellCount, NBRCoarseRepairLambda );
+		// fill bit packed marker
+		fillBitPackedMarkerArray( grids[level - 1], grids[level - 1].Info.cellCount );
 	}
 	
-	// 18) if we are the finest, we need to fill NBR minus ourselves
+	// 18) if we are the finest, we need to fill NBR minus ourselves and fill our bitPackedMarker
 	if ( iAmFinest )
 	{
 		auto jMinusView = Grid.NBR.jMinusArray.getView();
@@ -1162,6 +1165,8 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 			kMinusView[ kPlusView[ cell ] ] = cell;
 		};
 		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, NBRMinusFinishLambda );
+		// fill bit packed marker
+		fillBitPackedMarkerArray( Grid, Grid.Info.cellCount );
 	}
 	
 	// 19) update interface with the coarser grid

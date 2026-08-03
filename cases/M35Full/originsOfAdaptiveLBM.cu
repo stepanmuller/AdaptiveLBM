@@ -3,15 +3,15 @@ static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 
-static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8000;
-static constexpr int GRID_REBUILD_PERIOD = 24000;
-static constexpr int TORQUE_REPORT_PERIOD = 100000;
+static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
+static constexpr int GRID_REBUILD_PERIOD = 24;
+static constexpr int TORQUE_REPORT_PERIOD = 5;
 
 static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
-int reportChunk = 99;
-int plotterChunk = 100;
+int reportChunk = 31;
+int plotterChunk = 1000;
 constexpr int iterationCount = 40000;
 
 constexpr float resGlobal = 0.12f; 														// mm

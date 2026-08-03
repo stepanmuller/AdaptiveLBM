@@ -4,6 +4,7 @@
 #include "./esotwistStreamingFunctions.h"
 #include "./cellFunctions.h"
 #include "./NBRFunctions.h"
+#include "./markerFunctions.h"
 #include "./boundaryConditions/applyBounceback.h"
 #include "./boundaryConditions/applyMovingBounceback.h"
 #include "./boundaryConditions/restoreRho.h"

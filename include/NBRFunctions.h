@@ -17,7 +17,7 @@ __host__ __device__ void finishNBRAll( NBRStruct &NBR, const InfoStruct &Info )
 	NBR.ijPlus = NBR.jPlus + 1; if ( NBR.ijPlus >= Info.cellCount ) NBR.ijPlus = 0;
 	NBR.ikPlus = NBR.kPlus + 1; if ( NBR.ikPlus >= Info.cellCount ) NBR.ikPlus = 0;
 	NBR.ijkPlus = NBR.jkPlus + 1; if ( NBR.ijkPlus >= Info.cellCount ) NBR.ijkPlus = 0;
-	NBR.iMinus = NBR.self - 1; if ( NBR.iPlus < 0 ) NBR.iPlus = Info.cellCount-1;		
+	NBR.iMinus = NBR.self - 1; if ( NBR.iMinus < 0 ) NBR.iMinus = Info.cellCount-1;		
 }
 
 // this is used to bit unpack the information from Grid.NBR.isGeometricBitPackedMarkerArray

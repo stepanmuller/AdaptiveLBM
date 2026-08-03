@@ -380,68 +380,12 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	Grid.Info.torqueReportCumulative += TzSum;
 	
 	// Last step - repair jkPlusArray which we broke previously up to newlyFluidCount
-	auto jkPlusView = Grid.NBR.jkPlusArray.getView();
-	auto jkPlusRepairLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	{	
-		jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
-	};
-	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, changedStateCount, jkPlusRepairLambda );
+	//auto jkPlusView = Grid.NBR.jkPlusArray.getView();
+	//auto jkPlusRepairLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	//{	
+	//	jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
+	//};
+	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, changedStateCount, jkPlusRepairLambda );
 	
 	Info.updatesSinceMovingBouncebackUpdate = 0;
 }
-
-
-
-/*
- * 
- * // Sum the torque contributions
-	auto fetch = [=] __cuda_callable__ ( const int index )
-	{
-		const int cell = intBuffer3View( index );
-		const int iCell = iView( cell );
-		const int jCell = jView( cell );
-		const int kCell = kView( cell );
-		
-		float x, y, z;
-		getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );	
-		
-		NBRStruct NBR;
-		NBR.self = cell;
-		NBR.jPlus = jPlusView( cell );
-		NBR.kPlus = kPlusView( cell );
-		NBR.jkPlus = jPlusView( kPlusView( cell ) );
-		finishNBRPlus( NBR, Info );
-		
-		float f[27];
-		int cellReadIndex[27];
-		int fReadIndex[27];
-		getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperPrevious, Info );
-		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
-		
-		BCRhoUGStruct BCRhoUG;
-		// load the current state into the boundary condition struct
-		getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
-		float uxOld = BCRhoUG.ux; float uyOld = BCRhoUG.uy; float uzOld = BCRhoUG.uz;
-		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
-		MarkerStruct Marker;
-		Marker.movingBounceback = true;
-		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
-		
-		float gx = BCRhoUG.rho * ( BCRhoUG.ux - uxOld );
-		float gy = BCRhoUG.rho * ( BCRhoUG.uy - uyOld );
-		float gz = BCRhoUG.rho * ( BCRhoUG.uz - uzOld );
-		
-		convertToPhysicalForce( gx, gy, gz, Info );
-		float T = - gx * y + gy * x;
-		return T;
-	};
-	
-	auto reduction = [] __cuda_callable__( const float& a, const float& b )
-	{
-		return a + b;
-	};
-	
-	float TSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, newlyMBBCount, fetch, reduction, 0.f );
-	TSum = TSum / 1000.f; // converting from Nmm to Nm
-	std::cout << "Tsum [Nm] " << TSum << std::endl;
-	*/
