@@ -24,7 +24,6 @@ void applyNonReflectiveOutletZ( GridStruct &Grid )
 
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	auto jkPlusView = Grid.NBR.jkPlusArray.getConstView();
 	// auto jMinusView = Grid.NBR.jMinusArray.getConstView();
 	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
 	
@@ -36,7 +35,7 @@ void applyNonReflectiveOutletZ( GridStruct &Grid )
 		NBR.self = cell;
 		NBR.jPlus = jPlusView( cell );
 		NBR.kPlus = kPlusView( cell );
-		NBR.jkPlus = jkPlusView( cell );
+		NBR.jkPlus = jPlusView( NBR.kPlus );
 		finishNBRPlus( NBR, Info );
 		
 		const int kMin = kMinusView( cell );
@@ -45,7 +44,7 @@ void applyNonReflectiveOutletZ( GridStruct &Grid )
 		kMinNBR.self = kMin;
 		kMinNBR.jPlus = jPlusView( kMin );
 		kMinNBR.kPlus = kPlusView( kMin );
-		kMinNBR.jkPlus = jkPlusView( kMin );
+		kMinNBR.jkPlus = jPlusView( kMinNBR.kPlus );
 		finishNBRPlus( kMinNBR, Info );
 		
 		int cellReadIndex[27];
