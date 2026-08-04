@@ -136,7 +136,7 @@ void updateGrid( GridStruct &Grid )
 			// now interpolate between non reflective outlet and MBBC outlet
 			// if velocity is reversed (outlet becomes inlet), switch rigidity to 1. If velocity is alright, smoothly switch rigidity to the prescribed value
 			float vNormal = (BCRhoUG.ux * outerNormalX) + (BCRhoUG.uy * outerNormalY) + (BCRhoUG.uz * outerNormalZ);
-			float blend = std::max(0.0f, std::min(vNormal / 0.001f, 1.0f)); // 0.001f is the smoothing threshold
+			float blend = std::max(0.0f, std::min(vNormal / BCRhoUG.outletBackflowThreshold, 1.0f)); 
 			float outletRigidity = 1.0f + blend * (BCRhoUG.outletRigidity - 1.0f); // outletRigidity = 1.0 if reversed, BCRhoUG.outletRigidity if normal
 			for ( int direction = 0; direction < 27; direction++ ) f[direction] = f[direction] * outletRigidity + fNonReflective[direction] * ( 1.f - outletRigidity );
 			// also do nothing, just skip the else block below
@@ -156,7 +156,8 @@ void updateGrid( GridStruct &Grid )
 			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
 		}
 		
-		applyCollision( f, BCRhoUG, Info.nu );
+		float nuModified = Info.nu * BCRhoUG.viscosityMultiplier;
+		applyCollision( f, BCRhoUG, nuModified );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];

@@ -42,7 +42,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( Marker.movingBounceback ) return;
 	
 	if ( kCell == Info.cellCountZ-1 ) Marker.refinement = 1;
-	if ( jCell > Info.cellCountY-10 ) Marker.refinement = 1;
+	if ( jCell == Info.cellCountY-1 ) Marker.refinement = 1;
 	
 	if ( kCell == Info.cellCountZ-1 ) Marker.BCU = 1;
 	else if ( jCell == Info.cellCountY-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
@@ -104,7 +104,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.1f; }
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.000005f; BCRhoUG.outletBackflowThreshold = 0.003f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"
