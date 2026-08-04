@@ -7,11 +7,11 @@ static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
 static constexpr int GRID_LEVEL_COUNT = 2;
-static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
+static constexpr float SMAGORINSKY_CONSTANT = 0.05f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
-constexpr int iterationCount = 400000;
+constexpr int iterationCount = 200000;
 
 constexpr float resGlobal = 4.0f; 														// mm
 
@@ -23,9 +23,9 @@ constexpr float RInlet = 150.f;															// mm
 // constexpr float ROutlet = 175.f;														// mm
 constexpr float inletAreamm2 = 3.14159f * RInlet * RInlet;								// mm2
 constexpr float uzInletPhys = massFlowPhys / ( rhoNominalPhys * ( inletAreamm2 / 1000000.f) );	// m/s
-constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
-constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
-constexpr float angularVelocity = -198.967f;												// rad/s
+constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000.f); 			// s
+constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000.f) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
+constexpr float angularVelocity = -198.967f;											// rad/s
 const float boundaryLayerThickness = 2.f;												// mm
 
 #include "../../include/types.h"
@@ -104,7 +104,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.000005f; BCRhoUG.outletBackflowThreshold = 0.003f; }
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.000005f; BCRhoUG.outletBackflowThreshold = 0.005f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"

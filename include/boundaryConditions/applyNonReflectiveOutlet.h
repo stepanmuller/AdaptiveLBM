@@ -12,6 +12,17 @@
 // cz is negative for: { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
 // cz is positive for: { 4, 8, 9, 14, 17, 20, 21, 24, 26};
 
+// Better idea, to implement later:
+// The issue with this outlet is that as soon as backflow happens anywhere in the area,
+// it crashes. I tried to fix this by smoothly switching to hard pressure MBBC, but then
+// I have to manually choose the velocity threshold and even then there is still a risk
+// of creating artifacts in places where backflow happens.
+// Now, what I can do is this:
+// Run a reduction on the non reflective outlet cells and calculate their average pressure
+// There is no need to write the resulting f, just save the pressure to Info
+// Then apply a completely normal and reliable MBBC but use some interpolated
+// value between the non reflective average pressure and the target pressure
+
 void applyNonReflectiveOutlet( GridStruct &Grid )
 {
 	InfoStruct Info = Grid.Info;

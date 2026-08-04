@@ -94,7 +94,7 @@ def plot_history(file_number):
 		ax.set_ylabel(ylabels[i])
 		
 		# Only set the x-label on the bottom plot 
-		if i == 2:
+		if i == 6:
 			ax.set_xlabel(r"Iteration")
 			
 		ax.set_title(titles[i])
