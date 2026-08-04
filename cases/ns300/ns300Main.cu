@@ -104,7 +104,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.5f; }
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.1f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -135,7 +135,7 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 		for ( int sublevel = std::max(1, level); sublevel < GRID_LEVEL_COUNT; sublevel++) updateInterface(grids[sublevel-1], grids[sublevel]);
 		rebuildGrids( grids, Voxelizer, level );
 	}
-	applyNonReflectiveOutletZ(grids[level]);
+	applyNonReflectiveOutlet(grids[level]);
     updateGrid(grids[level]);
     if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
     {

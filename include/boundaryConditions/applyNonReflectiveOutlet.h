@@ -1,9 +1,16 @@
+#pragma once
+
 // id: 		{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26 };
 // cx: 		{ 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
 // cy: 		{ 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
 // cz: 		{ 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 
+// cx is negative for: { 2, 8, 10, 11, 15, 19, 21, 24, 25 };
+// cx is positive for: { 1, 7, 9, 12, 16, 20, 22, 23, 26 };
+// cy is negative for: { 5, 11, 14, 16, 18, 20, 21, 23, 25 };
+// cy is positive for: { 6, 12, 13, 15, 17, 19, 22, 24, 26 };
 // cz is negative for: { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
+// cz is positive for: { 4, 8, 9, 14, 17, 20, 21, 24, 26};
 
 void applyNonReflectiveOutlet( GridStruct &Grid )
 {
@@ -43,12 +50,37 @@ void applyNonReflectiveOutlet( GridStruct &Grid )
 		finishNBRPlus( NBR, Info );
 		
 		int upstreamCell;
-		int directionList[9];
+		const int* directionList = nullptr;
+		static const int dir_xp[] = { 2, 8, 10, 11, 15, 19, 21, 24, 25 };
+		static const int dir_xm[] = { 1, 7, 9, 12, 16, 20, 22, 23, 26 };
+		static const int dir_yp[] = { 5, 11, 14, 16, 18, 20, 21, 23, 25 };
+		static const int dir_ym[] = { 6, 12, 13, 15, 17, 19, 22, 24, 26 };
+		static const int dir_zp[] = { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
+		static const int dir_zm[] = { 4, 8, 9, 14, 17, 20, 21, 24, 26 };
 		if ( outerNormalX > 0 ) { 
-			upstreamCell = 
+			upstreamCell = cell-1; if ( upstreamCell < 0 ) upstreamCell = Info.cellCount-1;
+			directionList = dir_xp;
 		}
-		
-		const int upstreamCell = kMinusView( cell );
+		else if ( outerNormalX < 0 ) { 
+			upstreamCell = cell+1; if ( upstreamCell >= Info.cellCount ) upstreamCell = 0;
+			directionList = dir_xm;
+		}
+		else if ( outerNormalY > 0 ) { 
+			upstreamCell = jMinusView( cell );
+			directionList = dir_yp;
+		}
+		else if ( outerNormalY < 0 ) { 
+			upstreamCell = jPlusView( cell );
+			directionList = dir_ym;
+		}
+		else if ( outerNormalZ > 0 ) { 
+			upstreamCell = kMinusView( cell );
+			directionList = dir_zp;
+		}
+		else { 
+			upstreamCell = kPlusView( cell );
+			directionList = dir_zm;
+		}
 		
 		NBRStruct upstreamCellNBR;
 		upstreamCellNBR.self = upstreamCell;
@@ -65,16 +97,18 @@ void applyNonReflectiveOutlet( GridStruct &Grid )
 		getPreviousPostCollisionIndex( upstreamCellCellReadIndex, upstreamCellfReadIndex, upstreamCellNBR, esotwistFlipper, Info );
 		
 		float f[27];
-		for (int direction : { 3, 7, 10, 13, 18, 19, 22, 23, 25 })
+		for (int i = 0; i < 9; i++)
 		{
-			f[direction] = 0.577350269f * fView(kMinfReadIndex[direction], kMinCellReadIndex[direction]) + (1.f - 0.577350269f) * fView(fReadIndex[direction], cellReadIndex[direction]);
+			const int direction = directionList[i];
+			f[direction] = 0.577350269f * fView(upstreamCellfReadIndex[direction], upstreamCellCellReadIndex[direction]) + (1.f - 0.577350269f) * fView(fReadIndex[direction], cellReadIndex[direction]);
 		}
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
 		getPreCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
-		for (int direction : { 3, 7, 10, 13, 18, 19, 22, 23, 25 })
+		for (int i = 0; i < 9; i++)
 		{
+			const int direction = directionList[i];
 			fView(fWriteIndex[direction], cellWriteIndex[direction]) = f[direction];
 		}
 	};
