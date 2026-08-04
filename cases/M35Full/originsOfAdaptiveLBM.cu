@@ -5,16 +5,15 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
-static constexpr int TORQUE_REPORT_PERIOD = 5;
 
 static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
-constexpr int iterationCount = 40000;
+constexpr int iterationCount = 400000;
 
-constexpr float resGlobal = 0.12f; 														// mm
+constexpr float resGlobal = 0.1f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -29,7 +28,7 @@ const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
 
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.125f * 1e-8f;
+constexpr float iRegulatorInletStrength = 0.0048f;
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -126,11 +125,6 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 {
 	if ( level == GRID_LEVEL_COUNT - 1 ) // I am the finest grid
     {
-		if ( grids[level].Info.iterationsFinished % TORQUE_REPORT_PERIOD == 0 && grids[level].Info.iterationsFinished > 0 )
-		{
-			float torque = getMovingBouncebackTorqueZ( grids[level] );
-			grids[level].Info.torqueReportCumulative += torque * (float)TORQUE_REPORT_PERIOD;
-		}
 		if (grids[level].Info.updatesSinceMovingBouncebackUpdate >= MOVING_BOUNCEBACK_UPDATE_PERIOD )
 		{
 			const float radians = grids[level].Info.iterationsFinished * grids[level].Info.dtPhys * angularVelocity;
@@ -245,11 +239,21 @@ int main(int argc, char **argv)
 			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
 			
 			// regulate inlet
-			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk;
+			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk * dtPhysGlobal;
 			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
 			
-			float torque = grids[GRID_LEVEL_COUNT - 1].Info.torqueReportCumulative / (float)reportChunk;
-			grids[GRID_LEVEL_COUNT - 1].Info.torqueReportCumulative = 0.f;
+			// sum torque contributions and reset
+			float torque = 0.f;
+			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ )
+			{
+				auto fView  = grids[level].fArray.getView();
+				auto fetch = [ = ] __cuda_callable__( const int cell ) mutable { const float T = fView( 27, cell ); fView( 27, cell ) = 0.f; return T; };
+				auto reduction = [] __cuda_callable__( const float& a, const float& b ) { return a + b; };
+				float TzSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, grids[level].Info.cellCount, fetch, reduction, 0.f );
+				grids[level].Info.torqueReportCumulative += ( TzSum / 1000.f ); // converting from Nmm to Nm
+				torque += ( grids[level].Info.torqueReportCumulative / (float)( reportChunk * std::pow( 2, level ) ) );
+				grids[level].Info.torqueReportCumulative = 0.f;
+			}
 			
 			for ( int shifter = 0; shifter <= reportChunk; shifter++ )
 			{

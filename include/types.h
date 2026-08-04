@@ -171,7 +171,7 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					BoolArrayType fineToCoarseMarkerArray; BoolArrayType coarseToFineMarkerArray;
 					BoolArrayType markerBuffer;
 					IntArrayType bitPackedMarkerArray; 
-					// bits 1-26 = isFluid? tells if the cell from which f[i] is streamed from is geometric fluid neighbour. This is only kept valid for MBB cells
+					// bits 1-26 = isFluid? tells if the cell from which f[i] is streamed from is geometric fluid neighbour.
 					// bit 27 = bouncebackMarker
 					// bit 28 = movingBouncebackMarker
 					// bit 29 = deepRefinementMarker

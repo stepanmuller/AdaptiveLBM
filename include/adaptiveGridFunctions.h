@@ -794,6 +794,13 @@ void oldToKeepTransform( GridStruct &Grid )
 	//						  direction   { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26}
 	const int preCollisionLocation[27] = { 0, 0, 1, 4, 0, 2, 0, 4, 1, 0, 5, 3, 0, 4, 2, 1, 2, 0, 6, 5, 2, 3, 4, 6, 1, 7, 0 };	
 	for ( int direction = 0; direction < 27; direction++ ) oldToKeepSingleTransform( Grid, direction, preCollisionLocation[ direction ] );
+	
+	auto fView  = Grid.fArray.getView();
+	auto zeroOutBufferLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{	
+		fView( 27, cell ) = 0.f;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Grid.Info.cellCount, zeroOutBufferLambda );
 }
 
 void fullToKeepTransform( IntArrayType &dataArray, const BoolArrayType &keepCellMarkerArray, const IntArrayType &fullToKeepArray, IntArrayType &intBuffer, const int &upperBound )
@@ -853,6 +860,13 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 	static GridStruct dummyGrid; // if I am the coarsest grid myself, here Im fooling C++ to think there is a coarser grid than me, muhehe
     GridStruct &GridCoarse = iAmCoarsest ? dummyGrid : grids[ level - 1 ];
 	InfoStruct &InfoCoarse = GridCoarse.Info;
+	
+	// 0) sum fArray[ 27, all ] which tracks torque, add it to the cumulative tracker
+	auto fView  = Grid.fArray.getConstView();
+	auto fetch = [ = ] __cuda_callable__( const int cell ) { return fView( 27, cell ); };
+	auto reduction = [] __cuda_callable__( const float& a, const float& b ) { return a + b; };
+	float TzSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, Info.cellCountOld, fetch, reduction, 0.f );
+	Info.torqueReportCumulative += ( TzSum / 1000.f ); // converting from Nmm to Nm
 	
 	// 1) Pull fArray into the correct cells to be able to forget NBR
 	if ( !initPass ) pullFArrayIntoCells( Grid );

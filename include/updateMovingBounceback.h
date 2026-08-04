@@ -3,6 +3,7 @@
 #include "./esotwistStreamingFunctions.h"
 #include "./cellFunctions.h"
 #include "./NBRFunctions.h"
+#include "./markerFunctions.h"
 #include "./applyCollision.h"
 #include "./boundaryConditions/applyMovingBounceback.h"
 
@@ -22,14 +23,20 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	auto jMinusView = Grid.NBR.jMinusArray.getView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
-	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getConstView();
 	auto oldMovingBouncebackMarkerView = oldMovingBouncebackMarkerArray.getView();
 	auto changedStateMarkerView = changedStateMarkerArray.getView();
-	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
+
 	const bool esotwistFlipper = Grid.esotwistFlipper;	
 	const bool esotwistFlipperPrevious = !Grid.esotwistFlipper;	
+
+	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
+	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getView();
+	auto deepRefinementMarkerView = Grid.deepRefinementMarkerArray.getConstView();
+	auto bitPackedMarkerView = Grid.bitPackedMarkerArray.getView();
+	
 	bool useBouncebackMarkerArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
 	bool useMovingBouncebackMarkerArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
+	bool useDeepRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
 	
 	// Take copy of the old moving bounceback marker array and update the active array
 	oldMovingBouncebackMarkerArray = Grid.movingBouncebackMarkerArray;
@@ -78,8 +85,10 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	const int czArray[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 	
 	auto changedStateLambda = [=] __cuda_callable__ ( const int index ) mutable
-	{
+	{		
 		const int cell = intBuffer3View( index );
+		
+		float Tz = 0.f;
 		
 		const int iCell = iView( cell );
 		const int jCell = jView( cell );
@@ -119,8 +128,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			float gz = BCRhoUG.rho * ( BCRhoUG.uz - uzOld );
 			
 			convertToPhysicalForce( gx, gy, gz, Info );
-			float Tz = - gx * y + gy * x;
-			return Tz;	
+			Tz = - gx * y + gy * x;
 		}
 		else // newly fluid branch -> refill algorithm
 		{
@@ -128,7 +136,6 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			// cx: { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
 			// cy: { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
 			// cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
-			
 			int fullNBRList[27];
 			// for each direction this holds the neighbour where f[i] will be pulled from in the next iteration
 			// 0: Center
@@ -162,6 +169,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
 			fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
 			fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+			
 			// now look at each neighbour if they are or were MBB or are BB 
 			bool isMovingBounceback[27] = {false};
 			bool wasMovingBounceback[27] = {false};
@@ -365,10 +373,9 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 					fView( fNextIndex[direction], cellNextIndex[direction] ) = fRepair[direction];
 				}
 			}	
-			return 0.f;
-		}	
+		}
+		return Tz;
 	};
-	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, changedStateCount, changedStateLambda );
 	
 	auto reduction = [] __cuda_callable__( const float& a, const float& b )
 	{
@@ -379,13 +386,89 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	TzSum = TzSum / 1000.f; // converting from Nmm to Nm
 	Grid.Info.torqueReportCumulative += TzSum;
 	
-	// Last step - repair jkPlusArray which we broke previously up to newlyFluidCount
-	//auto jkPlusView = Grid.NBR.jkPlusArray.getView();
-	//auto jkPlusRepairLambda = [=] __cuda_callable__ ( const int cell ) mutable
-	//{	
-	//	jkPlusView[ cell ] = jPlusView[ kPlusView[ cell ] ];
-	//};
-	//TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, changedStateCount, jkPlusRepairLambda );
+	// Last step - repair and update bitPackedMarker
+	auto bitPackedMarkerRepairLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{			
+		bool bitPackedMarkerBits[32] = {false};
+		if ( useBouncebackMarkerArray ) bitPackedMarkerBits[27] = bouncebackMarkerView( cell );
+		if ( useMovingBouncebackMarkerArray ) bitPackedMarkerBits[28] = movingBouncebackMarkerView( cell );
+		if ( useDeepRefinementMarkerArray ) bitPackedMarkerBits[29] = deepRefinementMarkerView( cell );
+		
+		const int iCell = iView( cell );
+		const int jCell = jView( cell );
+		const int kCell = kView( cell );
+		
+		NBRStruct NBR;
+		NBR.self = cell;
+		NBR.jPlus = jPlusView( cell );
+		NBR.kPlus = kPlusView( cell );
+		NBR.jkPlus = jPlusView( kPlusView( cell ) );
+		NBR.jMinus = jMinusView( cell );
+		NBR.kMinus = kMinusView( cell );
+		finishNBRAll( NBR, Info );
+		
+		int fullNBRList[27];
+		// for each direction this holds the neighbour where f[i] will be pulled from in the next iteration
+		// 0: Center
+		fullNBRList[0]  = cell;
+		// 1-6: Straight directions (Faces)
+		fullNBRList[1]  = NBR.iMinus; 			// cx=1  -> nx=-1
+		fullNBRList[2]  = NBR.iPlus;  			// cx=-1 -> nx=1
+		fullNBRList[3]  = NBR.kPlus;  			// cz=-1 -> nz=1
+		fullNBRList[4]  = NBR.kMinus; 			// cz=1  -> nz=-1
+		fullNBRList[5]  = NBR.jPlus;  			// cy=-1 -> ny=1
+		fullNBRList[6]  = NBR.jMinus; 			// cy=1  -> ny=-1
+		// 7-18: Diagonal directions (Edges)
+		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cx=1,  cz=-1 -> nx=-1, nz=1
+		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cx=-1, cz=1  -> nx=1,  nz=-1
+		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cx=1,  cz=1  -> nx=-1, nz=-1
+		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cx=-1, cz=-1 -> nx=1,  nz=1
+		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cx=-1, cy=-1 -> nx=1,  ny=1
+		fullNBRList[12] = jMinusView( NBR.iMinus );	// cx=1,  cy=1  -> nx=-1, ny=-1
+		fullNBRList[13] = kPlusView( NBR.jMinus );	// cy=1,  cz=-1 -> ny=-1, nz=1
+		fullNBRList[14] = kMinusView( NBR.jPlus );	// cy=-1, cz=1  -> ny=1,  nz=-1
+		fullNBRList[15] = jMinusView( NBR.iPlus );	// cx=-1, cy=1  -> nx=1,  ny=-1
+		fullNBRList[16] = jPlusView( NBR.iMinus );	// cx=1,  cy=-1 -> nx=-1, ny=1
+		fullNBRList[17] = kMinusView( NBR.jMinus );	// cy=1,  cz=1  -> ny=-1, nz=-1
+		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cy=-1, cz=-1 -> ny=1,  nz=1
+		// 19-26: Corner directions (Vertices)
+		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=-1 -> nx=1,  ny=-1, nz=1
+		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=1  -> nx=-1, ny=1,  nz=-1
+		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cx=-1, cy=-1, cz=1  -> nx=1,  ny=1,  nz=-1
+		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cx=1,  cy=1,  cz=-1 -> nx=-1, ny=-1, nz=1
+		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=-1 -> nx=-1, ny=1,  nz=1
+		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
+		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
+		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+		
+		// now look at each neighbour if they are geometric fluid neighbour
+		for ( int direction = 1; direction < 27; direction++ )
+		{
+			MarkerStruct Marker;
+			if ( useBouncebackMarkerArray ) Marker.bounceback = bouncebackMarkerView( fullNBRList[direction] );
+			if ( useMovingBouncebackMarkerArray ) Marker.movingBounceback = movingBouncebackMarkerView( fullNBRList[direction] );
+			if ( useDeepRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerView( fullNBRList[direction] );
+			getMarkers( iCell, jCell, kCell, Marker, Info );
+			if ( !Marker.bounceback && !Marker.movingBounceback )
+			{
+				// check position
+				const int nx = -cxArray[direction]; const int ny = -cyArray[direction]; const int nz = -czArray[direction];
+				const int iExpected = iCell + nx; const int jExpected = jCell + ny; const int kExpected = kCell + nz;
+				const int iActual = iView( fullNBRList[direction] ); 
+				const int jActual = jView( fullNBRList[direction] ); 
+				const int kActual = kView( fullNBRList[direction] );
+				if ( iActual == iExpected && jActual == jExpected && kActual == kExpected ) 
+				{
+					// the cell is neither bounceback, nor moving bounceback AND is geometrically correct -> mark it
+					bitPackedMarkerBits[direction] = true;
+				}
+			}
+		}
+		int bitPackedMarker;
+		boolsToInt( bitPackedMarker, bitPackedMarkerBits );
+		bitPackedMarkerView( cell ) = bitPackedMarker;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, bitPackedMarkerRepairLambda );
 	
 	Info.updatesSinceMovingBouncebackUpdate = 0;
 }

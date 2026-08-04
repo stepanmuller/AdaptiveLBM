@@ -26,27 +26,25 @@ void updateGrid( GridStruct &Grid )
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	
-	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
-	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getConstView();
-	auto deepRefinementMarkerView = Grid.deepRefinementMarkerArray.getConstView();
-	
-	bool useBouncebackMarkerArray = ( Grid.bouncebackMarkerArray.getSize() > 0 );
-	bool useMovingBouncebackMarkerArray = ( Grid.movingBouncebackMarkerArray.getSize() > 0 );
-	bool useDeepRefinementMarkerArray = ( Grid.deepRefinementMarkerArray.getSize() > 0 );
+	auto bitPackedMarkerView = Grid.bitPackedMarkerArray.getConstView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
+		const int bitPackedMarkerInt = bitPackedMarkerView( cell );
+		bool bitPackedMarkerBits[32];
+		intToBools( bitPackedMarkerInt, bitPackedMarkerBits );
+		
+		MarkerStruct Marker;
+		Marker.bounceback = bitPackedMarkerBits[27];
+		Marker.movingBounceback = bitPackedMarkerBits[28];
+		Marker.deepRefinement = bitPackedMarkerBits[29];
+		
+		if ( Marker.deepRefinement ) return;
+		
 		const int iCell = iView( cell );
 		const int jCell = jView( cell );
 		const int kCell = kView( cell );
-		
-		MarkerStruct Marker;
-		if ( useBouncebackMarkerArray ) Marker.bounceback = bouncebackMarkerView( cell );
-		if ( useMovingBouncebackMarkerArray ) Marker.movingBounceback = movingBouncebackMarkerView( cell );
-		if ( useDeepRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerView( cell );
 		getMarkers( iCell, jCell, kCell, Marker, Info );
-		
-		if ( Marker.deepRefinement ) return;
 		
 		if ( Marker.bounceback ) return; // bounceback gets implicitly applied by Esotwist
 				
@@ -61,6 +59,59 @@ void updateGrid( GridStruct &Grid )
 		int cellReadIndex[27];
 		int fReadIndex[27];
 		getPreCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+		
+		if ( Marker.movingBounceback )
+		{
+			const int cx[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+			const int cy[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+			const int cz[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+			const int inverseDirection[27] = { 0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23, 26, 25 };
+			
+			float fIn[27];
+			for ( int direction = 1; direction < 27; direction++ )	
+			{
+				if ( bitPackedMarkerBits[direction] ) 
+				{
+					f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
+					fIn[direction] = f[direction];
+				}
+			}
+			BCRhoUGStruct BCRhoUG;
+			getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
+			getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+			applyMovingBounceback( f, BCRhoUG );
+			int cellWriteIndex[27];
+			int fWriteIndex[27];
+			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
+			for ( int direction = 0; direction < 27; direction++ ) 
+			{
+				if ( bitPackedMarkerBits[inverseDirection[direction]] ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
+			}
+			// track the torque
+			float gx = 0.f;
+			float gy = 0.f;
+			float gz = 0.f;
+			const float wallUx = BCRhoUG.ux;
+			const float wallUy = BCRhoUG.uy;
+			const float wallUz = BCRhoUG.uz;
+			
+			for (int q = 1; q < 27; q++) {
+				if ( !bitPackedMarkerBits[q] ) continue; // we are only interested if the neighbour is fluid
+				gx += (cx[q] - wallUx) * fIn[q] - (cx[inverseDirection[q]] - wallUx) * f[inverseDirection[q]];
+				gy += (cy[q] - wallUy) * fIn[q] - (cy[inverseDirection[q]] - wallUy) * f[inverseDirection[q]];
+				gz += (cz[q] - wallUz) * fIn[q] - (cz[inverseDirection[q]] - wallUz) * f[inverseDirection[q]];
+			}
+			
+			float x, y, z;
+			getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );		
+			convertToPhysicalForce( gx, gy, gz, Info );
+			float T = - ( - gx * y + gy * x );
+			
+			fView( 27, cell ) += T;
+			
+			return;
+		}
+		
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 		
 		BCRhoUGStruct BCRhoUG;
@@ -69,16 +120,6 @@ void updateGrid( GridStruct &Grid )
 		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
 		// example: get forcing for rotating domain as a function of rho, U
 		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
-		
-		if ( Marker.movingBounceback )
-		{
-			applyMovingBounceback( f, BCRhoUG );
-			int cellWriteIndex[27];
-			int fWriteIndex[27];
-			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
-			for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
-			return;
-		}
 		
 		if ( Marker.fluid )
 		{

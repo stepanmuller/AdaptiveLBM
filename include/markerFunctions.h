@@ -68,43 +68,43 @@ void fillBitPackedMarkerArray( GridStruct &Grid, const int &upperBound )
 		NBR.kMinus = kMinusView( cell );
 		finishNBRAll( NBR, Info );
 	
-		const int cx[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
-		const int cy[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
-		const int cz[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
+		const int cxArray[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
+		const int cyArray[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
+		const int czArray[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 		
 		int fullNBRList[27];
 		// for each direction this holds the neighbour where f[i] will be pulled from in the next iteration
 		// 0: Center
 		fullNBRList[0]  = cell;
 		// 1-6: Straight directions (Faces)
-		fullNBRList[1]  = NBR.iMinus; 			// cx=1  -> nx=-1
-		fullNBRList[2]  = NBR.iPlus;  			// cx=-1 -> nx=1
-		fullNBRList[3]  = NBR.kPlus;  			// cz=-1 -> nz=1
-		fullNBRList[4]  = NBR.kMinus; 			// cz=1  -> nz=-1
-		fullNBRList[5]  = NBR.jPlus;  			// cy=-1 -> ny=1
-		fullNBRList[6]  = NBR.jMinus; 			// cy=1  -> ny=-1
+		fullNBRList[1]  = NBR.iMinus; 			// cxArray=1  -> nx=-1
+		fullNBRList[2]  = NBR.iPlus;  			// cxArray=-1 -> nx=1
+		fullNBRList[3]  = NBR.kPlus;  			// czArray=-1 -> nz=1
+		fullNBRList[4]  = NBR.kMinus; 			// czArray=1  -> nz=-1
+		fullNBRList[5]  = NBR.jPlus;  			// cyArray=-1 -> ny=1
+		fullNBRList[6]  = NBR.jMinus; 			// cyArray=1  -> ny=-1
 		// 7-18: Diagonal directions (Edges)
-		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cx=1,  cz=-1 -> nx=-1, nz=1
-		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cx=-1, cz=1  -> nx=1,  nz=-1
-		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cx=1,  cz=1  -> nx=-1, nz=-1
-		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cx=-1, cz=-1 -> nx=1,  nz=1
-		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cx=-1, cy=-1 -> nx=1,  ny=1
-		fullNBRList[12] = jMinusView( NBR.iMinus );	// cx=1,  cy=1  -> nx=-1, ny=-1
-		fullNBRList[13] = kPlusView( NBR.jMinus );	// cy=1,  cz=-1 -> ny=-1, nz=1
-		fullNBRList[14] = kMinusView( NBR.jPlus );	// cy=-1, cz=1  -> ny=1,  nz=-1
-		fullNBRList[15] = jMinusView( NBR.iPlus );	// cx=-1, cy=1  -> nx=1,  ny=-1
-		fullNBRList[16] = jPlusView( NBR.iMinus );	// cx=1,  cy=-1 -> nx=-1, ny=1
-		fullNBRList[17] = kMinusView( NBR.jMinus );	// cy=1,  cz=1  -> ny=-1, nz=-1
-		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cy=-1, cz=-1 -> ny=1,  nz=1
+		fullNBRList[7]  = kPlusView( NBR.iMinus );	// cxArray=1,  czArray=-1 -> nx=-1, nz=1
+		fullNBRList[8]  = kMinusView( NBR.iPlus );	// cxArray=-1, czArray=1  -> nx=1,  nz=-1
+		fullNBRList[9]  = kMinusView( NBR.iMinus );	// cxArray=1,  czArray=1  -> nx=-1, nz=-1
+		fullNBRList[10] = kPlusView( NBR.iPlus ); 	// cxArray=-1, czArray=-1 -> nx=1,  nz=1
+		fullNBRList[11] = jPlusView( NBR.iPlus ); 	// cxArray=-1, cyArray=-1 -> nx=1,  ny=1
+		fullNBRList[12] = jMinusView( NBR.iMinus );	// cxArray=1,  cyArray=1  -> nx=-1, ny=-1
+		fullNBRList[13] = kPlusView( NBR.jMinus );	// cyArray=1,  czArray=-1 -> ny=-1, nz=1
+		fullNBRList[14] = kMinusView( NBR.jPlus );	// cyArray=-1, czArray=1  -> ny=1,  nz=-1
+		fullNBRList[15] = jMinusView( NBR.iPlus );	// cxArray=-1, cyArray=1  -> nx=1,  ny=-1
+		fullNBRList[16] = jPlusView( NBR.iMinus );	// cxArray=1,  cyArray=-1 -> nx=-1, ny=1
+		fullNBRList[17] = kMinusView( NBR.jMinus );	// cyArray=1,  czArray=1  -> ny=-1, nz=-1
+		fullNBRList[18] = kPlusView( NBR.jPlus ); 	// cyArray=-1, czArray=-1 -> ny=1,  nz=1
 		// 19-26: Corner directions (Vertices)
-		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=-1 -> nx=1,  ny=-1, nz=1
-		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=1  -> nx=-1, ny=1,  nz=-1
-		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cx=-1, cy=-1, cz=1  -> nx=1,  ny=1,  nz=-1
-		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cx=1,  cy=1,  cz=-1 -> nx=-1, ny=-1, nz=1
-		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cx=1,  cy=-1, cz=-1 -> nx=-1, ny=1,  nz=1
-		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cx=-1, cy=1,  cz=1  -> nx=1,  ny=-1, nz=-1
-		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cx=-1, cy=-1, cz=-1 -> nx=1,  ny=1,  nz=1
-		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cx=1,  cy=1,  cz=1  -> nx=-1, ny=-1, nz=-1
+		fullNBRList[19] = kPlusView( jMinusView( NBR.iPlus ) ); 	// cxArray=-1, cyArray=1,  czArray=-1 -> nx=1,  ny=-1, nz=1
+		fullNBRList[20] = kMinusView( jPlusView( NBR.iMinus ) ); 	// cxArray=1,  cyArray=-1, czArray=1  -> nx=-1, ny=1,  nz=-1
+		fullNBRList[21] = kMinusView( jPlusView( NBR.iPlus ) ); 	// cxArray=-1, cyArray=-1, czArray=1  -> nx=1,  ny=1,  nz=-1
+		fullNBRList[22] = kPlusView( jMinusView( NBR.iMinus ) ); 	// cxArray=1,  cyArray=1,  czArray=-1 -> nx=-1, ny=-1, nz=1
+		fullNBRList[23] = kPlusView( jPlusView( NBR.iMinus ) ); 	// cxArray=1,  cyArray=-1, czArray=-1 -> nx=-1, ny=1,  nz=1
+		fullNBRList[24] = kMinusView( jMinusView( NBR.iPlus ) ); 	// cxArray=-1, cyArray=1,  czArray=1  -> nx=1,  ny=-1, nz=-1
+		fullNBRList[25] = kPlusView( jPlusView( NBR.iPlus ) );  	// cxArray=-1, cyArray=-1, czArray=-1 -> nx=1,  ny=1,  nz=1
+		fullNBRList[26] = kMinusView( jMinusView( NBR.iMinus ) );	// cxArray=1,  cyArray=1,  czArray=1  -> nx=-1, ny=-1, nz=-1
 		
 		// now look at each neighbour if they are geometric fluid neighbour
 		
@@ -118,7 +118,7 @@ void fillBitPackedMarkerArray( GridStruct &Grid, const int &upperBound )
 			if ( !Marker.bounceback && !Marker.movingBounceback )
 			{
 				// check position
-				const int nx = -cx[direction]; const int ny = -cy[direction]; const int nz = -cz[direction];
+				const int nx = -cxArray[direction]; const int ny = -cyArray[direction]; const int nz = -czArray[direction];
 				const int iExpected = iCell + nx; const int jExpected = jCell + ny; const int kExpected = kCell + nz;
 				const int iActual = iView( fullNBRList[direction] ); 
 				const int jActual = jView( fullNBRList[direction] ); 
