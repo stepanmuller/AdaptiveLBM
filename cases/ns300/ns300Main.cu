@@ -1,4 +1,4 @@
-static constexpr int RAY_MAP_DEPTH = 32;
+static constexpr int RAY_MAP_DEPTH = 64;
 static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
