@@ -5,9 +5,7 @@
 
 // cz is negative for: { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
 
-// So far works for positive Z direction outlet only!
-
-void applyNonReflectiveOutletZ( GridStruct &Grid )
+void applyNonReflectiveOutlet( GridStruct &Grid )
 {
 	InfoStruct Info = Grid.Info;
 	if ( Info.nonReflectiveOutletCount == 0 ) return;
@@ -18,18 +16,24 @@ void applyNonReflectiveOutletZ( GridStruct &Grid )
 	
 	auto fView  = Grid.fArray.getView();
 	
-	//auto iView = Grid.IJK.iArray.getConstView();
-	//auto jView = Grid.IJK.jArray.getConstView();
-	//auto kView = Grid.IJK.kArray.getConstView();
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
 
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	// auto jMinusView = Grid.NBR.jMinusArray.getConstView();
+	auto jMinusView = Grid.NBR.jMinusArray.getConstView();
 	auto kMinusView = Grid.NBR.kMinusArray.getConstView();
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{
 		const int cell = nonReflectiveOutletIndexView( index );
+		const int iCell = iView( cell );
+		const int jCell = jView( cell );
+		const int kCell = kView( cell );
+		
+		int outerNormalX, outerNormalY, outerNormalZ;
+		getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
 		
 		NBRStruct NBR;
 		NBR.self = cell;
@@ -38,21 +42,27 @@ void applyNonReflectiveOutletZ( GridStruct &Grid )
 		NBR.jkPlus = jPlusView( NBR.kPlus );
 		finishNBRPlus( NBR, Info );
 		
-		const int kMin = kMinusView( cell );
+		int upstreamCell;
+		int directionList[9];
+		if ( outerNormalX > 0 ) { 
+			upstreamCell = 
+		}
 		
-		NBRStruct kMinNBR;
-		kMinNBR.self = kMin;
-		kMinNBR.jPlus = jPlusView( kMin );
-		kMinNBR.kPlus = kPlusView( kMin );
-		kMinNBR.jkPlus = jPlusView( kMinNBR.kPlus );
-		finishNBRPlus( kMinNBR, Info );
+		const int upstreamCell = kMinusView( cell );
+		
+		NBRStruct upstreamCellNBR;
+		upstreamCellNBR.self = upstreamCell;
+		upstreamCellNBR.jPlus = jPlusView( upstreamCell );
+		upstreamCellNBR.kPlus = kPlusView( upstreamCell );
+		upstreamCellNBR.jkPlus = jPlusView( upstreamCellNBR.kPlus );
+		finishNBRPlus( upstreamCellNBR, Info );
 		
 		int cellReadIndex[27];
 		int fReadIndex[27];
 		getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
-		int kMinCellReadIndex[27];
-		int kMinfReadIndex[27];
-		getPreviousPostCollisionIndex( kMinCellReadIndex, kMinfReadIndex, kMinNBR, esotwistFlipper, Info );
+		int upstreamCellCellReadIndex[27];
+		int upstreamCellfReadIndex[27];
+		getPreviousPostCollisionIndex( upstreamCellCellReadIndex, upstreamCellfReadIndex, upstreamCellNBR, esotwistFlipper, Info );
 		
 		float f[27];
 		for (int direction : { 3, 7, 10, 13, 18, 19, 22, 23, 25 })

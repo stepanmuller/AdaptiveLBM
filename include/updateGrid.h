@@ -127,6 +127,18 @@ void updateGrid( GridStruct &Grid )
 		}
 		else if ( Marker.nonReflectiveOutlet )
 		{
+			float fNonReflective[27];
+			for ( int direction = 0; direction < 27; direction++ ) fNonReflective[direction] = f[direction]; // take copy of the non reflective part
+			int outerNormalX, outerNormalY, outerNormalZ;
+			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
+			restoreUxUyUz( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
+			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f ); // apply regular MBBC on f
+			// now interpolate between non reflective outlet and MBBC outlet
+			// if velocity is reversed (outlet becomes inlet), switch rigidity to 1. If velocity is alright, smoothly switch rigidity to the prescribed value
+			float vNormal = (BCRhoUG.ux * outerNormalX) + (BCRhoUG.uy * outerNormalY) + (BCRhoUG.uz * outerNormalZ);
+			float blend = std::max(0.0f, std::min(vNormal / 0.001f, 1.0f)); // 0.001f is the smoothing threshold
+			float outletRigidity = 1.0f + blend * (BCRhoUG.outletRigidity - 1.0f); // outletRigidity = 1.0 if reversed, BCRhoUG.outletRigidity if normal
+			for ( int direction = 0; direction < 27; direction++ ) f[direction] = f[direction] * outletRigidity + fNonReflective[direction] * ( 1.f - outletRigidity );
 			// also do nothing, just skip the else block below
 		}
 		else

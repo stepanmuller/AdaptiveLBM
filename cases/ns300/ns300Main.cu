@@ -6,7 +6,7 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 3;
+static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
 int reportChunk = 31;
@@ -45,7 +45,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( jCell > Info.cellCountY-10 ) Marker.refinement = 1;
 	
 	if ( kCell == Info.cellCountZ-1 ) Marker.BCU = 1;
-	else if ( jCell == Info.cellCountY-1 ) Marker.BCRho = 1;
+	else if ( jCell == Info.cellCountY-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
 	else Marker.fluid = 1;
 }
 
@@ -104,7 +104,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho ) BCRhoUG.rho = 1.f;
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.5f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -145,6 +145,7 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 }
 
 void exportHistoryData( const std::vector<float>& historyInletPressure, 
+						const std::vector<float>& historyOutletPressure, 
                         const std::vector<float>& historyInletMassFlow, 
                         const std::vector<float>& historyTorque, 
                         const int &currentIteration, int fileNumber ) {
@@ -156,6 +157,7 @@ void exportHistoryData( const std::vector<float>& historyInletPressure,
     
     // Write all three vectors sequentially
     fwrite(historyInletPressure.data(), sizeof(float), count, fp);
+    fwrite(historyOutletPressure.data(), sizeof(float), count, fp);
     fwrite(historyInletMassFlow.data(), sizeof(float), count, fp);
     fwrite(historyTorque.data(), sizeof(float), count, fp);
     
@@ -211,6 +213,7 @@ int main(int argc, char **argv)
 	std::cout << "Maximum cells travelled by MBB per iteration: " << dtPhysGlobal * std::abs(angularVelocity) * 164.5f / resGlobal << std::endl;
 	
 	std::vector<float> historyInletPressure( iterationCount, 0.f );
+	std::vector<float> historyOutletPressure( iterationCount, 0.f );
 	std::vector<float> historyInletMassFlow( iterationCount, 0.f );
 	std::vector<float> historyTorque( iterationCount, 0.f );
 	
@@ -223,7 +226,6 @@ int main(int argc, char **argv)
 		if ( iteration % reportChunk == 0 )
 		{
 			BoundsStruct InletBounds;
-			InletBounds = STLStator.Bounds;
 			InletBounds.xmin = -155.f;
 			InletBounds.xmax = 155.f;
 			InletBounds.ymin = -155.f;
@@ -237,7 +239,23 @@ int main(int argc, char **argv)
 			convertToPhysicalPressure( pIn );
 			float uTemp = 0.f;
 			convertToPhysicalVelocity( uzIn, uTemp, uTemp, grids[0].Info );
-			const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
+			const float massFlowIn = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
+			
+			BoundsStruct OutletBounds;
+			OutletBounds.xmin = -535.f;
+			OutletBounds.xmax = -175.f;
+			OutletBounds.zmin = -210.f;
+			OutletBounds.zmax = 145.f;
+			// get inlet data
+			FlowReportStruct FlowReportOut;
+			int jCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountY-1;
+			getFlowReportZX( grids, jCut, OutletBounds, FlowReportOut );
+			float pOut = FlowReportOut.rho;
+			//float uzOut = FlowReportIn.uz;
+			convertToPhysicalPressure( pOut );
+			//float uTemp = 0.f;
+			//convertToPhysicalVelocity( uzIn, uTemp, uTemp, grids[0].Info );
+			//const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
 			
 			// sum torque contributions and reset
 			float torque = 0.f;
@@ -257,8 +275,9 @@ int main(int argc, char **argv)
 				if ( iteration+shifter < iterationCount )
 				{
 					historyInletPressure[iteration+shifter] = pIn;
-					historyInletMassFlow[iteration+shifter] = massFlow;
-					historyTorque[iteration+shifter] = torque;
+					historyOutletPressure[iteration+shifter] = pOut;
+					historyInletMassFlow[iteration+shifter] = -massFlowIn;
+					historyTorque[iteration+shifter] = -torque;
 				}
 			}
 		}
@@ -274,7 +293,7 @@ int main(int argc, char **argv)
 			const float glups = updateCount / lapTime / 1000000000.f;
 			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
 			
-			if ( iteration > 0 ) exportHistoryData( historyInletPressure, historyInletMassFlow, historyTorque, iteration, 0 );
+			if ( iteration > 0 ) exportHistoryData( historyInletPressure, historyOutletPressure, historyInletMassFlow, historyTorque, iteration, 0 );
 			
 			// prepare section cuts
 			int iCut, jCut, kCut;
