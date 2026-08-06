@@ -416,6 +416,27 @@ void applyNonReflectiveOutletMarker( BoolArrayType &markerArray, const GridStruc
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
 }
 
+void applyNonReflectiveInletMarker( BoolArrayType &markerArray, const GridStruct &Grid, const int &upperBound )
+{
+	// uses the getMarkers function defined in the main file to mark non reflective inlet cells
+	const InfoStruct &Info = Grid.Info;
+	auto iView = Grid.IJK.iArray.getConstView();
+	auto jView = Grid.IJK.jArray.getConstView();
+	auto kView = Grid.IJK.kArray.getConstView();
+	auto markerView = markerArray.getView();
+
+	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
+	{
+		const int iCell = iView[ cell ];
+		const int jCell = jView[ cell ];
+		const int kCell = kView[ cell ];
+		MarkerStruct Marker;
+		getMarkers( iCell, jCell, kCell, Marker, Info );
+		markerView( cell ) = Marker.nonReflectiveInlet;
+	};
+	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, upperBound, cellLambda );	
+}
+
 void spreadMarkers( BoolArrayType &targetMarkerArray, const BoolArrayType &sourceMarkerArray, GridStruct &Grid, const int &upperBound )
 {
 	// The way this is written creates a race condition, one that is harmless because all threads write the same 1

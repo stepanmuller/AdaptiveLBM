@@ -11,9 +11,10 @@
 #include "./boundaryConditions/restoreUxUyUz.h"
 #include "./boundaryConditions/applyMBBC.h"
 #include "./boundaryConditions/applyNonReflectiveOutlet.h"
+#include "./boundaryConditions/applyNonReflectiveInlet.h"
 
 void updateGrid( GridStruct &Grid )
-{
+{	
 	InfoStruct &Info = Grid.Info;
 	const bool &esotwistFlipper = Grid.esotwistFlipper;
 	
@@ -27,6 +28,9 @@ void updateGrid( GridStruct &Grid )
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
 	
 	auto bitPackedMarkerView = Grid.bitPackedMarkerArray.getConstView();
+	
+	applyNonReflectiveInlet(Grid);
+	applyNonReflectiveOutlet(Grid);
 	
 	auto cellLambda = [=] __cuda_callable__ ( const int cell ) mutable
 	{
@@ -125,39 +129,34 @@ void updateGrid( GridStruct &Grid )
 		{
 			// do nothing, just skip the else block below
 		}
-		else if ( Marker.nonReflectiveOutlet )
-		{
-			float fNonReflective[27];
-			for ( int direction = 0; direction < 27; direction++ ) fNonReflective[direction] = f[direction]; // take copy of the non reflective part
-			int outerNormalX, outerNormalY, outerNormalZ;
-			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
-			restoreUxUyUz( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
-			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f ); // apply regular MBBC on f
-			// now interpolate between non reflective outlet and MBBC outlet
-			// if velocity is reversed (outlet becomes inlet), switch rigidity to 1. If velocity is alright, smoothly switch rigidity to the prescribed value
-			float vNormal = (BCRhoUG.ux * outerNormalX) + (BCRhoUG.uy * outerNormalY) + (BCRhoUG.uz * outerNormalZ);
-			float blend = std::max(0.0f, std::min(vNormal / BCRhoUG.outletBackflowThreshold, 1.0f)); 
-			float outletRigidity = 1.0f + blend * (BCRhoUG.outletRigidity - 1.0f); // outletRigidity = 1.0 if reversed, BCRhoUG.outletRigidity if normal
-			for ( int direction = 0; direction < 27; direction++ ) f[direction] = f[direction] * outletRigidity + fNonReflective[direction] * ( 1.f - outletRigidity );
-			// also do nothing, just skip the else block below
-		}
 		else
 		{
 			int outerNormalX, outerNormalY, outerNormalZ;
 			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
-			if ( Marker.BCRho )
+			if ( Marker.nonReflectiveOutlet )
+			{
+				const float rigidity = 0.f;
+				BCRhoUG.rho = BCRhoUG.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
+			}
+			else if ( Marker.nonReflectiveInlet )
+			{
+				const float rigidity = 0.001f;
+				if (outerNormalX != 0) BCRhoUG.ux = BCRhoUG.ux * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
+				else if (outerNormalY != 0) BCRhoUG.uy = BCRhoUG.uy * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
+				else if (outerNormalZ != 0) BCRhoUG.uz = BCRhoUG.uz * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
+			}
+			if ( Marker.BCRho || Marker.nonReflectiveOutlet )
 			{
 				restoreUxUyUz( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
 			}
-			else if ( Marker.BCU )
+			else if ( Marker.BCU || Marker.nonReflectiveInlet )
 			{
 				restoreRho( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
 			}
 			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
 		}
 		
-		float nuModified = Info.nu * BCRhoUG.viscosityMultiplier;
-		applyCollision( f, BCRhoUG, nuModified );
+		applyCollision( f, BCRhoUG, Info.nu );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];

@@ -10,8 +10,8 @@ static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.05f;
 
 int reportChunk = 31;
-int plotterChunk = 1000;
-constexpr int iterationCount = 200000;
+int plotterChunk = 2000;
+constexpr int iterationCount = 50000;
 
 constexpr float resGlobal = 4.0f; 														// mm
 
@@ -44,7 +44,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( kCell == Info.cellCountZ-1 ) Marker.refinement = 1;
 	if ( jCell == Info.cellCountY-1 ) Marker.refinement = 1;
 	
-	if ( kCell == Info.cellCountZ-1 ) Marker.BCU = 1;
+	if ( kCell == Info.cellCountZ-1 ) Marker.nonReflectiveInlet = 1; // Marker.BCU = 1;
 	else if ( jCell == Info.cellCountY-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
 	else Marker.fluid = 1;
 }
@@ -60,21 +60,21 @@ __cuda_callable__ void getInitialRhoUG( BCRhoUGStruct &BCRhoUG,
 	const float vt = vtPhys * ( uzInlet / uzInletPhys );
 	if ( Marker.movingBounceback )
 	{
-		BCRhoUG.ux = 0.f; //- vt * (y / r);
-		BCRhoUG.uy = 0.f; //vt * (x / r);
+		BCRhoUG.ux = - vt * (y / r);
+		BCRhoUG.uy = vt * (x / r);
 		BCRhoUG.uz = 0.f;
 	}
 	else if ( Marker.bounceback )
 	{
-		BCRhoUG.ux = - vt * (y / r);
-		BCRhoUG.uy = vt * (x / r);
+		BCRhoUG.ux = 0.f; //- vt * (y / r);
+		BCRhoUG.uy = 0.f; //vt * (x / r);
 		BCRhoUG.uz = 0.f;
 	}
 	else
 	{
 		BCRhoUG.ux = 0.f;
 		BCRhoUG.uy = 0.f;
-		BCRhoUG.uz = - uzInlet;
+		BCRhoUG.uz = 0.f;
 	}
 	BCRhoUG.rho = 1.f;
 }
@@ -104,7 +104,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; BCRhoUG.outletRigidity = 0.000005f; BCRhoUG.outletBackflowThreshold = 0.005f; }
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -135,7 +135,6 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 		for ( int sublevel = std::max(1, level); sublevel < GRID_LEVEL_COUNT; sublevel++) updateInterface(grids[sublevel-1], grids[sublevel]);
 		rebuildGrids( grids, Voxelizer, level );
 	}
-	applyNonReflectiveOutlet(grids[level]);
     updateGrid(grids[level]);
     if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
     {
@@ -300,6 +299,7 @@ int main(int argc, char **argv)
 			const float xTemp = 0.f; const float yTemp = 0.f; const float zTemp = 0.f;
 			
 			// ZY section cut shows the inlet pipe
+			/*
 			float xCut = 0.f;
 			getIJKCellIndexFromXYZ( iCut, jCut, kCut, xCut, yTemp, zTemp, grids[GRID_LEVEL_COUNT-1].Info);
 			exportSectionCutPlotZY( grids, iCut, iteration );
@@ -310,7 +310,8 @@ int main(int argc, char **argv)
 			getIJKCellIndexFromXYZ( iCut, jCut, kCut, xTemp, yTemp, zCut, grids[GRID_LEVEL_COUNT-1].Info);
 			exportSectionCutPlotXY( grids, kCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
-
+			*/
+			
 			lapTimer.reset();
 			lapTimer.start();
 		}

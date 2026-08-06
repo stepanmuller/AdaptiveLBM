@@ -53,7 +53,7 @@ void applyInitialCondition( GridStruct &Grid )
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
-		getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
+		getPreviousPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ ) fArrayView( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Info.cellCount, cellLambda );

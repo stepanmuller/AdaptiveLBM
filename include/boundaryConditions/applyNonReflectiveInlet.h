@@ -12,23 +12,23 @@
 // cz is negative for: { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
 // cz is positive for: { 4, 8, 9, 14, 17, 20, 21, 24, 26};
 
-// Modified version of Geier's non reflective outlet
-// There was an issue with the original outlet version that as soon as backflow happened anywhere in the area,
+// Modified version of Geier's non reflective inlet
+// There was an issue with the original inlet version that as soon as backflow happened anywhere in the area,
 // it crashed. I tried to fix this by smoothly switching to hard pressure MBBC, but then
 // I had to manually choose the velocity threshold and even then there was still a risk
 // of creating artifacts in places where backflow happened.
 // Now, what I can do is this:
-// Run a reduction on the non reflective outlet cells and calculate their average pressure
-// There is no need to write the resulting f, just save the pressure to Info.nonReflectiveOutletRho
+// Run a reduction on the non reflective inlet cells and calculate their average pressure
+// There is no need to write the resulting f, just save the pressure to Info.nonReflectiveInletRho
 // Then apply a completely normal and reliable MBBC but use some interpolated
 // value between the non reflective average pressure and the target pressure
 
-void applyNonReflectiveOutlet( GridStruct &Grid )
+void applyNonReflectiveInlet( GridStruct &Grid )
 {
 	InfoStruct &Info = Grid.Info;
-	if ( Info.nonReflectiveOutletCount == 0 ) return;
+	if ( Info.nonReflectiveInletCount == 0 ) return;
 	
-	auto nonReflectiveOutletIndexView = Grid.nonReflectiveOutletIndexArray.getConstView();
+	auto nonReflectiveInletIndexView = Grid.nonReflectiveInletIndexArray.getConstView();
 	
 	const bool &esotwistFlipper = Grid.esotwistFlipper;
 	
@@ -45,7 +45,7 @@ void applyNonReflectiveOutlet( GridStruct &Grid )
 	
 	auto fetch = [=] __cuda_callable__ ( const int index ) mutable
 	{
-		const int cell = nonReflectiveOutletIndexView( index );
+		const int cell = nonReflectiveInletIndexView( index );
 		const int iCell = iView( cell );
 		const int jCell = jView( cell );
 		const int kCell = kView( cell );
@@ -133,12 +133,16 @@ void applyNonReflectiveOutlet( GridStruct &Grid )
 		//	fView(fWriteIndex[direction], cellWriteIndex[direction]) = f[direction];
 		//}
 		
-		return ( rho - 1.f );
+		float normalU = 0.f;
+		if ( outerNormalX != 0 ) normalU = ux;
+		else if ( outerNormalY != 0 ) normalU = uy;
+		else if ( outerNormalZ != 0 ) normalU = uz;
+		return normalU;
 		
 	};
 	auto reduction = [] __cuda_callable__( const float& a, const float& b ) { return a + b; };
 	
-	float rhoAvg = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, Info.nonReflectiveOutletCount, fetch, reduction, 0.f );
-	rhoAvg /= (float)Info.nonReflectiveOutletCount;
-	Info.nonReflectiveOutletRho = 1.f + rhoAvg;
+	float uAvg = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, Info.nonReflectiveInletCount, fetch, reduction, 0.f );
+	uAvg /= (float)Info.nonReflectiveInletCount;
+	Info.nonReflectiveInletU = uAvg;
 }

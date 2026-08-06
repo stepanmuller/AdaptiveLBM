@@ -1110,6 +1110,39 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Grid.Info.cellCount, cellLambdaNonReflectiveOutlet );
 	}
 	
+	// 13) build non reflective inlet cell list for the finest grid
+	if ( iAmFinest )
+	{
+		applyNonReflectiveInletMarker( Grid.markerBuffer, Grid, Info.cellCount );
+		Info.nonReflectiveInletCount = countOnesInBoolArray( Grid.markerBuffer, Info.cellCount );
+		if ( initPass )
+		{
+			Info.nonReflectiveInletMemoryCount = Info.nonReflectiveInletCount + ( ( Info.nonReflectiveInletCount * MEMORY_RESERVE_PERCENTAGE_INTERFACE ) / 100 );
+			Grid.nonReflectiveInletIndexArray.setSize( Info.nonReflectiveInletMemoryCount );
+			Info.gridMemoryBytes += (long long)(4) * (long long)(Info.nonReflectiveInletMemoryCount); // 1 int array
+		}
+		else if ( Info.nonReflectiveInletCount > Info.nonReflectiveInletMemoryCount )
+		{
+			std::cout 	<< "rebuildGrid failed on level " << level << ", nonReflectiveInletMemoryCount = " << Info.nonReflectiveInletMemoryCount 
+						<< ", nonReflectiveInletCount = " << GridCoarse.Info.nonReflectiveInletCount << std::endl;
+			throw std::runtime_error("rebuildGrid failed, nonReflectiveInletCount exceeded allocated memory. Try increasing MEMORY_RESERVE_PERCENTAGE_INTERFACE in your main file.");
+		}
+		intArrayFromBoolArray( Grid.intBuffer1, Grid.markerBuffer, Grid.Info.cellCount );
+		TNL::Algorithms::inplaceExclusiveScan( Grid.intBuffer1, 0, Grid.Info.cellCount, TNL::Plus{} );
+		auto nonReflectiveInletMarkerView = Grid.markerBuffer.getConstView();
+		auto intBuffer1View = Grid.intBuffer1.getConstView();
+		auto nonReflectiveInletIndexView = Grid.nonReflectiveInletIndexArray.getView();
+		auto cellLambdaNonReflectiveInlet = [=] __cuda_callable__ ( const int cell ) mutable
+		{	
+			if ( nonReflectiveInletMarkerView[ cell ] )
+			{
+				const int index = intBuffer1View[ cell ];
+				nonReflectiveInletIndexView[ index ] = cell;
+			}
+		};
+		TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, Grid.Info.cellCount, cellLambdaNonReflectiveInlet );
+	}
+	
 	// 13) fill jkPlus and NBR minus
 	
 	//auto jkPlusView = Grid.NBR.jkPlusArray.getView();
