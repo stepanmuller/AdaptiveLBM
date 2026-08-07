@@ -12,7 +12,7 @@
 // cz is negative for: { 3, 7, 10, 13, 18, 19, 22, 23, 25 };
 // cz is positive for: { 4, 8, 9, 14, 17, 20, 21, 24, 26};
 
-// Schlaffer disertation 2013 - section 7.1 velocity adaption
+// Schlaffer disertation 2013 - non reflective impedance based inlet with fixed reference point
 
 void applyNonReflectiveInlet( GridStruct &Grid )
 {
@@ -31,8 +31,6 @@ void applyNonReflectiveInlet( GridStruct &Grid )
 
 	auto jPlusView = Grid.NBR.jPlusArray.getConstView();
 	auto kPlusView = Grid.NBR.kPlusArray.getConstView();
-	//auto jMinusView = Grid.NBR.jMinusArray.getConstView();
-	//auto kMinusView = Grid.NBR.kMinusArray.getConstView();
 	
 	auto fetch = [=] __cuda_callable__ ( const int index ) -> MultiResultHolder
 	{
@@ -51,71 +49,57 @@ void applyNonReflectiveInlet( GridStruct &Grid )
 		NBR.jkPlus = jPlusView( NBR.kPlus );
 		finishNBRPlus( NBR, Info );
 		
-		int cellOldReadIndex[27];
-		int fOldReadIndex[27];
-		getPreviousPostCollisionIndex( cellOldReadIndex, fOldReadIndex, NBR, esotwistFlipper, Info );
-		int cellNewReadIndex[27];
-		int fNewReadIndex[27];
-		getPreCollisionIndex( cellNewReadIndex, fNewReadIndex, NBR, esotwistFlipper, Info );
+		int cellReadIndex[27];
+		int fReadIndex[27];
+		getPreCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 		
 		const int cxArray[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
 		const int cyArray[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
 		const int czArray[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
-
-		float fOld[27];
-		for (int direction = 0; direction < 27; direction++)
-		{
-			fOld[direction] = fView(fOldReadIndex[direction], cellOldReadIndex[direction]);
-		}
-		float rhoOld, uxOld, uyOld, uzOld;
-		getRhoUxUyUz( rhoOld, uxOld, uyOld, uzOld, fOld );
 		
 		MarkerStruct Marker;
 		Marker.nonReflectiveInlet = 1;
 		BCRhoUGStruct BCRhoUG;
-		BCRhoUG.rho = rhoOld; BCRhoUG.ux = uxOld; BCRhoUG.uy = uyOld; BCRhoUG.uz = uzOld;
 		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
 		// example: get forcing for rotating domain as a function of rho, U
 		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
 		
-		// Schlafffer 2013 eq (6.33)
 		float rhoZ = 0.f;
 		for (int direction = 0; direction < 27; direction++)
 		{
 			const int cx = cxArray[direction]; const int cy = cyArray[direction]; const int cz = czArray[direction];
 			if ( outerNormalX != 0 )
 			{
-				if ( cx == 0 ) rhoZ += fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
-				else if ( cx * outerNormalX > 0 ) rhoZ += 2.f * fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
+				if ( cx == 0 ) rhoZ += fView(fReadIndex[direction], cellReadIndex[direction]);
+				else if ( cx * outerNormalX > 0 ) rhoZ += 2.f * fView(fReadIndex[direction], cellReadIndex[direction]);
 			}
 			else if ( outerNormalY != 0 )
 			{
-				if ( cy == 0 ) rhoZ += fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
-				else if ( cy * outerNormalY > 0 ) rhoZ += 2.f * fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
+				if ( cy == 0 ) rhoZ += fView(fReadIndex[direction], cellReadIndex[direction]);
+				else if ( cy * outerNormalY > 0 ) rhoZ += 2.f * fView(fReadIndex[direction], cellReadIndex[direction]);
 			}
 			else
 			{
-				if ( cz == 0 ) rhoZ += fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
-				else if ( cz * outerNormalZ > 0 ) rhoZ += 2.f * fView(fNewReadIndex[direction], cellNewReadIndex[direction]);
+				if ( cz == 0 ) rhoZ += fView(fReadIndex[direction], cellReadIndex[direction]);
+				else if ( cz * outerNormalZ > 0 ) rhoZ += 2.f * fView(fReadIndex[direction], cellReadIndex[direction]);
 			}
 		}
 		
-		// Schlaffer 2013 eq (6.35),
-		const float rhoOldORhoZ = 1.f / rhoZ; // rhoOld / rhoZ;
-		const float temp = 0.577350269f + 1.f/3.f * rhoOldORhoZ;
+		const float rhoZInv = 1.f / rhoZ; // rhoOld / rhoZ;
+		const float temp = 0.577350269f + 1.f/3.f * rhoZInv;
 		
 		float uImpAbs;
 		if ( outerNormalX != 0 )
 		{
-			uImpAbs = TNL::abs( BCRhoUG.ux ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoOldORhoZ * ( TNL::abs( BCRhoUG.ux ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BCRhoUG.ux ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.ux ) - 1.f ) + 1.f ) );
 		}
 		else if ( outerNormalY != 0 )
 		{
-			uImpAbs = TNL::abs( BCRhoUG.uy ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoOldORhoZ * ( TNL::abs( BCRhoUG.uy ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BCRhoUG.uy ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.uy ) - 1.f ) + 1.f ) );
 		}
 		else
 		{
-			uImpAbs = TNL::abs( BCRhoUG.uz ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoOldORhoZ * ( TNL::abs( BCRhoUG.uz ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BCRhoUG.uz ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.uz ) - 1.f ) + 1.f ) );
 		}	
 		float rhoImp = rhoZ / ( 1.f - uImpAbs );
 		return { rhoZ - 1.f, rhoImp - 1.f };

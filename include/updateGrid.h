@@ -135,8 +135,12 @@ void updateGrid( GridStruct &Grid )
 			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
 			if ( Marker.nonReflectiveOutlet )
 			{
-				const float rigidity = 0.f;
-				BCRhoUG.rho = BCRhoUG.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
+				//const float rigidity = 0.f;
+				//BCRhoUG.rho = BCRhoUG.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
+				const float dRhoMax = 0.0001f;
+				const float rhoMin = Info.nonReflectiveOutletRho - dRhoMax;
+				const float rhoMax = Info.nonReflectiveOutletRho + dRhoMax;
+				BCRhoUG.rho = std::clamp( BCRhoUG.rho, rhoMin, rhoMax );
 			}
 			else if ( Marker.nonReflectiveInlet )
 			{
