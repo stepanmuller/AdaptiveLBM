@@ -1,4 +1,4 @@
-static constexpr int RAY_MAP_DEPTH = 64;
+static constexpr int RAY_MAP_DEPTH = 128;
 static constexpr int WALL_REFINEMENT_COUNT = 2;
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
@@ -10,7 +10,7 @@ static constexpr int GRID_LEVEL_COUNT = 2;
 static constexpr float SMAGORINSKY_CONSTANT = 0.05f;
 
 int reportChunk = 31;
-int plotterChunk = 2000;
+int plotterChunk = 1000;
 constexpr int iterationCount = 50000;
 
 constexpr float resGlobal = 4.0f; 														// mm
@@ -299,7 +299,6 @@ int main(int argc, char **argv)
 			const float xTemp = 0.f; const float yTemp = 0.f; const float zTemp = 0.f;
 			
 			// ZY section cut shows the inlet pipe
-			/*
 			float xCut = 0.f;
 			getIJKCellIndexFromXYZ( iCut, jCut, kCut, xCut, yTemp, zTemp, grids[GRID_LEVEL_COUNT-1].Info);
 			exportSectionCutPlotZY( grids, iCut, iteration );
@@ -310,7 +309,6 @@ int main(int argc, char **argv)
 			getIJKCellIndexFromXYZ( iCut, jCut, kCut, xTemp, yTemp, zCut, grids[GRID_LEVEL_COUNT-1].Info);
 			exportSectionCutPlotXY( grids, kCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
-			*/
 			
 			lapTimer.reset();
 			lapTimer.start();

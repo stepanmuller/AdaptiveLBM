@@ -152,7 +152,7 @@ void updateGrid( GridStruct &Grid )
 				{
 					float temp = uMax;
 					uMax = - uMin;
-					uMin = - uMax;
+					uMin = - temp;
 				}
 				if (outerNormalX != 0) BCRhoUG.ux = std::clamp( BCRhoUG.ux, uMin, uMax );
 				else if (outerNormalY != 0) BCRhoUG.uy = std::clamp( BCRhoUG.uy, uMin, uMax );
