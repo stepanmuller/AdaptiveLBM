@@ -104,7 +104,7 @@ struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBouncebac
 						
 struct BCRhoUGStruct { float rho = 1.f; float ux = 0.f; float uy = 0.f; float uz = 0.f; float gx = 0.f; float gy = 0.f; float gz = 0.f; };
 
-struct BoundsStruct { float xmin; float ymin; float zmin; float xmax; float ymax; float zmax; }; 
+struct BoundsStruct { float xMin; float yMin; float zMin; float xMax; float yMax; float zMax; float rxMax; float ryMax; float rzMax; }; 
 					
 // IJK holds cell indexes on X, Y, Z axes within the Grid that owns it
 struct IJKArrayStructCPU; // just declaring first

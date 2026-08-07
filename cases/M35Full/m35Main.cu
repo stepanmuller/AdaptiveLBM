@@ -1,36 +1,40 @@
 static constexpr int RAY_MAP_DEPTH = 32;
-static constexpr int WALL_REFINEMENT_COUNT = 2;
+static constexpr int WALL_REFINEMENT_COUNT = 6; // min 2
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 2;
+static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.f;
 
 int reportChunk = 31;
-int plotterChunk = 1;
-constexpr int iterationCount = 1502;
+int plotterChunk = 1000;
+constexpr int iterationCount = 50000;
 
-constexpr float resGlobal = 0.16f; 														// mm
+constexpr float resGlobal = 0.07f; 														// mm
 
-constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
-constexpr float nuPhys = 1e-6;															// m2/s water
-constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
-constexpr float massFlowTargetPhys = 3.04f;												// kg/s
+constexpr float angularVelocity = 2000.f;												// rad/s
+constexpr float targetInletPower = 0.f;													// W
+constexpr float iRegulatorInletStrength = 0.0048f;
+constexpr float massFlowInitPhys = 3.f;													// kg/s
 constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
-constexpr float inletAreamm2 = 3.14159f * ( ROut * ROut - RIn * RIn);					// mm2
-constexpr float uzInletPhys = massFlowTargetPhys / ( rhoNominalPhys * ( inletAreamm2 / 1000000.f) );	// m/s
-constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
-constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
-constexpr float angularVelocity = 2000.f;												// rad/s
 const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
 
-constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.0048f;
+constexpr float uImpMax = 0.07f;														// also works as nominal LBM Mach number
+constexpr float rzImpMax = 17.1f;														// mm
+constexpr float uImpPhys = angularVelocity * rzImpMax / 1000.f;							// m/s
+constexpr float dtPhysGlobal = (uImpMax / uImpPhys) * (resGlobal/1000.f); 				// s	
+
+constexpr float nuPhys = 1e-6;															// m2/s water
+constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
+constexpr float inletAreamm2 = 3.14159f * ( ROut * ROut - RIn * RIn);					// mm2
+constexpr float uzInletPhys = massFlowInitPhys / ( rhoNominalPhys * ( inletAreamm2 / 1000000.f) );	// m/s
+constexpr float uzInlet = uzInletPhys * dtPhysGlobal / (resGlobal/1000);				
+constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -182,6 +186,14 @@ int main(int argc, char **argv)
 	STLStruct STLImpellerMoving;
 	STLImpellerMoving = STLImpellerStationary;
 	
+	std::cout << "Cells travelled by MBB per iteration: " 
+		<< dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << "Cells travelled by MBB per MBB update: " 
+		<< (float)MOVING_BOUNCEBACK_UPDATE_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << "Cells travelled by MBB per grid rebuild: " 
+		<< (float)GRID_REBUILD_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << std::endl;
+	
 	// grids
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
 	grids[ 0 ].Info.res = resGlobal;
@@ -208,8 +220,6 @@ int main(int argc, char **argv)
 	std::cout << "Total cell count " << totalCellCount << std::endl; 
 	std::cout << "Useful cell updates per iteration " << usefulCellUpdatesPerIteration << std::endl; 	
 	std::cout << std::endl;
-	
-	std::cout << "Maximum cells travelled by MBB per iteration: " << dtPhysGlobal * angularVelocity * 17.5f / resGlobal << std::endl;
 	
 	std::vector<float> historyInletPower( iterationCount, 0.f );
 	std::vector<float> historyMassFlow( iterationCount, 0.f );
@@ -277,7 +287,7 @@ int main(int argc, char **argv)
 			}
 		}
 		
-		if ( iteration % plotterChunk == 0 && iteration >= 1499 )
+		if ( iteration % plotterChunk == 0 )
 		{
 			std::cout << std::endl;
 			std::cout << "Finished iteration " << iteration << std::endl;
@@ -290,19 +300,9 @@ int main(int argc, char **argv)
 			
 			if ( iteration > 0 ) exportHistoryData( historyInletPower, historyMassFlow, historyTorque, iteration, 0 );
 			
-			float r = 14.8f;
-			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration );
+			float r = 14.0f;
+			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
-			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
-			
-			r = 15.f;
-			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration+1 );
-			rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
-			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
-			
-			r = 15.2f;
-			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration+2 );
-			rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
 			/*

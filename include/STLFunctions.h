@@ -126,13 +126,17 @@ void readSTL( STLStruct &STL, const std::string &filename )
     STLCPU.czArray = FloatArrayTypeCPU( triangleCount );
     
     // Initialize minmax
-    STLCPU.Bounds.xmin = std::numeric_limits<float>::max();
-	STLCPU.Bounds.ymin = std::numeric_limits<float>::max();
-	STLCPU.Bounds.zmin = std::numeric_limits<float>::max();
+    STLCPU.Bounds.xMin = std::numeric_limits<float>::max();
+	STLCPU.Bounds.yMin = std::numeric_limits<float>::max();
+	STLCPU.Bounds.zMin = std::numeric_limits<float>::max();
 
-	STLCPU.Bounds.xmax = std::numeric_limits<float>::lowest();
-	STLCPU.Bounds.ymax = std::numeric_limits<float>::lowest();
-	STLCPU.Bounds.zmax = std::numeric_limits<float>::lowest();
+	STLCPU.Bounds.xMax = std::numeric_limits<float>::lowest();
+	STLCPU.Bounds.yMax = std::numeric_limits<float>::lowest();
+	STLCPU.Bounds.zMax = std::numeric_limits<float>::lowest();
+	
+	STLCPU.Bounds.rxMax = std::numeric_limits<float>::lowest();
+	STLCPU.Bounds.ryMax = std::numeric_limits<float>::lowest();
+	STLCPU.Bounds.rzMax = std::numeric_limits<float>::lowest();
 
     for ( int triangle = 0; triangle < triangleCount; triangle++ )
     {
@@ -171,25 +175,33 @@ void readSTL( STLStruct &STL, const std::string &filename )
         STLCPU.czArray[triangle] = cz;
         
          // Update bounding box (vertices only)
-        STLCPU.Bounds.xmin = std::min(STLCPU.Bounds.xmin, std::min({ax, bx, cx}));
-        STLCPU.Bounds.ymin = std::min(STLCPU.Bounds.ymin, std::min({ay, by, cy}));
-        STLCPU.Bounds.zmin = std::min(STLCPU.Bounds.zmin, std::min({az, bz, cz}));
+        STLCPU.Bounds.xMin = std::min(STLCPU.Bounds.xMin, std::min({ax, bx, cx}));
+        STLCPU.Bounds.yMin = std::min(STLCPU.Bounds.yMin, std::min({ay, by, cy}));
+        STLCPU.Bounds.zMin = std::min(STLCPU.Bounds.zMin, std::min({az, bz, cz}));
 
-        STLCPU.Bounds.xmax = std::max(STLCPU.Bounds.xmax, std::max({ax, bx, cx}));
-        STLCPU.Bounds.ymax = std::max(STLCPU.Bounds.ymax, std::max({ay, by, cy}));
-        STLCPU.Bounds.zmax = std::max(STLCPU.Bounds.zmax, std::max({az, bz, cz}));
+        STLCPU.Bounds.xMax = std::max(STLCPU.Bounds.xMax, std::max({ax, bx, cx}));
+        STLCPU.Bounds.yMax = std::max(STLCPU.Bounds.yMax, std::max({ay, by, cy}));
+        STLCPU.Bounds.zMax = std::max(STLCPU.Bounds.zMax, std::max({az, bz, cz}));
+        
+        float rx = std::sqrt( std::max({ ay*ay+az*az, by*by+bz*bz, cy*cy+cz*cz }) );
+        float ry = std::sqrt( std::max({ ax*ax+az*az, bx*bx+bz*bz, cx*cx+cz*cz }) );
+        float rz = std::sqrt( std::max({ ax*ax+ay*ay, bx*bx+by*by, cx*cx+cy*cy }) );
+        STLCPU.Bounds.rxMax = std::max(STLCPU.Bounds.rxMax, rx);
+        STLCPU.Bounds.ryMax = std::max(STLCPU.Bounds.ryMax, ry);
+        STLCPU.Bounds.rzMax = std::max(STLCPU.Bounds.rzMax, rz);
     }
-    std::cout << "	xmin xmax: " << STLCPU.Bounds.xmin << " " << STLCPU.Bounds.xmax << "\n";
-    std::cout << "	ymin ymax: " << STLCPU.Bounds.ymin << " " << STLCPU.Bounds.ymax << "\n";
-    std::cout << "	zmin zmax: " << STLCPU.Bounds.zmin << " " << STLCPU.Bounds.zmax << "\n";
-    
+    std::cout << "	xMin xMax: " << STLCPU.Bounds.xMin << " " << STLCPU.Bounds.xMax << "\n";
+    std::cout << "	yMin yMax: " << STLCPU.Bounds.yMin << " " << STLCPU.Bounds.yMax << "\n";
+    std::cout << "	zMin zMax: " << STLCPU.Bounds.zMin << " " << STLCPU.Bounds.zMax << "\n";
+    std::cout << "	rxMax ryMax rzMax: " << STLCPU.Bounds.rxMax << " " << STLCPU.Bounds.ryMax << " " << STLCPU.Bounds.rzMax << "\n";
+   
     STL = STLStruct( STLCPU );
 	checkSTLEdges( STL );
 	STL.raysPerTriangleCounterArray.setSize( STL.triangleCount );
 	STL.raysPerTriangleCounterArray.setValue( 0 );
 	STL.threadToTriangleMapArray.setSize( STL.triangleCount * STL.threadsToTrianglesRatio );
 	STL.threadToTriangleMapArray.setValue( 0 );
-	std::cout << "	STL: " << filename << " has been read and checked" << std::endl;
+	std::cout << "	Read and check finished" << std::endl;
 	std::cout << std::endl;
 }
 

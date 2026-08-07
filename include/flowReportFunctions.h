@@ -10,12 +10,12 @@ void getFlowReportGeneral( std::vector<GridStruct> &grids, const int &cutIndex, 
 	// 1. Map the physical Bounds to index bounds on the absolute finest grid FIRST
 	InfoStruct finestInfo = grids[levelCount - 1].Info;
 	
-	int iMin = std::max(0, static_cast<int>(std::floor((Bounds.xmin - finestInfo.ox) / finestInfo.res)));
-	int iMax = std::min(finestInfo.cellCountX, static_cast<int>(std::ceil((Bounds.xmax - finestInfo.ox) / finestInfo.res)));
-	int jMin = std::max(0, static_cast<int>(std::floor((Bounds.ymin - finestInfo.oy) / finestInfo.res)));
-	int jMax = std::min(finestInfo.cellCountY, static_cast<int>(std::ceil((Bounds.ymax - finestInfo.oy) / finestInfo.res)));
-	int kMin = std::max(0, static_cast<int>(std::floor((Bounds.zmin - finestInfo.oz) / finestInfo.res)));
-	int kMax = std::min(finestInfo.cellCountZ, static_cast<int>(std::ceil((Bounds.zmax - finestInfo.oz) / finestInfo.res)));
+	int iMin = std::max(0, static_cast<int>(std::floor((Bounds.xMin - finestInfo.ox) / finestInfo.res)));
+	int iMax = std::min(finestInfo.cellCountX, static_cast<int>(std::ceil((Bounds.xMax - finestInfo.ox) / finestInfo.res)));
+	int jMin = std::max(0, static_cast<int>(std::floor((Bounds.yMin - finestInfo.oy) / finestInfo.res)));
+	int jMax = std::min(finestInfo.cellCountY, static_cast<int>(std::ceil((Bounds.yMax - finestInfo.oy) / finestInfo.res)));
+	int kMin = std::max(0, static_cast<int>(std::floor((Bounds.zMin - finestInfo.oz) / finestInfo.res)));
+	int kMax = std::min(finestInfo.cellCountZ, static_cast<int>(std::ceil((Bounds.zMax - finestInfo.oz) / finestInfo.res)));
 
 	int hMinFinest = 0, hMaxFinest = 0, vMinFinest = 0, vMaxFinest = 0;
 

@@ -178,13 +178,21 @@ int main(int argc, char **argv)
 	STLStruct STLRotorMoving;
 	STLRotorMoving = STLRotorStationary;
 	
+	std::cout << "Cells travelled by MBB per iteration: " 
+		<< dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << "Cells travelled by MBB per MBB update: " 
+		<< (float)MOVING_BOUNCEBACK_UPDATE_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << "Cells travelled by MBB per grid rebuild: " 
+		<< (float)GRID_REBUILD_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+	std::cout << std::endl;
+	
 	// grids
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
 	grids[ 0 ].Info.res = resGlobal;
 	BoundsStruct DomainBounds;
 	DomainBounds = STLStator.Bounds;
-	DomainBounds.zmax = 400.f;
-	DomainBounds.ymax = 1000.f;
+	DomainBounds.zMax = 400.f;
+	DomainBounds.yMax = 1000.f;
 	initializeGrids( grids, DomainBounds, 0 );
 	
 	// Voxelizer 
@@ -225,10 +233,10 @@ int main(int argc, char **argv)
 		if ( iteration % reportChunk == 0 )
 		{
 			BoundsStruct InletBounds;
-			InletBounds.xmin = -155.f;
-			InletBounds.xmax = 155.f;
-			InletBounds.ymin = -155.f;
-			InletBounds.ymax = 155.f;
+			InletBounds.xMin = -155.f;
+			InletBounds.xMax = 155.f;
+			InletBounds.yMin = -155.f;
+			InletBounds.yMax = 155.f;
 			// get inlet data
 			FlowReportStruct FlowReportIn;
 			int kCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountZ-1;
@@ -241,10 +249,10 @@ int main(int argc, char **argv)
 			const float massFlowIn = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
 			
 			BoundsStruct OutletBounds;
-			OutletBounds.xmin = -535.f;
-			OutletBounds.xmax = -175.f;
-			OutletBounds.zmin = -210.f;
-			OutletBounds.zmax = 145.f;
+			OutletBounds.xMin = -535.f;
+			OutletBounds.xMax = -175.f;
+			OutletBounds.zMin = -210.f;
+			OutletBounds.zMax = 145.f;
 			// get inlet data
 			FlowReportStruct FlowReportOut;
 			int jCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountY-1;
