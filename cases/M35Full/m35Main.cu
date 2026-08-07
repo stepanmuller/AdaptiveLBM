@@ -9,11 +9,13 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.f;
 
+constexpr float rhoCavitation = 0.9987f;
+
 int reportChunk = 31;
 int plotterChunk = 1000;
 constexpr int iterationCount = 50000;
 
-constexpr float resGlobal = 0.07f; 														// mm
+constexpr float resGlobal = 0.1f; 														// mm
 
 constexpr float angularVelocity = 2000.f;												// rad/s
 constexpr float targetInletPower = 0.f;													// W
@@ -178,6 +180,10 @@ void exportHistoryData( const std::vector<float>& historyInletPower,
 
 int main(int argc, char **argv)
 {
+	float rhoTest = 0.9987f;
+	convertToPhysicalPressure( rhoTest );
+	std::cout << rhoTest << std::endl;
+	
 	// STLs
 	STLStruct STLMain;
 	readSTL( STLMain, STLPathMain );
