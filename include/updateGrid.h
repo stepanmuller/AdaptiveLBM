@@ -140,11 +140,19 @@ void updateGrid( GridStruct &Grid )
 			}
 			else if ( Marker.nonReflectiveInlet )
 			{
-				const float rigidity = 0.1f;
-				if (outerNormalX != 0) { BCRhoUG.ux = BCRhoUG.ux * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalX * BCRhoUG.ux > 0.f ) BCRhoUG.ux = 0.f; }
-				else if (outerNormalY != 0) { BCRhoUG.uy = BCRhoUG.uy * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalY * BCRhoUG.uy > 0.f ) BCRhoUG.uy = 0.f; }
-				else if (outerNormalZ != 0) { BCRhoUG.uz = BCRhoUG.uz * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalZ * BCRhoUG.uz > 0.f ) BCRhoUG.uz = 0.f; }
-
+				// Schlaffer 2013 eq (7.1) - (7.6)
+				const float dRhoMax = 0.0001f;
+				float uMin = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp - dRhoMax) );
+				float uMax = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp + dRhoMax) );
+				if ( outerNormalX + outerNormalY + outerNormalZ > 0 ) // right boundary -> inlet velocity is negative
+				{
+					float temp = uMax;
+					uMax = - uMin;
+					uMin = - uMax;
+				}
+				if (outerNormalX != 0) BCRhoUG.ux = std::clamp( BCRhoUG.ux, uMin, uMax );
+				else if (outerNormalY != 0) BCRhoUG.uy = std::clamp( BCRhoUG.uy, uMin, uMax );
+				else if (outerNormalZ != 0) BCRhoUG.uz = std::clamp( BCRhoUG.uz, uMin, uMax );
 			}
 			if ( Marker.BCRho || Marker.nonReflectiveOutlet )
 			{

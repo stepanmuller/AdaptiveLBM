@@ -95,7 +95,7 @@ struct InfoStruct { float gridID = 0; unsigned long long gridMemoryBytes = 0LL; 
 					int nonReflectiveOutletMemoryCount = 0; int nonReflectiveInletMemoryCount = 0;
 					bool esotwistFlipper = 0; int updatesSinceRebuild = 0; int updatesSinceMovingBouncebackUpdate = 0;
 					float iRegulatorInlet = 0.f; float iRegulatorOutlet = 0.f; 
-					float nonReflectiveOutletRho = 1.f; float nonReflectiveInletU = 0.f;
+					float nonReflectiveOutletRho = 1.f; float nonReflectiveInletRhoZ = 0.f; float nonReflectiveInletRhoImp = 0.f;
 					float torqueReportCumulative = 0.f; };
 
 struct MarkerStruct { 	bool fluid = 0; bool bounceback = 0; bool movingBounceback = 0;
@@ -221,3 +221,5 @@ struct SectionCutStruct { 	FloatArray2DType rhoArray; FloatArray2DType uxArray; 
 							
 struct SectionCutStructCPU { 	FloatArray2DTypeCPU rhoArray; FloatArray2DTypeCPU uxArray; FloatArray2DTypeCPU uyArray; FloatArray2DTypeCPU uzArray; 
 								FloatArray2DTypeCPU markerArray; FloatArray2DTypeCPU scalarTransportArray; IntArray2DTypeCPU gridIDArray; };
+								
+struct MultiResultHolder { float rhoZSum = 0.f; float rhoImpSum = 0.f; };
