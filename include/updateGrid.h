@@ -140,10 +140,11 @@ void updateGrid( GridStruct &Grid )
 			}
 			else if ( Marker.nonReflectiveInlet )
 			{
-				const float rigidity = 0.001f;
-				if (outerNormalX != 0) BCRhoUG.ux = BCRhoUG.ux * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
-				else if (outerNormalY != 0) BCRhoUG.uy = BCRhoUG.uy * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
-				else if (outerNormalZ != 0) BCRhoUG.uz = BCRhoUG.uz * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity );
+				const float rigidity = 0.1f;
+				if (outerNormalX != 0) { BCRhoUG.ux = BCRhoUG.ux * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalX * BCRhoUG.ux > 0.f ) BCRhoUG.ux = 0.f; }
+				else if (outerNormalY != 0) { BCRhoUG.uy = BCRhoUG.uy * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalY * BCRhoUG.uy > 0.f ) BCRhoUG.uy = 0.f; }
+				else if (outerNormalZ != 0) { BCRhoUG.uz = BCRhoUG.uz * rigidity + Info.nonReflectiveInletU * ( 1.f - rigidity ); if ( (float)outerNormalZ * BCRhoUG.uz > 0.f ) BCRhoUG.uz = 0.f; }
+
 			}
 			if ( Marker.BCRho || Marker.nonReflectiveOutlet )
 			{
