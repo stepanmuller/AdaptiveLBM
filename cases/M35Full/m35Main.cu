@@ -6,29 +6,31 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 2;
+static constexpr int GRID_LEVEL_COUNT = 1;
 static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
 constexpr int iterationCount = 400000;
 
-constexpr float resGlobal = 0.15f; 														// mm
+constexpr float resGlobal = 0.12f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
 constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
-constexpr float uzInletPhys = 4.5986f;													// m/s
-constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
-constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
+constexpr float massFlowTargetPhys = 3.04f;												// kg/s
 constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
+constexpr float inletAreamm2 = 3.14159f * ( ROut * ROut - RIn * RIn);					// mm2
+constexpr float uzInletPhys = massFlowTargetPhys / ( rhoNominalPhys * ( inletAreamm2 / 1000000.f) );	// m/s
+constexpr float dtPhysGlobal = (uzInlet / uzInletPhys) * (resGlobal/1000); 				// s
+constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
 constexpr float angularVelocity = 2000.f;												// rad/s
 const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
 
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.0048f;
+constexpr float iRegulatorInletStrength = 0.f; //0.0048f;
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -45,8 +47,8 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( kCell == 0 ) Marker.refinement = 1;
 	if ( kCell > Info.cellCountZ - 50 ) Marker.refinement = 1;
 	
-	if ( kCell == 0 ) Marker.BCU = 1;
-	else if ( kCell == Info.cellCountZ-1 ) Marker.BCRho = 1;
+	if ( kCell == 0 ) Marker.nonReflectiveInlet = 1; // Marker.BCU = 1;
+	else if ( kCell == Info.cellCountZ-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
 	else Marker.fluid = 1;
 }
 
@@ -61,14 +63,14 @@ __cuda_callable__ void getInitialRhoUG( BCRhoUGStruct &BCRhoUG,
 	const float vt = vtPhys * ( uzInlet / uzInletPhys );
 	if ( Marker.movingBounceback )
 	{
-		BCRhoUG.ux = 0.f; //- vt * (y / r);
-		BCRhoUG.uy = 0.f; //vt * (x / r);
+		BCRhoUG.ux = - vt * (y / r);
+		BCRhoUG.uy = vt * (x / r);
 		BCRhoUG.uz = 0.f;
 	}
 	else if ( Marker.bounceback )
 	{
-		BCRhoUG.ux = - vt * (y / r);
-		BCRhoUG.uy = vt * (x / r);
+		BCRhoUG.ux = 0.f;
+		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = 0.f;
 	}
 	else
@@ -109,7 +111,7 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 		BCRhoUG.uy = 0.f;
 		BCRhoUG.uz = ( uzInlet + Info.iRegulatorInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho ) BCRhoUG.rho = 1.f;
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) BCRhoUG.rho = 1.f;
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -140,7 +142,6 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 		for ( int sublevel = std::max(1, level); sublevel < GRID_LEVEL_COUNT; sublevel++) updateInterface(grids[sublevel-1], grids[sublevel]);
 		rebuildGrids( grids, Voxelizer, level );
 	}
-	applyNonReflectiveOutletZ(grids[level]);
     updateGrid(grids[level]);
     if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
     {
@@ -234,7 +235,17 @@ int main(int argc, char **argv)
 			convertToPhysicalPressure( pIn );
 			float uTemp = 0.f;
 			convertToPhysicalVelocity( uzIn, uTemp, uTemp, grids[0].Info );
-			const float pTotalIn = 0.5f * rhoNominalPhys * uzIn * uzIn + pIn;
+			
+			// get outlet data
+			FlowReportStruct FlowReportOut;
+			kCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountZ-1;
+			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
+			float pOut = FlowReportOut.rho;
+			convertToPhysicalPressure( pOut );
+			
+			const float pDiff = pIn - pOut;
+			
+			const float pTotalIn = 0.5f * rhoNominalPhys * uzIn * uzIn + pDiff;
 			const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
 			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
 			

@@ -11,9 +11,9 @@ static constexpr float SMAGORINSKY_CONSTANT = 0.05f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
-constexpr int iterationCount = 50000;
+constexpr int iterationCount = 100000;
 
-constexpr float resGlobal = 4.0f; 														// mm
+constexpr float resGlobal = 3.0f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
