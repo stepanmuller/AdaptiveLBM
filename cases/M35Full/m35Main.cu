@@ -6,14 +6,14 @@ static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
 static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
-static constexpr int GRID_LEVEL_COUNT = 1;
-static constexpr float SMAGORINSKY_CONSTANT = 0.1f;
+static constexpr int GRID_LEVEL_COUNT = 2;
+static constexpr float SMAGORINSKY_CONSTANT = 0.f;
 
 int reportChunk = 31;
-int plotterChunk = 1000;
-constexpr int iterationCount = 400000;
+int plotterChunk = 1;
+constexpr int iterationCount = 1502;
 
-constexpr float resGlobal = 0.12f; 														// mm
+constexpr float resGlobal = 0.16f; 														// mm
 
 constexpr float uzInlet = 0.01f; 														// also works as nominal LBM Mach number	
 constexpr float nuPhys = 1e-6;															// m2/s water
@@ -30,7 +30,7 @@ const float boundaryLayerThickness = 0.2f;												// mm
 const float shaftRotationStartDistance = 10.f;											// mm
 
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.f; //0.0048f;
+constexpr float iRegulatorInletStrength = 0.0048f;
 
 #include "../../include/types.h"
 #include "../../include/cellFunctions.h"
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
 			}
 		}
 		
-		if ( iteration % plotterChunk == 0 )
+		if ( iteration % plotterChunk == 0 && iteration >= 1499 )
 		{
 			std::cout << std::endl;
 			std::cout << "Finished iteration " << iteration << std::endl;
@@ -290,9 +290,19 @@ int main(int argc, char **argv)
 			
 			if ( iteration > 0 ) exportHistoryData( historyInletPower, historyMassFlow, historyTorque, iteration, 0 );
 			
-			const int r = 14.f;
-			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
-			const float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
+			float r = 14.8f;
+			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration );
+			float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
+			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
+			
+			r = 15.f;
+			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration+1 );
+			rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
+			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
+			
+			r = 15.2f;
+			exportSectionCutPlotToiletPaperZ( grids, r, 10*iteration+2 );
+			rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
 			
 			/*
