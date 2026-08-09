@@ -185,7 +185,7 @@ __host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, con
 	// -------------------------------RELAXATION DEFINITIONS------------------------------
 	//------------------------------------------------------------------------------------
 
-	const float omega1 = 1.f / (3.f * nu + 0.5f);	// shear viscosity
+	const float omega1 = 1.f / (3.f * ( nu * BC.nuMultiplier ) + 0.5f);	// shear viscosity
 	const float omega2 = 1.f;  //(3.f*KS.lbmViscosity*2.f + n1o2); // bulkViscosity > Viscosity ... test: bulkViscosity = 2/3 shearViscosity
 	const float lambda3 = (float) (0.01);  // Section 7 @ Geier 2017 http://dx.doi.org/10.1016/j.jcp.2017.05.040
 	const float lambda4 = (float) (0.01);
@@ -343,11 +343,6 @@ __host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, con
 		   + 2.f * ks_200 * ks_020 * ks_002)
 			  * rhoInv * rhoInv;
 
-	
-	
-
-	
-	
 	// backward central moment transformation
 	const float ks_000 = k_000;
 	// Geier 2017: forcing scheae
@@ -457,8 +452,7 @@ __host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, con
 }
 
 /*
-// BACKUP
-// FORCING VERSION
+// BACKUP - 2015 version
 __host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, const float &nu )
 {
 	const float gx = BC.gx;

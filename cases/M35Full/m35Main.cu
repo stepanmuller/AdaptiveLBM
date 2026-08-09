@@ -52,7 +52,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( kCell > Info.cellCountZ - 50 ) Marker.refinement = 1;
 	
 	if ( kCell == 0 ) Marker.nonReflectiveInlet = 1; // Marker.BCU = 1;
-	else if ( kCell == Info.cellCountZ-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
+	else if ( kCell == Info.cellCountZ-1 ) Marker.BCRho = 1; //Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
 	else Marker.fluid = 1;
 }
 
@@ -116,6 +116,7 @@ __cuda_callable__ void getBC( 	BCStruct &BC,
 		BC.uz = ( uzInlet + Info.iRegulatorInlet ) * velocityMultiplier;
 	}
 	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) BC.rho = 1.f;
+	if ( z > 18.f ) BC.nuMultiplier = ( 28.f - z ) * 0.1f * 100.f;
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -248,7 +249,10 @@ int main(int argc, char **argv)
 			
 			// get outlet data
 			FlowReportStruct FlowReportOut;
-			kCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountZ-1;
+			int iTemp, jTemp;
+			float xTemp = 0.f; float yTemp = 0.f;
+			float z = 18.f;
+			getXYZFromIJKCellIndex( iTemp, jTemp, kCut, xTemp, yTemp, z, grids[GRID_LEVEL_COUNT-1].Info);
 			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
 			float pOut = FlowReportOut.rho;
 			convertToPhysicalPressure( pOut );
