@@ -366,13 +366,13 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 			fOut[direction] = fIn[direction];
 		}
 		
-		BCRhoUGStruct BCRhoUG;
-		getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, fIn );
+		BCStruct BC;
+		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, fIn );
 		MarkerStruct Marker;
 		Marker.movingBounceback = true;
-		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		
-		applyMovingBounceback( fOut, BCRhoUG );
+		applyMovingBounceback( fOut, BC );
 		
 		const int cx[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
 
@@ -386,9 +386,9 @@ float getMovingBouncebackTorqueZ( GridStruct &Grid )
 		float gy = 0.f;
 		float gz = 0.f;
 
-		const float wallUx = BCRhoUG.ux;
-		const float wallUy = BCRhoUG.uy;
-		const float wallUz = BCRhoUG.uz;
+		const float wallUx = BC.ux;
+		const float wallUy = BC.uy;
+		const float wallUz = BC.uz;
 		
 		for (int q = 1; q < 27; q++) {
 			if (isNotFluid[q]) continue; // we are only interested if the neighbour is fluid

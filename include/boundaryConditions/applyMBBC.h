@@ -1,13 +1,13 @@
 __host__ __device__ void applyMBBC(
 	const int &outerNormalX, const int &outerNormalY, const int &outerNormalZ,
-	BCRhoUGStruct &BCRhoUG,
+	BCStruct &BC,
 	float (&f)[27]
 )
 {
-	const float &rho = BCRhoUG.rho;
-	const float &ux = BCRhoUG.ux;
-	const float &uy = BCRhoUG.uy;
-	const float &uz = BCRhoUG.uz;
+	const float &rho = BC.rho;
+	const float &ux = BC.ux;
+	const float &uy = BC.uy;
+	const float &uz = BC.uz;
 	
 	const int normalCode = (outerNormalX + 5) * 100 + (outerNormalY + 5) * 10 + (outerNormalZ + 5);
 	if ( normalCode == 655 )

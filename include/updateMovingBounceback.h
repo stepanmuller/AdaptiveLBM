@@ -114,18 +114,18 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperPrevious, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 			
-			BCRhoUGStruct BCRhoUG;
+			BCStruct BC;
 			// load the current state into the boundary condition struct
-			getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
-			float uxOld = BCRhoUG.ux; float uyOld = BCRhoUG.uy; float uzOld = BCRhoUG.uz;
+			getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, f );
+			float uxOld = BC.ux; float uyOld = BC.uy; float uzOld = BC.uz;
 			// pass the current state into the boundary condition function so that BC can also be a function of the current state 
 			MarkerStruct Marker;
 			Marker.movingBounceback = true;
-			getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+			getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 			
-			float gx = BCRhoUG.rho * ( BCRhoUG.ux - uxOld );
-			float gy = BCRhoUG.rho * ( BCRhoUG.uy - uyOld );
-			float gz = BCRhoUG.rho * ( BCRhoUG.uz - uzOld );
+			float gx = BC.rho * ( BC.ux - uxOld );
+			float gy = BC.rho * ( BC.uy - uyOld );
+			float gz = BC.rho * ( BC.uz - uzOld );
 			
 			convertToPhysicalForce( gx, gy, gz, Info );
 			Tz = - gx * y + gy * x;
@@ -260,9 +260,9 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			// for a moment pretend we are still moving bounceback, we will need this later
 			MarkerStruct Marker;
 			Marker.movingBounceback = true;
-			BCRhoUGStruct BCRhoUG;
-			getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
-			BCRhoUG.rho = 1.f;
+			BCStruct BC;
+			getBC( BC, iCell, jCell, kCell, Info, Marker ); 
+			BC.rho = 1.f;
 			// find fRepair depending on available extrapolation level
 			if ( extrapolatedCount < 2 ) // if not even a linear extrapolation is available, fall back to average from all valid neighbour cells
 			{
@@ -288,7 +288,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 				}	
 				if ( averagingCount == 0 ) // if no neighbour is valid, use equillibrium
 				{
-					getFeq(	BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, fRepair );
+					getFeq(	BC.rho, BC.ux, BC.uy, BC.uz, fRepair );
 				}
 				else for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] /= (float)averagingCount;
 			}
@@ -349,7 +349,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			// get equilibrium of the averaged fluid
 			getFeq( rhoAvg, uxAvg, uyAvg, uzAvg, fEqAvg );
 			// get equilibrium using the target ux, uy, uz (but keep rhoAvg)
-			getFeq( rhoAvg, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, fEqTarget );
+			getFeq( rhoAvg, BC.ux, BC.uy, BC.uz, fEqTarget );
 			// reconstruct
 			for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] = fEqTarget[direction] + ( fRepair[direction] - fEqAvg[direction] );		
 			
@@ -360,7 +360,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = fRepair[direction];
 			
 			// also repair the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
-			applyMovingBounceback( fRepair, BCRhoUG );
+			applyMovingBounceback( fRepair, BC );
 			int cellNextIndex[27];
 			int fNextIndex[27];
 			getPreCollisionIndex( cellNextIndex, fNextIndex, NBR, esotwistFlipper, Info );

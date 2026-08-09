@@ -5,12 +5,12 @@
 // cy: { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
 // cz: { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 
-__host__ __device__ void applyMovingBounceback( float (&f)[27], const BCRhoUGStruct &BCRhoUG )
+__host__ __device__ void applyMovingBounceback( float (&f)[27], const BCStruct &BC )
 {
 	
-	const float ux = BCRhoUG.ux;
-	const float uy = BCRhoUG.uy;
-	const float uz = BCRhoUG.uz;
+	const float ux = BC.ux;
+	const float uy = BC.uy;
+	const float uz = BC.uz;
 	
 	float fTemp, cu;
 

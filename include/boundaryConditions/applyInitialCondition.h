@@ -45,11 +45,11 @@ void applyInitialCondition( GridStruct &Grid )
 		if ( useDeepRefinementMarkerArray ) Marker.deepRefinement = deepRefinementMarkerView( cell );
 		getMarkers( iCell, jCell, kCell, Marker, Info );
 		
-		BCRhoUGStruct BCRhoUG;
-		getInitialRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+		BCStruct BC;
+		getInitialRhoUG( BC, iCell, jCell, kCell, Info, Marker ); 
 		
 		float f[27];
-		getFeq( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
+		getFeq( BC.rho, BC.ux, BC.uy, BC.uz, f );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];

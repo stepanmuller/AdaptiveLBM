@@ -6,11 +6,11 @@
 //
 // Martin Geier 2015, 2017
 
-__host__ __device__ void applyCollision( float (&f)[27], const BCRhoUGStruct &BCRhoUG, const float &nu )
+__host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, const float &nu )
 {
-	const float gx = BCRhoUG.gx;
-	const float gy = BCRhoUG.gy;
-	const float gz = BCRhoUG.gz;
+	const float gx = BC.gx;
+	const float gy = BC.gy;
+	const float gz = BC.gz;
 	
 	float rho, ux, uy, uz;
 	getRhoUxUyUz( rho, ux, uy, uz, f );
@@ -459,11 +459,11 @@ __host__ __device__ void applyCollision( float (&f)[27], const BCRhoUGStruct &BC
 /*
 // BACKUP
 // FORCING VERSION
-__host__ __device__ void applyCollision( float (&f)[27], const BCRhoUGStruct &BCRhoUG, const float &nu )
+__host__ __device__ void applyCollision( float (&f)[27], const BCStruct &BC, const float &nu )
 {
-	const float gx = BCRhoUG.gx;
-	const float gy = BCRhoUG.gy;
-	const float gz = BCRhoUG.gz;
+	const float gx = BC.gx;
+	const float gy = BC.gy;
+	const float gz = BC.gz;
 	
 	float rho, ux, uy, uz;
 	getRhoUxUyUz( rho, ux, uy, uz, f );

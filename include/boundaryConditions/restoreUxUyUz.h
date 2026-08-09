@@ -1,13 +1,13 @@
 __host__ __device__ void restoreUxUyUz(
 	const int &outerNormalX, const int &outerNormalY, const int &outerNormalZ,
-	BCRhoUGStruct &BCRhoUG,
+	BCStruct &BC,
 	const float (&f)[27]
 )
 {
-	const float &rho = BCRhoUG.rho;
-	float &ux = BCRhoUG.ux;
-	float &uy = BCRhoUG.uy;
-	float &uz = BCRhoUG.uz;
+	const float &rho = BC.rho;
+	float &ux = BC.ux;
+	float &uy = BC.uy;
+	float &uz = BC.uz;
 	
 	const int normalCode = (outerNormalX + 5) * 100 + (outerNormalY + 5) * 10 + (outerNormalZ + 5);
 	if ( normalCode == 655 )

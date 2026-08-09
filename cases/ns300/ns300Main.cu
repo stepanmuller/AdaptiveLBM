@@ -49,7 +49,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	else Marker.fluid = 1;
 }
 
-__cuda_callable__ void getInitialRhoUG( BCRhoUGStruct &BCRhoUG,
+__cuda_callable__ void getInitialRhoUG( BCStruct &BC,
 										const int& iCell, const int& jCell, const int& kCell, 
 										const InfoStruct& Info, MarkerStruct &Marker )
 {
@@ -60,26 +60,26 @@ __cuda_callable__ void getInitialRhoUG( BCRhoUGStruct &BCRhoUG,
 	const float vt = vtPhys * ( uzInlet / uzInletPhys );
 	if ( Marker.movingBounceback )
 	{
-		BCRhoUG.ux = - vt * (y / r);
-		BCRhoUG.uy = vt * (x / r);
-		BCRhoUG.uz = 0.f;
+		BC.ux = - vt * (y / r);
+		BC.uy = vt * (x / r);
+		BC.uz = 0.f;
 	}
 	else if ( Marker.bounceback )
 	{
-		BCRhoUG.ux = 0.f; //- vt * (y / r);
-		BCRhoUG.uy = 0.f; //vt * (x / r);
-		BCRhoUG.uz = 0.f;
+		BC.ux = 0.f; //- vt * (y / r);
+		BC.uy = 0.f; //vt * (x / r);
+		BC.uz = 0.f;
 	}
 	else
 	{
-		BCRhoUG.ux = 0.f;
-		BCRhoUG.uy = 0.f;
-		BCRhoUG.uz = 0.f;
+		BC.ux = 0.f;
+		BC.uy = 0.f;
+		BC.uz = 0.f;
 	}
-	BCRhoUG.rho = 1.f;
+	BC.rho = 1.f;
 }
 
-__cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
+__cuda_callable__ void getBC( 	BCStruct &BC,
 									const int& iCell, const int& jCell, const int& kCell, 
 									const InfoStruct& Info, MarkerStruct &Marker )
 {
@@ -94,17 +94,17 @@ __cuda_callable__ void getBCRhoUG( 	BCRhoUGStruct &BCRhoUG,
 	
 	if ( Marker.movingBounceback )
 	{
-		BCRhoUG.ux = - vt * (y / r);
-		BCRhoUG.uy = vt * (x / r);
-		BCRhoUG.uz = 0.f;
+		BC.ux = - vt * (y / r);
+		BC.uy = vt * (x / r);
+		BC.uz = 0.f;
 	}
 	else
 	{
-		BCRhoUG.ux = 0.f;
-		BCRhoUG.uy = 0.f;
-		BCRhoUG.uz = - ( uzInlet ) * velocityMultiplier;
+		BC.ux = 0.f;
+		BC.uy = 0.f;
+		BC.uz = - ( uzInlet ) * velocityMultiplier;
 	}
-	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BCRhoUG.rho = 1.f; }
+	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) { BC.rho = 1.f; }
 }
 
 #include "../../include/adaptiveGridFunctions.h"

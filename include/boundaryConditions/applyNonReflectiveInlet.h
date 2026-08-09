@@ -59,10 +59,10 @@ void applyNonReflectiveInlet( GridStruct &Grid )
 		
 		MarkerStruct Marker;
 		Marker.nonReflectiveInlet = 1;
-		BCRhoUGStruct BCRhoUG;
+		BCStruct BC;
 		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
 		// example: get forcing for rotating domain as a function of rho, U
-		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		
 		float rhoZ = 0.f;
 		for (int direction = 0; direction < 27; direction++)
@@ -91,15 +91,15 @@ void applyNonReflectiveInlet( GridStruct &Grid )
 		float uImpAbs;
 		if ( outerNormalX != 0 )
 		{
-			uImpAbs = TNL::abs( BCRhoUG.ux ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.ux ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BC.ux ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BC.ux ) - 1.f ) + 1.f ) );
 		}
 		else if ( outerNormalY != 0 )
 		{
-			uImpAbs = TNL::abs( BCRhoUG.uy ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.uy ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BC.uy ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BC.uy ) - 1.f ) + 1.f ) );
 		}
 		else
 		{
-			uImpAbs = TNL::abs( BCRhoUG.uz ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BCRhoUG.uz ) - 1.f ) + 1.f ) );
+			uImpAbs = TNL::abs( BC.uz ) - temp + TNL::sqrt( temp*temp - 2.f/3.f * ( rhoZInv * ( TNL::abs( BC.uz ) - 1.f ) + 1.f ) );
 		}	
 		float rhoImp = rhoZ / ( 1.f - uImpAbs );
 		return { rhoZ - 1.f, rhoImp - 1.f };

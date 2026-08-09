@@ -80,10 +80,10 @@ void updateGrid( GridStruct &Grid )
 					fIn[direction] = f[direction];
 				}
 			}
-			BCRhoUGStruct BCRhoUG;
-			getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
-			getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
-			applyMovingBounceback( f, BCRhoUG );
+			BCStruct BC;
+			getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, f );
+			getBC( BC, iCell, jCell, kCell, Info, Marker ); 
+			applyMovingBounceback( f, BC );
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
 			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
@@ -95,9 +95,9 @@ void updateGrid( GridStruct &Grid )
 			float gx = 0.f;
 			float gy = 0.f;
 			float gz = 0.f;
-			const float wallUx = BCRhoUG.ux;
-			const float wallUy = BCRhoUG.uy;
-			const float wallUz = BCRhoUG.uz;
+			const float wallUx = BC.ux;
+			const float wallUy = BC.uy;
+			const float wallUz = BC.uz;
 			
 			for (int q = 1; q < 27; q++) {
 				if ( !bitPackedMarkerBits[q] ) continue; // we are only interested if the neighbour is fluid
@@ -118,12 +118,12 @@ void updateGrid( GridStruct &Grid )
 		
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 		
-		BCRhoUGStruct BCRhoUG;
+		BCStruct BC;
 		// load the current state into the boundary condition struct
-		getRhoUxUyUz( BCRhoUG.rho, BCRhoUG.ux, BCRhoUG.uy, BCRhoUG.uz, f );
+		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, f );
 		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
 		// example: get forcing for rotating domain as a function of rho, U
-		getBCRhoUG( BCRhoUG, iCell, jCell, kCell, Info, Marker ); 
+		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		
 		if ( Marker.fluid )
 		{
@@ -136,11 +136,11 @@ void updateGrid( GridStruct &Grid )
 			if ( Marker.nonReflectiveOutlet )
 			{
 				//const float rigidity = 0.f;
-				//BCRhoUG.rho = BCRhoUG.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
+				//BC.rho = BC.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
 				const float dRhoMax = 0.0001f;
 				const float rhoMin = Info.nonReflectiveOutletRho - dRhoMax;
 				const float rhoMax = Info.nonReflectiveOutletRho + dRhoMax;
-				BCRhoUG.rho = std::clamp( BCRhoUG.rho, rhoMin, rhoMax );
+				BC.rho = std::clamp( BC.rho, rhoMin, rhoMax );
 			}
 			else if ( Marker.nonReflectiveInlet )
 			{
@@ -154,22 +154,22 @@ void updateGrid( GridStruct &Grid )
 					uMax = - uMin;
 					uMin = - temp;
 				}
-				if (outerNormalX != 0) BCRhoUG.ux = std::clamp( BCRhoUG.ux, uMin, uMax );
-				else if (outerNormalY != 0) BCRhoUG.uy = std::clamp( BCRhoUG.uy, uMin, uMax );
-				else if (outerNormalZ != 0) BCRhoUG.uz = std::clamp( BCRhoUG.uz, uMin, uMax );
+				if (outerNormalX != 0) BC.ux = std::clamp( BC.ux, uMin, uMax );
+				else if (outerNormalY != 0) BC.uy = std::clamp( BC.uy, uMin, uMax );
+				else if (outerNormalZ != 0) BC.uz = std::clamp( BC.uz, uMin, uMax );
 			}
 			if ( Marker.BCRho || Marker.nonReflectiveOutlet )
 			{
-				restoreUxUyUz( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
+				restoreUxUyUz( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 			}
 			else if ( Marker.BCU || Marker.nonReflectiveInlet )
 			{
-				restoreRho( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
+				restoreRho( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 			}
-			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BCRhoUG, f );
+			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 		}
 		
-		applyCollision( f, BCRhoUG, Info.nu );
+		applyCollision( f, BC, Info.nu );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
