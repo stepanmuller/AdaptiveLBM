@@ -135,7 +135,7 @@ void updateGrid( GridStruct &Grid )
 			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
 			if ( Marker.nonReflectiveOutlet )
 			{
-				const float dRhoMax = 0.001f;
+				const float dRhoMax = 0.0001f;
 				const float rhoMin = Info.nonReflectiveOutletRho - dRhoMax;
 				const float rhoMax = Info.nonReflectiveOutletRho + dRhoMax;
 				BC.rho = std::clamp( BC.rho, rhoMin, rhoMax );
@@ -144,7 +144,7 @@ void updateGrid( GridStruct &Grid )
 			else if ( Marker.nonReflectiveInlet )
 			{
 				// Schlaffer 2013 eq (7.1) - (7.6)
-				const float dRhoMax = 0.001f;
+				const float dRhoMax = 0.0001f;
 				float uMin = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp - dRhoMax) );
 				float uMax = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp + dRhoMax) );
 				if ( outerNormalX + outerNormalY + outerNormalZ > 0 ) // right boundary -> inlet velocity is negative
