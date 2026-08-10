@@ -156,17 +156,13 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
     const float k_112 = (k_c12 - k_a12) - ux * k_012;
     const float k_120 = (k_c20 - k_a20) - ux * (k_020 + 1.f / 3.f);
     const float k_121 = (k_c21 - k_a21) - ux * k_021;
-    const float k_122 = (k_c22 - k_a22) - ux * (k_022 + 1.f / 9.f);
 
     const float k_200 = (k_c00 + k_a00) - 2.f * ux * (k_c00 - k_a00) + ux2 * (k_000 + 1.f);
     const float k_201 = (k_c01 + k_a01) - 2.f * ux * (k_c01 - k_a01) + ux2 * k_001;
     const float k_202 = (k_c02 + k_a02) - 2.f * ux * (k_c02 - k_a02) + ux2 * (k_002 + 1.f / 3.f);
     const float k_210 = (k_c10 + k_a10) - 2.f * ux * (k_c10 - k_a10) + ux2 * k_010;
     const float k_211 = (k_c11 + k_a11) - 2.f * ux * (k_c11 - k_a11) + ux2 * k_011;
-    const float k_212 = (k_c12 + k_a12) - 2.f * ux * (k_c12 - k_a12) + ux2 * k_012;
     const float k_220 = (k_c20 + k_a20) - 2.f * ux * (k_c20 - k_a20) + ux2 * (k_020 + 1.f / 3.f);
-    const float k_221 = (k_c21 + k_a21) - 2.f * ux * (k_c21 - k_a21) + ux2 * k_021;
-    const float k_222 = (k_c22 + k_a22) - 2.f * ux * (k_c22 - k_a22) + ux2 * (k_022 + 1.f / 9.f);
 
     // -------------------------------------------------------------------------
     // Central moments -> cumulants, Geier 2017, Eqs. 16-23.
@@ -196,30 +192,6 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
         ((k_002 * k_020 + 2.f * k_011 * k_011 + (k_002 + k_020) / 3.f) * rhoInv - dRho * rhoInv / 9.f);
     const float C_202 = k_202 -
         ((k_200 * k_002 + 2.f * k_101 * k_101 + (k_200 + k_002) / 3.f) * rhoInv - dRho * rhoInv / 9.f);
-
-    const float C_122 = k_122 -
-        (k_020 * k_102 + k_002 * k_120 + 4.f * k_011 * k_111 +
-         2.f * (k_110 * k_012 + k_101 * k_021) + (k_120 + k_102) / 3.f) * rhoInv;
-    const float C_212 = k_212 -
-        (k_002 * k_210 + k_200 * k_012 + 4.f * k_101 * k_111 +
-         2.f * (k_011 * k_201 + k_110 * k_102) + (k_210 + k_012) / 3.f) * rhoInv;
-    const float C_221 = k_221 -
-        (k_200 * k_021 + k_020 * k_201 + 4.f * k_110 * k_111 +
-         2.f * (k_101 * k_120 + k_011 * k_210) + (k_021 + k_201) / 3.f) * rhoInv;
-
-    const float C_222 = k_222
-        - (4.f * k_111 * k_111 + k_200 * k_022 + k_020 * k_202 + k_002 * k_220 +
-           4.f * (k_011 * k_211 + k_101 * k_121 + k_110 * k_112) +
-           2.f * (k_120 * k_102 + k_210 * k_012 + k_201 * k_021)) * rhoInv
-        + (16.f * k_110 * k_101 * k_011 +
-           4.f * (k_101 * k_101 * k_020 + k_011 * k_011 * k_200 + k_110 * k_110 * k_002) +
-           2.f * k_200 * k_020 * k_002) * rhoInv * rhoInv
-        - (3.f * (k_022 + k_202 + k_220) + (k_200 + k_020 + k_002)) * rhoInv / 9.f
-        + (2.f / 3.f) *
-          (2.f * (k_101 * k_101 + k_011 * k_011 + k_110 * k_110) +
-           (k_002 * k_020 + k_002 * k_200 + k_020 * k_200) +
-           (k_002 + k_020 + k_200) / 3.f) * rhoInv * rhoInv
-        + (dRho * dRho - dRho) * rhoInv * rhoInv / 27.f;
 
     // -------------------------------------------------------------------------
     // Collision.
@@ -268,9 +240,7 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
     const float omega6 = 1.f;
     const float omega7 = 1.f;
     const float omega8 = 1.f;
-    const float omega9 = 1.f;
-    const float omega10 = 1.f;
-
+   
     const bool useK17 = (BC.collisionLimiter > 0.f) && (BC.nuMultiplier <= 1.f);
 
     if (useK17) 
@@ -375,11 +345,6 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
         Cs_112 = 0.f;
     }
 
-    const float Cs_221 = (1.f - omega9) * C_221;
-    const float Cs_212 = (1.f - omega9) * C_212;
-    const float Cs_122 = (1.f - omega9) * C_122;
-    const float Cs_222 = (1.f - omega10) * C_222;
-
     // -------------------------------------------------------------------------
     // Cumulants -> well-conditioned central moments, Geier 2017, Eqs. 53-56.
     // -------------------------------------------------------------------------
@@ -409,18 +374,14 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
     const float ks_202 = Cs_202 +
         ((ks_200 * ks_002 + 2.f * ks_101 * ks_101 + (ks_200 + ks_002) / 3.f) * rhoInv - dRho * rhoInv / 9.f);
 
-    const float ks_122 = Cs_122 +
-        (ks_020 * ks_102 + ks_002 * ks_120 + 4.f * ks_011 * ks_111 +
+    const float ks_122 = (ks_020 * ks_102 + ks_002 * ks_120 + 4.f * ks_011 * ks_111 +
          2.f * (ks_110 * ks_012 + ks_101 * ks_021) + (ks_120 + ks_102) / 3.f) * rhoInv;
-    const float ks_212 = Cs_212 +
-        (ks_002 * ks_210 + ks_200 * ks_012 + 4.f * ks_101 * ks_111 +
+    const float ks_212 = (ks_002 * ks_210 + ks_200 * ks_012 + 4.f * ks_101 * ks_111 +
          2.f * (ks_011 * ks_201 + ks_110 * ks_102) + (ks_210 + ks_012) / 3.f) * rhoInv;
-    const float ks_221 = Cs_221 +
-        (ks_200 * ks_021 + ks_020 * ks_201 + 4.f * ks_110 * ks_111 +
+    const float ks_221 = (ks_200 * ks_021 + ks_020 * ks_201 + 4.f * ks_110 * ks_111 +
          2.f * (ks_101 * ks_120 + ks_011 * ks_210) + (ks_021 + ks_201) / 3.f) * rhoInv;
 
-    const float ks_222 = Cs_222
-        + (4.f * ks_111 * ks_111 + ks_200 * ks_022 + ks_020 * ks_202 + ks_002 * ks_220 +
+    const float ks_222 = (4.f * ks_111 * ks_111 + ks_200 * ks_022 + ks_020 * ks_202 + ks_002 * ks_220 +
            4.f * (ks_011 * ks_211 + ks_101 * ks_121 + ks_110 * ks_112) +
            2.f * (ks_120 * ks_102 + ks_210 * ks_012 + ks_201 * ks_021)) * rhoInv
         - (16.f * ks_110 * ks_101 * ks_011 +
