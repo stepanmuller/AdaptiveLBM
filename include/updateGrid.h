@@ -168,7 +168,7 @@ void updateGrid( GridStruct &Grid )
 			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 		}
 		
-		applyCollisionWC( f, BC, Info.nu );
+		applyCollision( f, BC, Info.nu );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];
