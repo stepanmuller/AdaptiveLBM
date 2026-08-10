@@ -135,17 +135,16 @@ void updateGrid( GridStruct &Grid )
 			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
 			if ( Marker.nonReflectiveOutlet )
 			{
-				//const float rigidity = 0.f;
-				//BC.rho = BC.rho * rigidity + Info.nonReflectiveOutletRho * ( 1.f - rigidity );
-				const float dRhoMax = 0.0001f;
+				const float dRhoMax = 0.001f;
 				const float rhoMin = Info.nonReflectiveOutletRho - dRhoMax;
 				const float rhoMax = Info.nonReflectiveOutletRho + dRhoMax;
 				BC.rho = std::clamp( BC.rho, rhoMin, rhoMax );
+				BC.collisionLimiter = 0.f;
 			}
 			else if ( Marker.nonReflectiveInlet )
 			{
 				// Schlaffer 2013 eq (7.1) - (7.6)
-				const float dRhoMax = 0.0001f;
+				const float dRhoMax = 0.001f;
 				float uMin = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp - dRhoMax) );
 				float uMax = 1.f - ( Info.nonReflectiveInletRhoZ / (Info.nonReflectiveInletRhoImp + dRhoMax) );
 				if ( outerNormalX + outerNormalY + outerNormalZ > 0 ) // right boundary -> inlet velocity is negative
@@ -169,7 +168,7 @@ void updateGrid( GridStruct &Grid )
 			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 		}
 		
-		applyCollision( f, BC, Info.nu );
+		applyCollisionWC( f, BC, Info.nu );
 		
 		int cellWriteIndex[27];
 		int fWriteIndex[27];

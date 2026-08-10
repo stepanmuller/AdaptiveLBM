@@ -11,14 +11,14 @@ static constexpr float SMAGORINSKY_CONSTANT = 0.f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
-constexpr int iterationCount = 50000;
+constexpr int iterationCount = 30000;
 
 constexpr float resGlobal = 0.1f; 														// mm
 
 constexpr float angularVelocity = 2000.f;												// rad/s
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 0.0048f;
-constexpr float massFlowInitPhys = 3.f;													// kg/s
+constexpr float iRegulatorInletStrength = 1.f;
+constexpr float massFlowInitPhys = 2.5f;												// kg/s
 constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
 const float boundaryLayerThickness = 0.2f;												// mm
@@ -33,7 +33,7 @@ constexpr float nuPhys = 1e-6;															// m2/s water
 constexpr float rhoNominalPhys = 1000.0f;												// kg/m3 water
 constexpr float inletAreamm2 = 3.14159f * ( ROut * ROut - RIn * RIn);					// mm2
 constexpr float uzInletPhys = massFlowInitPhys / ( rhoNominalPhys * ( inletAreamm2 / 1000000.f) );	// m/s
-constexpr float uzInlet = uzInletPhys * dtPhysGlobal / (resGlobal/1000);				
+constexpr float uzInletBase = uzInletPhys * dtPhysGlobal / (resGlobal/1000);				
 constexpr float soundspeedPhys = 0.577350269f * (resGlobal/1000) / dtPhysGlobal; 		// m/s (0.577350269f is 1/sqrt(3))
 
 #include "../../include/types.h"
@@ -64,7 +64,7 @@ __cuda_callable__ void getInitialRhoUG( BCStruct &BC,
 	getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );
 	const float r = std::sqrt( x * x + y * y );
 	const float vtPhys = angularVelocity * (r / 1000.f);
-	const float vt = vtPhys * ( uzInlet / uzInletPhys );
+	const float vt = vtPhys * ( uzInletBase / uzInletPhys );
 	if ( Marker.movingBounceback )
 	{
 		BC.ux = - vt * (y / r);
@@ -81,7 +81,7 @@ __cuda_callable__ void getInitialRhoUG( BCStruct &BC,
 	{
 		BC.ux = 0.f;
 		BC.uy = 0.f;
-		BC.uz = uzInlet;
+		BC.uz = uzInletBase;
 	}
 	BC.rho = 1.f;
 }
@@ -94,7 +94,7 @@ __cuda_callable__ void getBC( 	BCStruct &BC,
 	getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );
 	const float r = std::sqrt( x * x + y * y );
 	const float vtPhys = angularVelocity * (r / 1000.f);
-	const float vt = vtPhys * ( uzInlet / uzInletPhys );
+	const float vt = vtPhys * ( uzInletBase / uzInletPhys );
 	const float wallDistancePhys = std::max(0.f, std::min(r - RIn, ROut - r));
 	const float delta = std::max( 0.f, std::min( 1.f, wallDistancePhys / boundaryLayerThickness ));
 	const float velocityMultiplier = delta * delta * (3.0f - 2.0f * delta);
@@ -113,10 +113,10 @@ __cuda_callable__ void getBC( 	BCStruct &BC,
 	{
 		BC.ux = 0.f;
 		BC.uy = 0.f;
-		BC.uz = ( uzInlet + Info.iRegulatorInlet ) * velocityMultiplier;
+		BC.uz = uzInletBase * velocityMultiplier; // ( uzInletBase + Info.iRegulatorInlet ) * velocityMultiplier;
 	}
 	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) BC.rho = 1.f;
-	if ( z > 18.f ) BC.nuMultiplier = ( 28.f - z ) * 0.1f * 100.f;
+	if ( z > 18.f ) BC.collisionLimiter = 0.f; //BC.nuMultiplier = ( 28.f - z ) * 0.1f * 100.f;
 }
 
 #include "../../include/adaptiveGridFunctions.h"
@@ -265,6 +265,7 @@ int main(int argc, char **argv)
 			
 			// regulate inlet
 			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk * dtPhysGlobal;
+			grids[0].Info.iRegulatorInlet = std::clamp( grids[0].Info.iRegulatorInlet, -0.8f * uzInletBase, 2.f * uzInletBase );
 			for ( int level = 0; level < GRID_LEVEL_COUNT; level++ ) grids[level].Info.iRegulatorInlet = grids[0].Info.iRegulatorInlet;
 			
 			// sum torque contributions and reset
