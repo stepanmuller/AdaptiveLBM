@@ -511,21 +511,26 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		
 		// get interpolated variables for the coarse cell
 		const float rho = d0; const float ux = a0; const float uy = b0; const float uz = c0;
+		const float dRho = rho - 1.f;
 		
-		// calculate second order cummulants
+		// calculate second order central moments
 		// eq Schönherr 2015 (7.38 - 7.43)
 		// note that A, B, C is all zeros because coarse cell is placed [0, 0, 0]
 		const float sigma = 2.f; // fine to coarse
-		const float C011 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( bz + cy + kyzAvg );
-		const float C101 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( az + cx + kxzAvg );
-		const float C110 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( ay + bx + kxyAvg );
-		const float C200 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Coarse ) * ( ax - by + kxxMyyAvg + ax - cz + kxxMzzAvg );
-		const float C020 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Coarse ) * ( - 2.f * ( ax - by + kxxMyyAvg ) + ax - cz + kxxMzzAvg );
-		const float C002 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Coarse ) * ( ax - by + kxxMyyAvg - 2.f * ( ax - cz + kxxMzzAvg ) );
+		const float k_011 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( (bz + cy) + kyzAvg );
+		const float k_101 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( (az + cx) + kxzAvg );
+		const float k_110 = - ( sigma * rho ) / ( 3.f * omega1Coarse ) * ( (ay + bx) + kxyAvg );
+		
+		const float mxxMyy = - (2.f / 3.f) * ((ax - by) + kxxMyyAvg) * sigma / omega1Coarse * rho;
+		const float mxxMzz = - (2.f / 3.f) * ((ax - cz) + kxxMzzAvg) * sigma / omega1Coarse * rho;
+		
+		const float k_200 = (1.f / 3.f) * (       mxxMyy +       mxxMzz + dRho);
+		const float k_020 = (1.f / 3.f) * (-2.f * mxxMyy +       mxxMzz + dRho);
+		const float k_002 = (1.f / 3.f) * (       mxxMyy - 2.f * mxxMzz + dRho);
 		
 		// reconstruct f for the coarse cell
 		float f[27];
-		reconstructInterpolatedF( f, rho, ux, uy, uz, C011, C101, C110, C200, C020, C002 );
+		reconstructInterpolatedF( f, rho, ux, uy, uz, k_011, k_101, k_110, k_200, k_020, k_002 );
 		
 		// write reconstructed f into the coarse cell
 		NBRStruct NBR;
@@ -747,11 +752,12 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			const float dy = cellFineDy[which];
 			const float dz = cellFineDz[which];
 			const float rho = rhoBase + dRhodx * dx + dRhody * dy + dRhodz * dz;
+			const float dRho = rho - 1.f;
 			const float ux = uxBase + ax * dx + ay * dy + az * dz + axy * dx * dy + axz * dx * dz + ayz * dy * dz + axx * dx * dx + ayy * dy * dy + azz * dz * dz;
 			const float uy = uyBase + bx * dx + by * dy + bz * dz + bxy * dx * dy + bxz * dx * dz + byz * dy * dz + bxx * dx * dx + byy * dy * dy + bzz * dz * dz;
 			const float uz = uzBase + cx * dx + cy * dy + cz * dz + cxy * dx * dy + cxz * dx * dz + cyz * dy * dz + cxx * dx * dx + cyy * dy * dy + czz * dz * dz;
 			
-			// calculate second order cummulants
+			// calculate second order central moments
 			// eq Schönherr 2015 (7.38 - 7.43) - with base gradients mathematically cancelled
 			const float sigma = 0.5f; // coarse to fine
 			const float A011 = bxz * dx + cxy * dx + byz * dy + 2.f * cyy * dy + 2.f * bzz * dz + cyz * dz;
@@ -760,15 +766,15 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			const float B = 2.f * axx * dx - bxy * dx + axy * dy - 2.f * byy * dy + axz * dz - byz * dz;
 			const float C = 2.f * axx * dx - cxz * dx + axy * dy - cyz * dy + axz * dz - 2.f * czz * dz;
             
-			const float C011 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kyzBase + A011 );
-			const float C101 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kxzBase + A101 );
-			const float C110 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kxyBase + A110 );
-			const float C200 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( kxxMyyBase + B + kxxMzzBase + C );
-			const float C020 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( - 2.f * ( kxxMyyBase + B ) + kxxMzzBase + C );
-			const float C002 = rho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( kxxMyyBase + B - 2.f * ( kxxMzzBase + C ) );
+			const float k_011 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kyzBase + A011 );
+			const float k_101 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kxzBase + A101 );
+			const float k_110 = - ( sigma * rho ) / ( 3.f * omega1Fine ) * ( kxyBase + A110 );
+			const float k_200 = dRho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( kxxMyyBase + B + kxxMzzBase + C );
+			const float k_020 = dRho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( - 2.f * ( kxxMyyBase + B ) + kxxMzzBase + C );
+			const float k_002 = dRho / 3.f - ( 2.f * sigma * rho ) / ( 9.f * omega1Fine ) * ( kxxMyyBase + B - 2.f * ( kxxMzzBase + C ) );
 			
 			float f[27];
-			reconstructInterpolatedF( f, rho, ux, uy, uz, C011, C101, C110, C200, C020, C002 );
+			reconstructInterpolatedF( f, rho, ux, uy, uz, k_011, k_101, k_110, k_200, k_020, k_002 );
 			
 			for ( int direction = 0; direction < 27; direction++ ) fViewFine( fWriteIndex[direction], cellWriteIndex[direction] ) = f[direction];
 		}
