@@ -16,13 +16,13 @@
 
 __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, const float& nu)
 {
-	
+	/*
 	const float weights[27] = { 8.f/27.f, 
 		2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 		1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 		1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 	for ( int direction = 0; direction < 27; direction++ ) f[direction] -= weights[direction];
-	
+	*/
     const float gx = BC.gx;
     const float gy = BC.gy;
     const float gz = BC.gz;
@@ -493,5 +493,5 @@ __host__ __device__ void applyCollision(float (&f)[27], const BCStruct& BC, cons
     f[POP]  = ((ks_cb0 + K_cb0) * (uz2 + uz) + ks_cb1 * (2.f * uz + 1.f) + ks_cb2) * 0.5f;
     f[PPP] = ((ks_cc0 + K_cc0) * (uz2 + uz) + ks_cc1 * (2.f * uz + 1.f) + ks_cc2) * 0.5f;
     
-    for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
+    //for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
 }

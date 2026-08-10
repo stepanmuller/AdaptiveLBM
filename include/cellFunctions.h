@@ -114,12 +114,13 @@ __cuda_callable__ void getFeq(
 	feq[24] = w3 * (dRho + (3.f*cu24 + 4.5f*cu24*cu24 - 1.5f*u2) * (dRho + 1.f));
 	feq[25] = w3 * (dRho + (3.f*cu25 + 4.5f*cu25*cu25 - 1.5f*u2) * (dRho + 1.f));
 	feq[26] = w3 * (dRho + (3.f*cu26 + 4.5f*cu26*cu26 - 1.5f*u2) * (dRho + 1.f));	
-	
+	/*
 	const float weights[27] = { 8.f/27.f, 
 		2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 		1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 		1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 	for ( int direction = 0; direction < 27; direction++ ) feq[direction] += weights[direction];
+	*/
 }
 
 __cuda_callable__ void getFneq(const float (&f)[27], const float (&feq)[27], float (&fneq)[27])
@@ -132,12 +133,13 @@ __cuda_callable__ void getRhoUxUyUz(
 	float (&f)[27] // const float (&f)[27]
 	)
 {
+	/*
 	const float weights[27] = { 8.f/27.f, 
 		2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 		1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 		1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 	for ( int direction = 0; direction < 27; direction++ ) f[direction] -= weights[direction];
-	
+	*/
 	const float dRho = (((f[PPP]+f[MMM]) + (f[PMP]+f[MPM])) + ((f[PPM]+f[MMP]) + (f[PPM]+f[MMP])))
 					  + (((f[OPP]+f[OMM]) + (f[OPM]+f[OMP])) + ((f[POP]+f[MOM]) + (f[POM]+f[MOP])) + ((f[PPO]+f[MMO]) + (f[PMO]+f[MPO])))
 						+ ((f[POO]+f[MOO]) + (f[OPO]+f[OMO]) + (f[OOP]+f[OOM])) + f[OOO];			
@@ -160,7 +162,7 @@ __cuda_callable__ void getRhoUxUyUz(
     uy = momentumY * rhoInv;
     uz = momentumZ * rhoInv;
     
-    for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
+    //for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
 }
 
 __cuda_callable__ void convertToPhysicalVelocity( float &ux, float &uy, float &uz, const InfoStruct &Info )
@@ -193,12 +195,14 @@ __cuda_callable__ void convertToPhysicalForce( float &gx, float &gy, float &gz, 
 
 __host__ __device__ void getLocalDu( float (&f)[27], const float &nu, LocalDuStruct &localDu )
 {
+	/*
 	const float weights[27] = { 8.f/27.f, 
 		2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 		1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 		1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 	for ( int direction = 0; direction < 27; direction++ ) f[direction] -= weights[direction];
-
+	*/
+	
     // D3Q27 weight moments needed by the well-conditioned transformation.
     const float K_aa0 = 1.f / 36.f;
     const float K_ab0 = 1.f / 9.f;

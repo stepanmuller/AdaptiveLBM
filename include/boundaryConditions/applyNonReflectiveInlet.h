@@ -64,7 +64,7 @@ void applyNonReflectiveInlet( GridStruct &Grid )
 		// example: get forcing for rotating domain as a function of rho, U
 		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		
-		float rhoZ = 0.f;
+		float rhoZ = 1.f;
 		for (int direction = 0; direction < 27; direction++)
 		{
 			const int cx = cxArray[direction]; const int cy = cyArray[direction]; const int cz = czArray[direction];

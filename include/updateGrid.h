@@ -131,6 +131,13 @@ void updateGrid( GridStruct &Grid )
 		}
 		else
 		{
+			// Boundary conditions are not well conditioned yet -> compensate
+			const float weights[27] = { 8.f/27.f, 
+				2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
+				1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
+				1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
+			for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
+			
 			int outerNormalX, outerNormalY, outerNormalZ;
 			getOuterNormal( iCell, jCell, kCell, outerNormalX, outerNormalY, outerNormalZ, Info ); 
 			if ( Marker.nonReflectiveOutlet )
@@ -166,6 +173,9 @@ void updateGrid( GridStruct &Grid )
 				restoreRho( outerNormalX, outerNormalY, outerNormalZ, BC, f );
 			}
 			applyMBBC( outerNormalX, outerNormalY, outerNormalZ, BC, f );
+			
+			// subtract the weights again for WC after BC is done
+			for ( int direction = 0; direction < 27; direction++ ) f[direction] -= weights[direction];
 		}
 		
 		applyCollision( f, BC, Info.nu );

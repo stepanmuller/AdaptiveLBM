@@ -148,162 +148,13 @@ __host__ __device__ void reconstructInterpolatedF( 	float (&f)[27], const float 
     f[PMP] = ((k_ca0 + K_ca0) * (uz2 + uz) + k_ca1 * (2.f * uz + 1.f) + k_ca2) * 0.5f;
     f[POP]  = ((k_cb0 + K_cb0) * (uz2 + uz) + k_cb1 * (2.f * uz + 1.f) + k_cb2) * 0.5f;
     f[PPP] = ((k_cc0 + K_cc0) * (uz2 + uz) + k_cc1 * (2.f * uz + 1.f) + k_cc2) * 0.5f;
-    
+    /*
     const float weights[27] = { 8.f/27.f, 
 		2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 		1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 		1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
     for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
-    
-	// OLD VERSION START
-	/*
-	//------------------------------------------------------------------------------------
-	//------------------------------ CUMULANTS TO CENTRAL MOM. ---------------------------
-	//------------------------------------------------------------------------------------
-
-	const float ks_000 = rho;
-
-	// Permutation again
-
-	//Eq Geier 2015(47) backwards
-	const float ks_110 = C_110;
-	const float ks_101 = C_101;
-	const float ks_011 = C_011;
-
-	//Eq Geier 2015(48) backwards
-	const float ks_200 = C_200;
-	const float ks_020 = C_020;
-	const float ks_002 = C_002;
-
-	// Schönherr 2015, first order central moments are set to zero
-	const float ks_100 = 0.f;
-	const float ks_010 = 0.f;
-	const float ks_001 = 0.f;
-
-	//Eq. Geier 2015(81)
-	const float ks_211 = (ks_200 * ks_011 + 2.f * ks_101 * ks_110) / rho;
-	const float ks_121 = (ks_020 * ks_101 + 2.f * ks_110 * ks_011) / rho;
-	const float ks_112 = (ks_002 * ks_110 + 2.f * ks_011 * ks_101) / rho;
-
-	//Eq. Geier 2015(82)
-	const float ks_220 = (ks_020 * ks_200 + 2.f * ks_110 * ks_110) / rho;
-	const float ks_022 = (ks_002 * ks_020 + 2.f * ks_011 * ks_011) / rho;
-	const float ks_202 = (ks_200 * ks_002 + 2.f * ks_101 * ks_101) / rho;
-
-	// Eq. Geier 2015(84)
-	const float ks_222 = (
-		(ks_200 * ks_022 + ks_020 * ks_202 + ks_002 * ks_220 +
-		4.f * (ks_011 * ks_211 + ks_101 * ks_121 + ks_110 * ks_112)) / rho
-		- (16.0 * ks_110 * ks_101 * ks_011 + 4.f * (ks_101 * ks_101 * ks_020 +
-				ks_011 * ks_011 * ks_200 +
-				ks_110 * ks_110 * ks_002) +
-		2.f * ks_200 * ks_020 * ks_002) / rho / rho
-		);
-
-	//------------------------------------------------------------------------------------
-	//----------------------- TRANSFORM TO DISTRIBUTION FUNCTION -------------------------
-	//------------------------------------------------------------------------------------
-
-	//Eq Geier 2015(88)
-	const float ks_b00 = ks_000 * (1.f - ux * ux) - 2.f * ux * ks_100 - ks_200;
-	const float ks_b01 = ks_001 * (1.f - ux * ux) - 2.f * ux * ks_101;
-	const float ks_b02 = ks_002 * (1.f - ux * ux) - ks_202;
-	const float ks_b10 = ks_010 * (1.f - ux * ux) - 2.f * ux * ks_110;
-	const float ks_b11 = ks_011 * (1.f - ux * ux) - ks_211;
-	const float ks_b12 = - 2.f * ux * ks_112;
-	const float ks_b20 = ks_020 * (1.f - ux * ux) - ks_220;
-	const float ks_b21 = - 2.f * ux * ks_121;
-	const float ks_b22 = ks_022 * (1.f - ux * ux) - ks_222;
-
-	//Eq  Geier 2015(89)
-	const float ks_a00 = (ks_000 * (ux * ux - ux) + ks_100 * (2.f * ux - 1.f) + ks_200) * 0.5f;
-	const float ks_a01 = (ks_001 * (ux * ux - ux) + ks_101 * (2.f * ux - 1.f)) * 0.5f;
-	const float ks_a02 = (ks_002 * (ux * ux - ux) + ks_202) * 0.5f;
-	const float ks_a10 = (ks_010 * (ux * ux - ux) + ks_110 * (2.f * ux - 1.f)) * 0.5f;
-	const float ks_a11 = (ks_011 * (ux * ux - ux) + ks_211) * 0.5f;
-	const float ks_a12 = (ks_112 * (2.f * ux - 1.f)) * 0.5f;
-	const float ks_a20 = (ks_020 * (ux * ux - ux) + ks_220) * 0.5f;
-	const float ks_a21 = (ks_121 * (2.f * ux - 1.f)) * 0.5f;
-	const float ks_a22 = (ks_022 * (ux * ux - ux) + ks_222) * 0.5f;
-
-	//Eq  Geier 2015(90)
-	const float ks_c00 = (ks_000 * (ux * ux + ux) + ks_100 * (2.f * ux + 1.f) + ks_200) * 0.5f;
-	const float ks_c01 = (ks_001 * (ux * ux + ux) + ks_101 * (2.f * ux + 1.f)) * 0.5f;
-	const float ks_c02 = (ks_002 * (ux * ux + ux) + ks_202) * 0.5f;
-	const float ks_c10 = (ks_010 * (ux * ux + ux) + ks_110 * (2.f * ux + 1.f)) * 0.5f;
-	const float ks_c11 = (ks_011 * (ux * ux + ux) + ks_211) * 0.5f;
-	const float ks_c12 = (ks_112 * (2.f * ux + 1.f)) * 0.5f;
-	const float ks_c20 = (ks_020 * (ux * ux + ux) + ks_220) * 0.5f;
-	const float ks_c21 = (ks_121 * (2.f * ux + 1.f)) * 0.5f;
-	const float ks_c22 = (ks_022 * (ux * ux + ux) + ks_222) * 0.5f;
-
-	//Eq Geier 2015(91)
-	const float ks_ab0 = ks_a00 * (1.f - uy * uy) - 2.f * uy * ks_a10 - ks_a20;
-	const float ks_ab1 = ks_a01 * (1.f - uy * uy) - 2.f * uy * ks_a11 - ks_a21;
-	const float ks_ab2 = ks_a02 * (1.f - uy * uy) - 2.f * uy * ks_a12 - ks_a22;
-	const float ks_bb0 = ks_b00 * (1.f - uy * uy) - 2.f * uy * ks_b10 - ks_b20;
-	const float ks_bb1 = ks_b01 * (1.f - uy * uy) - 2.f * uy * ks_b11 - ks_b21;
-	const float ks_bb2 = ks_b02 * (1.f - uy * uy) - 2.f * uy * ks_b12 - ks_b22;
-	const float ks_cb0 = ks_c00 * (1.f - uy * uy) - 2.f * uy * ks_c10 - ks_c20;
-	const float ks_cb1 = ks_c01 * (1.f - uy * uy) - 2.f * uy * ks_c11 - ks_c21;
-	const float ks_cb2 = ks_c02 * (1.f - uy * uy) - 2.f * uy * ks_c12 - ks_c22;
-
-	//Eq  Geier 2015(92)
-	const float ks_aa0 = (ks_a00 * (uy * uy - uy) + ks_a10 * (2.f * uy - 1.f) + ks_a20) * 0.5f;
-	const float ks_aa1 = (ks_a01 * (uy * uy - uy) + ks_a11 * (2.f * uy - 1.f) + ks_a21) * 0.5f;
-	const float ks_aa2 = (ks_a02 * (uy * uy - uy) + ks_a12 * (2.f * uy - 1.f) + ks_a22) * 0.5f;
-	const float ks_ba0 = (ks_b00 * (uy * uy - uy) + ks_b10 * (2.f * uy - 1.f) + ks_b20) * 0.5f;
-	const float ks_ba1 = (ks_b01 * (uy * uy - uy) + ks_b11 * (2.f * uy - 1.f) + ks_b21) * 0.5f;
-	const float ks_ba2 = (ks_b02 * (uy * uy - uy) + ks_b12 * (2.f * uy - 1.f) + ks_b22) * 0.5f;
-	const float ks_ca0 = (ks_c00 * (uy * uy - uy) + ks_c10 * (2.f * uy - 1.f) + ks_c20) * 0.5f;
-	const float ks_ca1 = (ks_c01 * (uy * uy - uy) + ks_c11 * (2.f * uy - 1.f) + ks_c21) * 0.5f;
-	const float ks_ca2 = (ks_c02 * (uy * uy - uy) + ks_c12 * (2.f * uy - 1.f) + ks_c22) * 0.5f;
-
-	//Eq Geier 2015(93)
-	const float ks_ac0 = (ks_a00 * (uy * uy + uy) + ks_a10 * (2.f * uy + 1.f) + ks_a20) * 0.5f;
-	const float ks_ac1 = (ks_a01 * (uy * uy + uy) + ks_a11 * (2.f * uy + 1.f) + ks_a21) * 0.5f;
-	const float ks_ac2 = (ks_a02 * (uy * uy + uy) + ks_a12 * (2.f * uy + 1.f) + ks_a22) * 0.5f;
-	const float ks_bc0 = (ks_b00 * (uy * uy + uy) + ks_b10 * (2.f * uy + 1.f) + ks_b20) * 0.5f;
-	const float ks_bc1 = (ks_b01 * (uy * uy + uy) + ks_b11 * (2.f * uy + 1.f) + ks_b21) * 0.5f;
-	const float ks_bc2 = (ks_b02 * (uy * uy + uy) + ks_b12 * (2.f * uy + 1.f) + ks_b22) * 0.5f;
-	const float ks_cc0 = (ks_c00 * (uy * uy + uy) + ks_c10 * (2.f * uy + 1.f) + ks_c20) * 0.5f;
-	const float ks_cc1 = (ks_c01 * (uy * uy + uy) + ks_c11 * (2.f * uy + 1.f) + ks_c21) * 0.5f;
-	const float ks_cc2 = (ks_c02 * (uy * uy + uy) + ks_c12 * (2.f * uy + 1.f) + ks_c22) * 0.5f;
-
-	//Eq Geier 2015(94)
-	f[11] = ks_aa0 * (1.f - uz * uz) - 2.f * uz * ks_aa1 - ks_aa2;
-	f[2] = ks_ab0 * (1.f - uz * uz) - 2.f * uz * ks_ab1 - ks_ab2;
-	f[15] = ks_ac0 * (1.f - uz * uz) - 2.f * uz * ks_ac1 - ks_ac2;
-	f[5] = ks_ba0 * (1.f - uz * uz) - 2.f * uz * ks_ba1 - ks_ba2;
-	f[0] = ks_bb0 * (1.f - uz * uz) - 2.f * uz * ks_bb1 - ks_bb2;
-	f[6] = ks_bc0 * (1.f - uz * uz) - 2.f * uz * ks_bc1 - ks_bc2;
-	f[16] = ks_ca0 * (1.f - uz * uz) - 2.f * uz * ks_ca1 - ks_ca2;
-	f[1] = ks_cb0 * (1.f - uz * uz) - 2.f * uz * ks_cb1 - ks_cb2;
-	f[12] = ks_cc0 * (1.f - uz * uz) - 2.f * uz * ks_cc1 - ks_cc2;
-
-	//Eq  Geier 2015(95)
-	f[25] = (ks_aa0 * (uz * uz - uz) + ks_aa1 * (2.f * uz - 1.f) + ks_aa2) * 0.5f;
-	f[10] = (ks_ab0 * (uz * uz - uz) + ks_ab1 * (2.f * uz - 1.f) + ks_ab2) * 0.5f;
-	f[19] = (ks_ac0 * (uz * uz - uz) + ks_ac1 * (2.f * uz - 1.f) + ks_ac2) * 0.5f;
-	f[18] = (ks_ba0 * (uz * uz - uz) + ks_ba1 * (2.f * uz - 1.f) + ks_ba2) * 0.5f;
-	f[3] = (ks_bb0 * (uz * uz - uz) + ks_bb1 * (2.f * uz - 1.f) + ks_bb2) * 0.5f;
-	f[13] = (ks_bc0 * (uz * uz - uz) + ks_bc1 * (2.f * uz - 1.f) + ks_bc2) * 0.5f;
-	f[23] = (ks_ca0 * (uz * uz - uz) + ks_ca1 * (2.f * uz - 1.f) + ks_ca2) * 0.5f;
-	f[7] = (ks_cb0 * (uz * uz - uz) + ks_cb1 * (2.f * uz - 1.f) + ks_cb2) * 0.5f;
-	f[22] = (ks_cc0 * (uz * uz - uz) + ks_cc1 * (2.f * uz - 1.f) + ks_cc2) * 0.5f;
-
-	//Eq  Geier 2015(96)
-	f[21] = (ks_aa0 * (uz * uz + uz) + ks_aa1 * (2.f * uz + 1.f) + ks_aa2) * 0.5f;
-	f[8] = (ks_ab0 * (uz * uz + uz) + ks_ab1 * (2.f * uz + 1.f) + ks_ab2) * 0.5f;
-	f[24] = (ks_ac0 * (uz * uz + uz) + ks_ac1 * (2.f * uz + 1.f) + ks_ac2) * 0.5f;
-	f[14] = (ks_ba0 * (uz * uz + uz) + ks_ba1 * (2.f * uz + 1.f) + ks_ba2) * 0.5f;
-	f[4] = (ks_bb0 * (uz * uz + uz) + ks_bb1 * (2.f * uz + 1.f) + ks_bb2) * 0.5f;
-	f[17] = (ks_bc0 * (uz * uz + uz) + ks_bc1 * (2.f * uz + 1.f) + ks_bc2) * 0.5f;
-	f[20] = (ks_ca0 * (uz * uz + uz) + ks_ca1 * (2.f * uz + 1.f) + ks_ca2) * 0.5f;
-	f[9] = (ks_cb0 * (uz * uz + uz) + ks_cb1 * (2.f * uz + 1.f) + ks_cb2) * 0.5f;
-	f[26] = (ks_cc0 * (uz * uz + uz) + ks_cc1 * (2.f * uz + 1.f) + ks_cc2) * 0.5f;
-	*/
-	// OLD VERSION END
+    */
 }
 
 void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
@@ -363,13 +214,13 @@ void updateFineToCoarseInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 			for ( int direction = 0; direction < 27; direction++ ) fNbr[direction] = fViewFine( nbrFReadIndex[direction], nbrCellReadIndex[direction] );
 			
 			getRhoUxUyUz( rhoStencil[i], uxStencil[i], uyStencil[i], uzStencil[i], fNbr );
-			
+			/*
 			const float weights[27] = { 8.f/27.f, 
 				2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 				1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 				1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 			for ( int direction = 0; direction < 27; direction++ ) fNbr[direction] -= weights[direction];
-			
+			*/
 			kxyStencil[i] = - 3.f * omega1Fine * ( ( 
 					+ fNbr[11] + fNbr[12] - fNbr[15] - fNbr[16] 
 					- fNbr[19] - fNbr[20] + fNbr[21] + fNbr[22] - fNbr[23] - fNbr[24] + fNbr[25] + fNbr[26]
@@ -588,13 +439,13 @@ void updateCoarseToFineInterface( GridStruct &GridCoarse, GridStruct &GridFine )
 		for ( int direction = 0; direction < 27; direction++ ) fBase[direction] = fViewCoarse(fReadIndex[direction], cellReadIndex[direction]);
 		float rhoBase, uxBase, uyBase, uzBase;
 		getRhoUxUyUz( rhoBase, uxBase, uyBase, uzBase, fBase );
-		
+		/*
 		const float weights[27] = { 8.f/27.f, 
 				2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 2.f/27.f, 
 				1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 1.f/54.f, 
 				1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f, 1.f/216.f };
 		for ( int direction = 0; direction < 27; direction++ ) fBase[direction] -= weights[direction];
-	
+		*/
 		const float kxyBase = - 3.f * omega1Coarse * ( (
 				+ fBase[11] + fBase[12] - fBase[15] - fBase[16] 
 				- fBase[19] - fBase[20] + fBase[21] + fBase[22] - fBase[23] - fBase[24] + fBase[25] + fBase[26]
