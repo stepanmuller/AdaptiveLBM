@@ -7,7 +7,6 @@ static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
 static constexpr int GRID_LEVEL_COUNT = 1;
-static constexpr float SMAGORINSKY_CONSTANT = 0.f;
 
 int reportChunk = 31;
 int plotterChunk = 1000;
@@ -17,7 +16,7 @@ constexpr float resGlobal = 0.1f; 														// mm
 
 constexpr float angularVelocity = 2000.f;												// rad/s
 constexpr float targetInletPower = 0.f;													// W
-constexpr float iRegulatorInletStrength = 1.f;
+constexpr float iRegulatorInletStrength = 0.003f;
 constexpr float massFlowInitPhys = 2.5f;												// kg/s
 constexpr float RIn = 3.75f;															// mm
 constexpr float ROut = 16.5f;															// mm
@@ -52,7 +51,7 @@ __cuda_callable__ void getMarkers( 	const int& iCell, const int& jCell, const in
 	if ( kCell > Info.cellCountZ - 50 ) Marker.refinement = 1;
 	
 	if ( kCell == 0 ) Marker.nonReflectiveInlet = 1; // Marker.BCU = 1;
-	else if ( kCell == Info.cellCountZ-1 ) Marker.BCRho = 1; //Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
+	else if ( kCell == Info.cellCountZ-1 ) Marker.nonReflectiveOutlet = 1; //Marker.BCRho = 1;
 	else Marker.fluid = 1;
 }
 
@@ -113,7 +112,7 @@ __cuda_callable__ void getBC( 	BCStruct &BC,
 	{
 		BC.ux = 0.f;
 		BC.uy = 0.f;
-		BC.uz = uzInletBase * velocityMultiplier; // ( uzInletBase + Info.iRegulatorInlet ) * velocityMultiplier;
+		BC.uz = ( uzInletBase + Info.iRegulatorInlet ) * velocityMultiplier; // uzInletBase * velocityMultiplier; // 
 	}
 	if ( Marker.BCRho || Marker.nonReflectiveOutlet ) BC.rho = 1.f;
 	if ( z > 18.f ) BC.collisionLimiter = 0.f; //BC.nuMultiplier = ( 28.f - z ) * 0.1f * 100.f;
@@ -128,16 +127,16 @@ __cuda_callable__ void getBC( 	BCStruct &BC,
 #include "../../include/plotter/exportSectionCutPlot.h"
 #include "../../include/flowReportFunctions.h"
 
-void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStruct &Voxelizer, STLStruct &STLImpellerStationary, STLStruct &STLImpellerMoving ) 
+void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStruct &Voxelizer, STLStruct &STLRotorStationary, STLStruct &STLRotorMoving ) 
 {
 	if ( level == GRID_LEVEL_COUNT - 1 ) // I am the finest grid
     {
 		if (grids[level].Info.updatesSinceMovingBouncebackUpdate >= MOVING_BOUNCEBACK_UPDATE_PERIOD )
 		{
 			const float radians = grids[level].Info.iterationsFinished * grids[level].Info.dtPhys * angularVelocity;
-			rotateSTLAlongZ( STLImpellerMoving, STLImpellerStationary, radians );
+			rotateSTLAlongZ( STLRotorMoving, STLRotorStationary, radians );
 			Voxelizer.rayMapTotal = Voxelizer.rayMapBounceback;
-			voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLImpellerMoving, Voxelizer );
+			voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLRotorMoving, Voxelizer );
 			sumRayMaps( Voxelizer.rayMapTotal, Voxelizer.rayMapMovingBounceback );
 			updateMovingBounceback( grids[level], Voxelizer );
 		}
@@ -150,7 +149,7 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
     updateGrid(grids[level]);
     if (level < GRID_LEVEL_COUNT - 1) // I am not the finest grid
     {
-        for ( int i = 0; i < 2; i++) applyGlobalUpdate(grids, level + 1, Voxelizer, STLImpellerStationary, STLImpellerMoving );
+        for ( int i = 0; i < 2; i++) applyGlobalUpdate(grids, level + 1, Voxelizer, STLRotorStationary, STLRotorMoving );
         updateInterface(grids[level], grids[level + 1]);
     }
 }
@@ -180,31 +179,34 @@ void exportHistoryData( const std::vector<float>& historyInletPower,
 int main(int argc, char **argv)
 {
 	// STLs
-	STLStruct STLMain;
-	readSTL( STLMain, STLPathMain );
-	STLStruct STLImpellerStationary;
-	readSTL( STLImpellerStationary, STLPathImpeller );
-	STLStruct STLImpellerMoving;
-	STLImpellerMoving = STLImpellerStationary;
+	STLStruct STLStator;
+	readSTL( STLStator, STLPathMain );
+	STLStruct STLRotorStationary;
+	readSTL( STLRotorStationary, STLPathImpeller );
+	STLStruct STLRotorMoving;
+	STLRotorMoving = STLRotorStationary;
 	
 	std::cout << "Cells travelled by MBB per iteration: " 
-		<< dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+		<< dtPhysGlobal * angularVelocity * STLRotorStationary.Bounds.rzMax / resGlobal << std::endl;
 	std::cout << "Cells travelled by MBB per MBB update: " 
-		<< (float)MOVING_BOUNCEBACK_UPDATE_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+		<< (float)MOVING_BOUNCEBACK_UPDATE_PERIOD * dtPhysGlobal * angularVelocity * STLRotorStationary.Bounds.rzMax / resGlobal << std::endl;
 	std::cout << "Cells travelled by MBB per grid rebuild: " 
-		<< (float)GRID_REBUILD_PERIOD * dtPhysGlobal * angularVelocity * STLImpellerStationary.Bounds.rzMax / resGlobal << std::endl;
+		<< (float)GRID_REBUILD_PERIOD * dtPhysGlobal * angularVelocity * STLRotorStationary.Bounds.rzMax / resGlobal << std::endl;
 	std::cout << std::endl;
 	
 	// grids
 	std::vector<GridStruct> grids( GRID_LEVEL_COUNT );
 	grids[ 0 ].Info.res = resGlobal;
-	initializeGrids( grids, STLMain.Bounds, 0 );
+	BoundsStruct DomainBounds;
+	DomainBounds = STLStator.Bounds;
+	DomainBounds.zMin = -74.5f;
+	initializeGrids( grids, DomainBounds, 0 );
 	
 	// Voxelizer 
 	VoxelizerStruct Voxelizer;
 	Voxelizer.Info = grids[ GRID_LEVEL_COUNT-1 ].Info;
-	voxelizeSTL( Voxelizer.rayMapBounceback, STLMain, Voxelizer );
-	voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLImpellerMoving, Voxelizer );
+	voxelizeSTL( Voxelizer.rayMapBounceback, STLStator, Voxelizer );
+	voxelizeSTL( Voxelizer.rayMapMovingBounceback, STLRotorMoving, Voxelizer );
 	Voxelizer.rayMapTotal = Voxelizer.rayMapBounceback;
 	sumRayMaps( Voxelizer.rayMapTotal, Voxelizer.rayMapMovingBounceback );
 	
@@ -235,7 +237,7 @@ int main(int argc, char **argv)
 		if ( iteration % reportChunk == 0 )
 		{
 			BoundsStruct Bounds;
-			Bounds = STLMain.Bounds;
+			Bounds = STLStator.Bounds;
 			
 			// get inlet data
 			FlowReportStruct FlowReportIn;
@@ -252,7 +254,7 @@ int main(int argc, char **argv)
 			int iTemp, jTemp;
 			float xTemp = 0.f; float yTemp = 0.f;
 			float z = 18.f;
-			getXYZFromIJKCellIndex( iTemp, jTemp, kCut, xTemp, yTemp, z, grids[GRID_LEVEL_COUNT-1].Info);
+			getIJKCellIndexFromXYZ( iTemp, jTemp, kCut, xTemp, yTemp, z, grids[GRID_LEVEL_COUNT-1].Info);
 			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
 			float pOut = FlowReportOut.rho;
 			convertToPhysicalPressure( pOut );
@@ -319,7 +321,7 @@ int main(int argc, char **argv)
 			lapTimer.reset();
 			lapTimer.start();
 		}
-		applyGlobalUpdate(grids, 0, Voxelizer, STLImpellerStationary, STLImpellerMoving );
+		applyGlobalUpdate(grids, 0, Voxelizer, STLRotorStationary, STLRotorMoving );
 	}
 		
 	return EXIT_SUCCESS;

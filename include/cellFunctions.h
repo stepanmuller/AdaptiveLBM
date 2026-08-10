@@ -140,49 +140,6 @@ __cuda_callable__ void getRhoUxUyUz(
 			+f[21] - f[22] - f[23] + f[24] - f[25] + f[26]) / rho;
 }
 
-__cuda_callable__ void getOmegaLES( const float (&fneq)[27], const float &rho, const float &nu, float &omegaLES )
-{
-	const float tau = 3.f * nu + 0.5f;
-	if (SMAGORINSKY_CONSTANT == 0)
-	{
-		omegaLES = 1 / tau;
-		return;
-	}
-	
-	float P = 0.f;
-
-	const float cxcx = (fneq[1] + fneq[2] + fneq[7] + fneq[8] + fneq[9] + fneq[10] + fneq[11] + fneq[12] + fneq[15] 
-				+ fneq[16] + fneq[19] + fneq[20] + fneq[21] + fneq[22] + fneq[23] + fneq[24] + fneq[25] + fneq[26]);
-	P += (cxcx * cxcx);
-
-	const float cycy = (fneq[5] + fneq[6] + fneq[11] + fneq[12] + fneq[13] + fneq[14] + fneq[15] + fneq[16] + fneq[17]
-				+ fneq[18] + fneq[19] + fneq[20] + fneq[21] + fneq[22] + fneq[23] + fneq[24] + fneq[25] + fneq[26]);
-	P += (cycy * cycy);
-
-	const float czcz = (fneq[3] + fneq[4] + fneq[7] + fneq[8] + fneq[9] + fneq[10] + fneq[13] + fneq[14] + fneq[17]
-				+ fneq[18] + fneq[19] + fneq[20] + fneq[21] + fneq[22] + fneq[23] + fneq[24] + fneq[25] + fneq[26]);
-	P += (czcz * czcz);
-
-	const float cycz = (-fneq[13] - fneq[14] + fneq[17] + fneq[18] - fneq[19] - fneq[20] - fneq[21] - fneq[22]
-				+ fneq[23] + fneq[24] + fneq[25] + fneq[26]);
-	P += 2.f*(cycz * cycz);
-
-	const float cxcz = (-fneq[7] - fneq[8] + fneq[9] + fneq[10] + fneq[19] + fneq[20] - fneq[21] - fneq[22]
-				- fneq[23] - fneq[24] + fneq[25] + fneq[26]);
-	P += 2.f*(cxcz * cxcz);
-
-	const float cxcy = (fneq[11] + fneq[12] - fneq[15] - fneq[16] - fneq[19] - fneq[20] + fneq[21] + fneq[22] 
-				- fneq[23] - fneq[24] + fneq[25] + fneq[26]);
-	P += 2.f*(cxcy * cxcy);
-
-	P = sqrt(P);
-
-	const float CLES_term = 18.f * SMAGORINSKY_CONSTANT * (1.f/rho);
-	const float tauLES = 0.5 * tau + 0.5 * sqrt(tau * tau + CLES_term * P);
-
-	omegaLES = 1 / tauLES;
-}
-
 __cuda_callable__ void convertToPhysicalVelocity( float &ux, float &uy, float &uz, const InfoStruct &Info )
 {
 	ux = ux * (Info.res/1000.f) / Info.dtPhys;
