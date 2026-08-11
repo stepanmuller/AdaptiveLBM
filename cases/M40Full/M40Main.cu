@@ -10,8 +10,8 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 1;
 
 int reportChunk = 31;
-int plotterChunk = 200;
-constexpr int iterationCount = 1000;
+int plotterChunk = 20;
+constexpr int iterationCount = 100;
 
 constexpr float resGlobal = 0.1f; 														// mm
 

@@ -32,10 +32,6 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 	{		
 		const int cell = newlyFluidIndexView( index );
 		
-		const int iCell = iView( cell );
-		const int jCell = jView( cell );
-		const int kCell = kView( cell );
-		
 		NBRStruct NBR;
 		NBR.self = cell;
 		NBR.jPlus = jPlusView( cell );
@@ -61,27 +57,32 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 		// write collided f into *buffer* of our cell
 		for ( int direction = 0; direction < 27; direction++ ) 
 		{
-			if ( bitPackedMarkerBits[direction] ) 
-			{
-				fBufferView( direction, index ) = f[direction];
-			}
+			fBufferView( direction, index ) = f[direction];
 		}	
 		
-		// also write the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
-		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, f );
+		float rho, ux, uy, uz;
+		getRhoUxUyUz(rho, ux, uy, uz, f);
+		if (index == 1) printf("%f\n", rho);
+		/*
+		float fMBB[27];
+		for ( int direction = 0; direction < 27; direction++ ) fMBB[direction] = f[direction];
+		
+		// write the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
+		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, fMBB );
 		MarkerStruct Marker;
 		Marker.movingBounceback = true;
 		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
-		applyMovingBounceback( f, BC );
+		applyMovingBounceback( fMBB, BC );
 		for ( int direction = 1; direction < 27; direction++ ) 
 		{
 			if ( !bitPackedMarkerBits[direction] ) 
 			{
 				// if we are going to be receiving f from a moving bounceback in this direction,
 				// set it to the moving bounceback result
-				fView( fReadIndex[direction], cellReadIndex[direction] ) = f[direction];
+				fView( fReadIndex[direction], cellReadIndex[direction] ) = fMBB[direction];
 			}
 		}	
+		*/
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, newlyFluidCount, cellLambda );
 	
@@ -89,9 +90,17 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 	{		
 		const int cell = newlyFluidIndexView( index );
 		
+		const int iCell = iView( cell );
+		const int jCell = jView( cell );
+		const int kCell = kView( cell );
+		
 		const int bitPackedMarkerInt = bitPackedMarkerView( cell );
 		bool bitPackedMarkerBits[32];
 		intToBools( bitPackedMarkerInt, bitPackedMarkerBits );
+		
+		// Load collided f from buffer
+		float f[27];
+		for ( int direction = 0; direction < 27; direction++ ) f[direction] = fBufferView( direction, index );
 		
 		NBRStruct NBR;
 		NBR.self = cell;
@@ -100,22 +109,43 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 		NBR.jkPlus = jPlusView( kPlusView( cell ) );
 		finishNBRPlus( NBR, Info );
 		
-		int cellReadIndex[27];
-		int fReadIndex[27];
-		getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+		// Write collided f into the refill cell
+		int cellWriteIndex[27];
+		int fWriteIndex[27];
+		getPreviousPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ ) 
 		{
-			if ( bitPackedMarkerBits[direction] ) 
-			{
-				fView( fReadIndex[direction], cellReadIndex[direction] ) = fBufferView( direction, index );
-			}
+			fView( fWriteIndex[direction], cellWriteIndex[direction] ) = fBufferView( direction, index );
 		}
+		
+		// Update MBB around the refill cell
+		// write the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
+		int cellNextIndex[27];
+		int fNextIndex[27];
+		getPreCollisionIndex( cellNextIndex, fNextIndex, NBR, esotwistFlipper, Info );
+		MarkerStruct Marker;
+		Marker.movingBounceback = true;
+		BCStruct BC;
+		getRhoUxUyUz(BC.rho, BC.ux, BC.uy, BC.uz, f);
+		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
+		applyMovingBounceback( f, BC );
+		for ( int direction = 1; direction < 27; direction++ ) 
+		{
+			if ( !bitPackedMarkerBits[direction] ) 
+			{
+				// if we are going to be receiving f from a moving bounceback in this direction,
+				// set it to the moving bounceback result
+				fView( fNextIndex[direction], cellNextIndex[direction] ) = f[direction];
+			}
+		}	
+		
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, newlyFluidCount, bufferLambda );
 }
 
 void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer )
 {
+	std::cout << "updating MBB now" << std::endl;
 	InfoStruct &Info = Grid.Info;
 	BoolArrayType &oldMBBMarkerArray = Grid.markerBuffer;
 	
@@ -469,7 +499,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		getPreviousPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = fRepair[direction];
 		
-		// also repair the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
+		// also repair the distribution functions that are going to be pulled into our cell by previously deep solid moving bounceback cells
 		applyMovingBounceback( fRepair, BC );
 		int cellNextIndex[27];
 		int fNextIndex[27];
@@ -492,10 +522,10 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	// A comparative study of lattice Boltzmann methods using bounce-back schemes and immersed boundary ones for flow acoustic problems, 2013
 	// LI scheme
 	
-	//for ( int refillCorrectionIteration = 0; refillCorrectionIteration < 5; refillCorrectionIteration++ )
-	//{
-	//	runRefillCorrection( Grid, newlyFluidCount );
-	//}
+	for ( int refillCorrectionIteration = 0; refillCorrectionIteration < 100; refillCorrectionIteration++ )
+	{
+		runRefillCorrection( Grid, newlyFluidCount );
+	}
 		
 	// Last step: Sum the torque contributions
 
