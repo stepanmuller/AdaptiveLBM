@@ -15,7 +15,7 @@ constexpr int iterationCount = 30000;
 
 constexpr float resGlobal = 0.1f; 														// mm
 
-constexpr float angularVelocity = 1500.f;												// rad/s
+constexpr float angularVelocity = 2000.f;												// rad/s
 constexpr float targetInletPower = 0.f;													// W
 constexpr float iRegulatorInletStrength = 0.003f;
 constexpr float massFlowInitPhys = 2.5f;												// kg/s

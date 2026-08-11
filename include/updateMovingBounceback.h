@@ -88,7 +88,7 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount, const fl
 		BCStruct BC;
 		getRhoUxUyUz(BC.rho, BC.ux, BC.uy, BC.uz, f);
 		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
-		
+		/*
 		// now, modify the equillibrium to match ux, uy, uz of the MBB
 		// get current equilibrium
 		float fEq[27];
@@ -101,7 +101,7 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount, const fl
 		getFeq( rho, BC.ux, BC.uy, BC.uz, fEqTarget );
 		// reconstruct
 		for ( int direction = 0; direction < 27; direction++ ) f[direction] = f[direction] + ( fEqTarget[direction] - fEq[direction] );	
-		
+		*/
 		
 		NBRStruct NBR;
 		NBR.self = cell;
@@ -387,7 +387,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	// Li Chen, Yang Yu, Jianhua Lu, Guoxiang Hou, 
 	// A comparative study of lattice Boltzmann methods using bounce-back schemes and immersed boundary ones for flow acoustic problems, 2013
 	// LI scheme
-	/*
+	
 	float underRelaxation = 0.f;
 	runRefillCorrection( Grid, newlyFluidCount, underRelaxation );
 	underRelaxation = 0.25f;
@@ -395,7 +395,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	{
 		runRefillCorrection( Grid, newlyFluidCount, underRelaxation );
 	}
-	*/	
+	
 	// Last step: Sum the torque contributions
 	
 	auto reduction = [] __cuda_callable__( const float& a, const float& b )
