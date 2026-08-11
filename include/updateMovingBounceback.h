@@ -11,7 +11,7 @@
 // Li Chen, Yang Yu, Jianhua Lu, Guoxiang Hou, 
 // A comparative study of lattice Boltzmann methods using bounce-back schemes and immersed boundary ones for flow acoustic problems, 2013
 // LI scheme
-void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
+void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount, const float &underRelaxation )
 {
 	InfoStruct &Info = Grid.Info;
 	
@@ -57,32 +57,12 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 		// write collided f into *buffer* of our cell
 		for ( int direction = 0; direction < 27; direction++ ) 
 		{
-			fBufferView( direction, index ) = f[direction];
+			fBufferView( direction, index ) = fBufferView( direction, index ) * underRelaxation + f[direction] * (1.f - underRelaxation);
 		}	
 		
-		float rho, ux, uy, uz;
-		getRhoUxUyUz(rho, ux, uy, uz, f);
-		if (index == 1) printf("%f\n", rho);
-		/*
-		float fMBB[27];
-		for ( int direction = 0; direction < 27; direction++ ) fMBB[direction] = f[direction];
-		
-		// write the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
-		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, fMBB );
-		MarkerStruct Marker;
-		Marker.movingBounceback = true;
-		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
-		applyMovingBounceback( fMBB, BC );
-		for ( int direction = 1; direction < 27; direction++ ) 
-		{
-			if ( !bitPackedMarkerBits[direction] ) 
-			{
-				// if we are going to be receiving f from a moving bounceback in this direction,
-				// set it to the moving bounceback result
-				fView( fReadIndex[direction], cellReadIndex[direction] ) = fMBB[direction];
-			}
-		}	
-		*/
+		//float rho, ux, uy, uz;
+		//getRhoUxUyUz(rho, ux, uy, uz, f);
+		//if (index == 1) printf("rho %f ux %f uy %f uz %f\n", rho, ux, uy, uz);
 	};
 	TNL::Algorithms::parallelFor<TNL::Devices::Cuda>(0, newlyFluidCount, cellLambda );
 	
@@ -101,6 +81,27 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 		// Load collided f from buffer
 		float f[27];
 		for ( int direction = 0; direction < 27; direction++ ) f[direction] = fBufferView( direction, index );
+		
+		// get MBB velocity
+		MarkerStruct Marker;
+		Marker.movingBounceback = true;
+		BCStruct BC;
+		getRhoUxUyUz(BC.rho, BC.ux, BC.uy, BC.uz, f);
+		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
+		
+		// now, modify the equillibrium to match ux, uy, uz of the MBB
+		// get current equilibrium
+		float fEq[27];
+		float rho, ux, uy, uz;
+		getRhoUxUyUz( rho, ux, uy, uz, f );
+		getFeq( rho, ux, uy, uz, fEq );
+		
+		// get equilibrium using the target ux, uy, uz (but keep rho)
+		float fEqTarget[27];
+		getFeq( rho, BC.ux, BC.uy, BC.uz, fEqTarget );
+		// reconstruct
+		for ( int direction = 0; direction < 27; direction++ ) f[direction] = f[direction] + ( fEqTarget[direction] - fEq[direction] );	
+		
 		
 		NBRStruct NBR;
 		NBR.self = cell;
@@ -123,11 +124,6 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 		int cellNextIndex[27];
 		int fNextIndex[27];
 		getPreCollisionIndex( cellNextIndex, fNextIndex, NBR, esotwistFlipper, Info );
-		MarkerStruct Marker;
-		Marker.movingBounceback = true;
-		BCStruct BC;
-		getRhoUxUyUz(BC.rho, BC.ux, BC.uy, BC.uz, f);
-		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		applyMovingBounceback( f, BC );
 		for ( int direction = 1; direction < 27; direction++ ) 
 		{
@@ -145,7 +141,7 @@ void runRefillCorrection( GridStruct &Grid, const int &newlyFluidCount )
 
 void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer )
 {
-	std::cout << "updating MBB now" << std::endl;
+	//std::cout << "updating MBB now" << std::endl;
 	InfoStruct &Info = Grid.Info;
 	BoolArrayType &oldMBBMarkerArray = Grid.markerBuffer;
 	
@@ -250,11 +246,6 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	
 	// Now, run the refill algorithm
 	// For all newly fluid cells, repair the information in them by interpolating from surrounding cells
-
-	//			   		id: { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26 };
-	const int cxArray[27] = { 0, 1,-1, 0, 0, 0, 0, 1,-1, 1,-1,-1, 1, 0, 0,-1, 1, 0, 0,-1, 1,-1, 1, 1,-1,-1, 1 };
-	const int cyArray[27] = { 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0,-1, 1, 1,-1, 1,-1, 1,-1, 1,-1,-1, 1,-1, 1,-1, 1 };
-	const int czArray[27] = { 0, 0, 0,-1, 1, 0, 0,-1, 1, 1,-1, 0, 0,-1, 1, 0, 0, 1,-1,-1, 1, 1,-1,-1, 1,-1, 1 };
 	
 	auto newlyFluidLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{		
@@ -320,80 +311,6 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			wasMovingBounceback[direction] = ( oldMBBMarkerView( fullNBRList[direction] ) );
 			if ( useBouncebackMarkerArray ) isBounceback[direction] = bouncebackMarkerView( fullNBRList[direction] );
 		}
-		// based on which neighbours are or were MBB, we want to find the best outer normal
-		float MBBnx = 0.f; float MBBny = 0.f; float MBBnz = 0.f;
-		for ( int direction = 1; direction < 27; direction++ )
-		{
-			if ( isMovingBounceback[direction] || wasMovingBounceback[direction] ) 
-			{
-				MBBnx += (float)cxArray[direction];
-				MBBny += (float)cyArray[direction];
-				MBBnz += (float)czArray[direction];
-			}
-		}
-		int bestIndex = 0;
-		float bestProduct = 0.f;
-		for ( int normalIndex = 1; normalIndex < 27; normalIndex++ )
-		{
-			float ex = (float)cxArray[normalIndex]; float ey = (float)cyArray[normalIndex]; float ez = (float)czArray[normalIndex];
-			const float eLength = std::sqrt( ex*ex + ey*ey + ez*ez );
-			ex /= eLength; ey /= eLength; ez /= eLength;
-			const float scalarProduct = MBBnx * ex + MBBny * ey + MBBnz * ez;
-			if ( scalarProduct > bestProduct )
-			{
-				bestIndex = normalIndex;
-				bestProduct = scalarProduct;
-			}
-		}
-		const int nx = cxArray[bestIndex];
-		const int ny = cyArray[bestIndex];
-		const int nz = czArray[bestIndex];
-		// at this point the normal is identified
-		
-		// for quadratic extrapolation I need 3 cells in the direction of the normal
-		int extrapolatedNbr[3];
-		int currentNbr = cell;
-		int extrapolatedCount = 0;
-		
-		if ( nx == 0 && ny == 0 && nz == 0 )
-		{
-			// this can only ever happen if our cell is completely enclosed in a moving bounceback solid
-			// in such case we will set it to equillibrium later
-			// do nothing now but skip the else block below
-		}
-		else
-		{
-			for ( int step = 0; step < 3; step++ )
-			{
-				// Step in X direction 
-				if ( nx == 1 )       currentNbr += 1;
-				else if ( nx == -1 ) currentNbr -= 1;
-				// Step in Y direction
-				if ( ny == 1 )       currentNbr = jPlusView( currentNbr );
-				else if ( ny == -1 ) currentNbr = jMinusView( currentNbr );
-				// Step in Z direction
-				if ( nz == 1 )       currentNbr = kPlusView( currentNbr );
-				else if ( nz == -1 ) currentNbr = kMinusView( currentNbr );
-				extrapolatedNbr[step] = currentNbr;
-			}
-			// check if the extrapolated neighbour is valid = is in the right place and is fluid
-			// only use as many extrapolated neighbours as allowed
-			for ( int step = 0; step < 3; step++ )
-			{
-				const int nbr = extrapolatedNbr[step];
-				const int iNbr = iView( nbr );
-				const int jNbr = jView( nbr );
-				const int kNbr = kView( nbr );
-				bool valid = true;
-				if 		( iNbr != iCell + nx * (step+1) ) valid = false;
-				else if ( jNbr != jCell + ny * (step+1) ) valid = false;
-				else if ( kNbr != kCell + nz * (step+1) ) valid = false;
-				else if ( useMovingBouncebackMarkerArray && ( movingBouncebackMarkerView( nbr ) || oldMBBMarkerView( nbr )) ) valid = false;
-				else if ( useBouncebackMarkerArray && bouncebackMarkerView( nbr ) ) valid = false;
-				if ( !valid ) break;
-				else extrapolatedCount++;
-			}
-		}
 		
 		// initialize the distribution functions that we will be inserting into the newly uncovered cell
 		float fRepair[27] = {0.f};
@@ -403,83 +320,32 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		BCStruct BC;
 		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
 		BC.rho = 1.f;
-		// find fRepair depending on available extrapolation level
-		if ( extrapolatedCount < 2 ) // if not even a linear extrapolation is available, fall back to average from all valid neighbour cells
+		// find fRepair as average from all valid neighbour cells. Note: quadratic extrapolation was tested before but sometimes led to crashes.
+		int averagingCount = 0;
+		// Read distribution functions from all valid neighbors
+		for ( int nbrIndex = 1; nbrIndex < 27; nbrIndex++ )
 		{
-			int averagingCount = 0;
-			// Read distribution functions from all valid neighbors
-			for ( int nbrIndex = 1; nbrIndex < 27; nbrIndex++ )
-			{
-				if 		( isMovingBounceback[nbrIndex] ) continue;
-				else if ( wasMovingBounceback[nbrIndex] ) continue;
-				else if ( isBounceback[nbrIndex] ) continue;
-				const int nbr = fullNBRList[nbrIndex];
-				NBRStruct NBRofNBR;
-				NBRofNBR.self = nbr;
-				NBRofNBR.jPlus = jPlusView( nbr );
-				NBRofNBR.kPlus = kPlusView( nbr );
-				NBRofNBR.jkPlus = jPlusView( kPlusView( nbr ) );
-				finishNBRPlus( NBRofNBR, Info );
-				int cellReadIndex[27];
-				int fReadIndex[27];
-				getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipper, Info );
-				for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] += fView( fReadIndex[direction], cellReadIndex[direction] );
-				averagingCount++;
-			}	
-			if ( averagingCount == 0 ) // if no neighbour is valid, use equillibrium
-			{
-				getFeq(	BC.rho, BC.ux, BC.uy, BC.uz, fRepair );
-			}
-			else for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] /= (float)averagingCount;
-		}
-		else
+			if 		( isMovingBounceback[nbrIndex] ) continue;
+			else if ( wasMovingBounceback[nbrIndex] ) continue;
+			else if ( isBounceback[nbrIndex] ) continue;
+			const int nbr = fullNBRList[nbrIndex];
+			NBRStruct NBRofNBR;
+			NBRofNBR.self = nbr;
+			NBRofNBR.jPlus = jPlusView( nbr );
+			NBRofNBR.kPlus = kPlusView( nbr );
+			NBRofNBR.jkPlus = jPlusView( kPlusView( nbr ) );
+			finishNBRPlus( NBRofNBR, Info );
+			int cellReadIndex[27];
+			int fReadIndex[27];
+			getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipper, Info );
+			for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] += fView( fReadIndex[direction], cellReadIndex[direction] );
+			averagingCount++;
+		}	
+		if ( averagingCount == 0 ) // if no neighbour is valid, use equillibrium
 		{
-			// Read distribution functions from all valid extrapolated neighbors
-			float fExtrapolated[3][27];
-			for ( int step = 0; step < extrapolatedCount; step++ )
-			{
-				const int nbr = extrapolatedNbr[step];
-				NBRStruct NBRofNBR;
-				NBRofNBR.self = nbr;
-				NBRofNBR.jPlus = jPlusView( nbr );
-				NBRofNBR.kPlus = kPlusView( nbr );
-				NBRofNBR.jkPlus = jPlusView( kPlusView( nbr ) );
-				finishNBRPlus( NBRofNBR, Info );
-				
-				int cellReadIndex[27];
-				int fReadIndex[27];
-				getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipper, Info );
-				
-				for ( int direction = 0; direction < 27; direction++ )
-				{
-					fExtrapolated[step][direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
-				}
-			}
-			
-			// Apply the appropriate extrapolation formula based on how many valid cells we found
-			
-			if ( extrapolatedCount == 1 ) // constant extrapolation
-			{
-				for ( int direction = 0; direction < 27; direction++ )
-				{
-					fRepair[direction] = fExtrapolated[0][direction];
-				}
-			}
-			else if ( extrapolatedCount == 2 ) // linear extrapolation: f(x) = 2*f(x+1) - f(x+2)
-			{
-				for ( int direction = 0; direction < 27; direction++ )
-				{
-					fRepair[direction] = 2.0f * fExtrapolated[0][direction] - 1.0f * fExtrapolated[1][direction];
-				}
-			}
-			else if ( extrapolatedCount == 3 ) // quadratic extrapolation: f(x) = 3*f(x+1) - 3*f(x+2) + f(x+3)
-			{
-				for ( int direction = 0; direction < 27; direction++ )
-				{
-					fRepair[direction] = 3.0f * fExtrapolated[0][direction] - 3.0f * fExtrapolated[1][direction] + 1.0f * fExtrapolated[2][direction];
-				}
-			}
+			getFeq(	BC.rho, BC.ux, BC.uy, BC.uz, fRepair );
 		}
+		else for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] /= (float)averagingCount;
 		
 		// now, modify the equillibrium to match ux, uy, uz of the MBB
 		float rhoAvg, uxAvg, uyAvg, uzAvg;
@@ -521,15 +387,23 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	// Li Chen, Yang Yu, Jianhua Lu, Guoxiang Hou, 
 	// A comparative study of lattice Boltzmann methods using bounce-back schemes and immersed boundary ones for flow acoustic problems, 2013
 	// LI scheme
-	
-	for ( int refillCorrectionIteration = 0; refillCorrectionIteration < 100; refillCorrectionIteration++ )
+	/*
+	float underRelaxation = 0.f;
+	runRefillCorrection( Grid, newlyFluidCount, underRelaxation );
+	underRelaxation = 0.25f;
+	for ( int refillCorrectionIteration = 0; refillCorrectionIteration < 20; refillCorrectionIteration++ )
 	{
-		runRefillCorrection( Grid, newlyFluidCount );
+		runRefillCorrection( Grid, newlyFluidCount, underRelaxation );
 	}
-		
+	*/	
 	// Last step: Sum the torque contributions
-
-	auto newlyMBBLambda = [=] __cuda_callable__ ( const int index ) mutable
+	
+	auto reduction = [] __cuda_callable__( const float& a, const float& b )
+	{
+		return a + b;
+	};
+	
+	auto newlyMBBTorqueLambda = [=] __cuda_callable__ ( const int index ) mutable
 	{		
 		const int cell = newlyMBBIndexView( index );
 		
@@ -557,18 +431,15 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 		
-		BCStruct BC;
-		// load the current state into the boundary condition struct
-		getRhoUxUyUz( BC.rho, BC.ux, BC.uy, BC.uz, f );
-		float uxOld = BC.ux; float uyOld = BC.uy; float uzOld = BC.uz;
-		// pass the current state into the boundary condition function so that BC can also be a function of the current state 
-		MarkerStruct Marker;
-		Marker.movingBounceback = true;
-		getBC( BC, iCell, jCell, kCell, Info, Marker ); 
+		float rho, ux, uy, uz;
+		getRhoUxUyUz( rho, ux, uy, uz, f );
 		
-		float gx = BC.rho * ( BC.ux - uxOld );
-		float gy = BC.rho * ( BC.uy - uyOld );
-		float gz = BC.rho * ( BC.uz - uzOld );
+		// we are removing this fluid cell from the system
+		// this is the same as if we slowed it down to zero velocity
+		// force = rho * ( new u - old u) ... F = m*a
+		float gx = rho * ( 0.f - ux );
+		float gy = rho * ( 0.f - uy );
+		float gz = rho * ( 0.f - uz );
 		
 		convertToPhysicalForce( gx, gy, gz, Info );
 		Tz = - gx * y + gy * x;
@@ -576,12 +447,54 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 		return Tz;
 	};
 	
-	auto reduction = [] __cuda_callable__( const float& a, const float& b )
-	{
-		return a + b;
+	float TzSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, newlyMBBCount, newlyMBBTorqueLambda, reduction, 0.f );
+	
+	auto newlyFluidTorqueLambda = [=] __cuda_callable__ ( const int index ) mutable
+	{		
+		const int cell = newlyFluidIndexView( index );
+		
+		float Tz = 0.f;
+		
+		const int iCell = iView( cell );
+		const int jCell = jView( cell );
+		const int kCell = kView( cell );
+		
+		NBRStruct NBR;
+		NBR.self = cell;
+		NBR.jPlus = jPlusView( cell );
+		NBR.kPlus = kPlusView( cell );
+		NBR.jkPlus = jPlusView( kPlusView( cell ) );
+		NBR.jMinus = jMinusView( cell );
+		NBR.kMinus = kMinusView( cell );
+		finishNBRAll( NBR, Info );
+		
+		float x, y, z;
+		getXYZFromIJKCellIndex( iCell, jCell, kCell, x, y, z, Info );
+		
+		float f[27];
+		int cellReadIndex[27];
+		int fReadIndex[27];
+		getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
+		for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
+		
+		float rho, ux, uy, uz;
+		getRhoUxUyUz( rho, ux, uy, uz, f );
+		
+		// we are adding this fluid cell into the system
+		// this is the same as if we accelerated it up from zero velocity
+		// force = rho * ( new u - old u) ... F = m*a
+		float gx = rho * ( ux - 0.f);
+		float gy = rho * ( uy - 0.f );
+		float gz = rho * ( uz - 0.f );
+		
+		convertToPhysicalForce( gx, gy, gz, Info );
+		Tz = - gx * y + gy * x;
+		
+		return Tz;
 	};
 	
-	float TzSum = TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, newlyMBBCount, newlyMBBLambda, reduction, 0.f );
+	TzSum += TNL::Algorithms::reduce<TNL::Devices::Cuda>( 0, newlyFluidCount, newlyFluidTorqueLambda, reduction, 0.f );
+	
 	TzSum = TzSum / 1000.f; // converting from Nmm to Nm
 	Grid.Info.torqueReportCumulative += TzSum;	
 		

@@ -10,12 +10,12 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 1;
 
 int reportChunk = 31;
-int plotterChunk = 20;
-constexpr int iterationCount = 100;
+int plotterChunk = 1000;
+constexpr int iterationCount = 30000;
 
 constexpr float resGlobal = 0.1f; 														// mm
 
-constexpr float angularVelocity = 2000.f;												// rad/s
+constexpr float angularVelocity = 1500.f;												// rad/s
 constexpr float targetInletPower = 0.f;													// W
 constexpr float iRegulatorInletStrength = 0.003f;
 constexpr float massFlowInitPhys = 2.5f;												// kg/s
