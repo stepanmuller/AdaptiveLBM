@@ -27,7 +27,6 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 	auto changedStateMarkerView = changedStateMarkerArray.getView();
 
 	const bool esotwistFlipper = Grid.esotwistFlipper;	
-	const bool esotwistFlipperPrevious = !Grid.esotwistFlipper;	
 
 	auto bouncebackMarkerView = Grid.bouncebackMarkerArray.getConstView();
 	auto movingBouncebackMarkerView = Grid.movingBouncebackMarkerArray.getView();
@@ -111,7 +110,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			float f[27];
 			int cellReadIndex[27];
 			int fReadIndex[27];
-			getPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipperPrevious, Info );
+			getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ )	f[direction] = fView(fReadIndex[direction], cellReadIndex[direction]);
 			
 			BCStruct BC;
@@ -282,7 +281,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 					finishNBRPlus( NBRofNBR, Info );
 					int cellReadIndex[27];
 					int fReadIndex[27];
-					getPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipperPrevious, Info );
+					getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipper, Info );
 					for ( int direction = 0; direction < 27; direction++ ) fRepair[direction] += fView( fReadIndex[direction], cellReadIndex[direction] );
 					averagingCount++;
 				}	
@@ -308,7 +307,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 					
 					int cellReadIndex[27];
 					int fReadIndex[27];
-					getPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipperPrevious, Info );
+					getPreviousPostCollisionIndex( cellReadIndex, fReadIndex, NBRofNBR, esotwistFlipper, Info );
 					
 					for ( int direction = 0; direction < 27; direction++ )
 					{
@@ -356,7 +355,7 @@ void updateMovingBounceback( GridStruct &Grid, const VoxelizerStruct &Voxelizer 
 			// write fRepair into our cell
 			int cellWriteIndex[27];
 			int fWriteIndex[27];
-			getPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipperPrevious, Info );
+			getPreviousPostCollisionIndex( cellWriteIndex, fWriteIndex, NBR, esotwistFlipper, Info );
 			for ( int direction = 0; direction < 27; direction++ ) fView( fWriteIndex[direction], cellWriteIndex[direction] ) = fRepair[direction];
 			
 			// also repair the distribution functions that are going to be pulled into our cell next iteration from moving bounceback cells
