@@ -2,15 +2,16 @@ static constexpr int RAY_MAP_DEPTH = 32;
 static constexpr int WALL_REFINEMENT_COUNT = 2; // min 2
 static constexpr int MEMORY_RESERVE_PERCENTAGE = 10;
 static constexpr int MEMORY_RESERVE_PERCENTAGE_INTERFACE = 10;
+static constexpr int MEMORY_MBB_UPDATE_PERCENTAGE = 10;
 
-static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 1;
+static constexpr int MOVING_BOUNCEBACK_UPDATE_PERIOD = 8;
 static constexpr int GRID_REBUILD_PERIOD = 24;
 
 static constexpr int GRID_LEVEL_COUNT = 1;
 
 int reportChunk = 31;
-int plotterChunk = 1000;
-constexpr int iterationCount = 30000;
+int plotterChunk = 200;
+constexpr int iterationCount = 1000;
 
 constexpr float resGlobal = 0.1f; 														// mm
 
@@ -311,7 +312,7 @@ int main(int argc, char **argv)
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
-			
+			/*
 			r = 21.75f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration+1 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
@@ -319,7 +320,7 @@ int main(int argc, char **argv)
 			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
 			exportSectionCutPlotZY( grids, iCut, iteration+2 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
-			
+			*/
 			lapTimer.reset();
 			lapTimer.start();
 		}

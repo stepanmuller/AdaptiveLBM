@@ -92,7 +92,7 @@ struct InfoStruct { float gridID = 0; unsigned long long gridMemoryBytes = 0LL; 
 					int fineToCoarseCount = 0; int coarseToFineCount = 0; int nonReflectiveOutletCount = 0; int nonReflectiveInletCount = 0;
 					int memoryCount = 0; int memoryCountFull = 0; 
 					int fineToCoarseMemoryCount = 0; int coarseToFineMemoryCount = 0; 
-					int nonReflectiveOutletMemoryCount = 0; int nonReflectiveInletMemoryCount = 0;
+					int nonReflectiveOutletMemoryCount = 0; int nonReflectiveInletMemoryCount = 0; int mbbUpdateMemoryCount = 0;
 					bool esotwistFlipper = 0; int updatesSinceRebuild = 0; int updatesSinceMovingBouncebackUpdate = 0;
 					float iRegulatorInlet = 0.f; float iRegulatorOutlet = 0.f; 
 					float nonReflectiveOutletRho = 1.f; float nonReflectiveInletRhoZ = 0.f; float nonReflectiveInletRhoImp = 0.f;
@@ -163,7 +163,8 @@ struct GridStruct { InfoStruct Info; IJKArrayStruct IJK; NBRArrayStruct NBR;
 					FloatArray2DType fArray; bool esotwistFlipper = false;
 					IntArrayType parentMapArray; IntArrayType childMapArray; 
 					IntArrayType fineToCoarseIndexArray; IntArrayType coarseToFineIndexArray; 
-					IntArrayType nonReflectiveOutletIndexArray; IntArrayType nonReflectiveInletIndexArray;
+					IntArrayType nonReflectiveOutletIndexArray; IntArrayType nonReflectiveInletIndexArray; 
+					IntArrayType newlyFluidIndexArray; IntArrayType newlyMBBIndexArray; FloatArray2DType fBufferArray;
 					IntArrayType &intBuffer1; // This will point to NBR.jMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer2; // This will point to NBR.kMinusArray which we temporarily use as a buffer and then refill it correctly
 					IntArrayType &intBuffer3; // This will point to bitPackedMarkerArray which we temporarily use as a buffer and then refill it correctly

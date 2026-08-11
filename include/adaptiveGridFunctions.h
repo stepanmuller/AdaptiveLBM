@@ -903,7 +903,12 @@ void rebuildGrids( std::vector<GridStruct> &grids, const VoxelizerStruct &Voxeli
 		Grid.keepCellMarkerArray.setSize( Info.memoryCountFull );	
 		Grid.movingBouncebackMarkerArray.setSize( Info.memoryCountFull );
 		Grid.markerBuffer.setSize( Info.memoryCountFull );
+		Info.mbbUpdateMemoryCount = ( ( Info.cellCountFull * MEMORY_MBB_UPDATE_PERCENTAGE ) / 100 );
+		Grid.newlyFluidIndexArray.setSize( Info.mbbUpdateMemoryCount );
+		Grid.newlyMBBIndexArray.setSize( Info.mbbUpdateMemoryCount );
+		Grid.fBufferArray.setSizes( 27, Info.mbbUpdateMemoryCount );
 		Info.gridMemoryBytes += (long long)(9 * 4 + 3 * 1 + 1 * 1) * (long long)(Info.memoryCountFull); // 9 int arrays, 3 bool arrays, 1 uint8_t
+		Info.gridMemoryBytes += (long long)(2 * 4 + 27 * 4) * (long long)(Info.mbbUpdateMemoryCount); // 2 int arrays, 27 float arrays
 		if ( iAmFinest )
 		{
 			Grid.bouncebackMarkerArray.setSize( Info.memoryCountFull );
