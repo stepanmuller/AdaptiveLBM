@@ -17,21 +17,21 @@
 
 // w:  { 8/27, 2/27, 2/27, 2/27 , 2/27, 2/27, 2/27, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/54, 1/216, 1/216, 1/216, 1/216, 1/216, 1/216, 1/216, 1/216 };
 
-__cuda_callable__ void getIJKCellIndexFromXYZ( int& iCell, int& jCell, int& kCell, const float &x, const float &y, const float &z, const InfoStruct &Info)
+__host__ __device__ void getIJKCellIndexFromXYZ( int& iCell, int& jCell, int& kCell, const float &x, const float &y, const float &z, const InfoStruct &Info)
 {
     iCell = (int)(( x - Info.ox ) / Info.res + 0.5f);
     jCell = (int)(( y - Info.oy ) / Info.res + 0.5f);
     kCell = (int)(( z - Info.oz ) / Info.res + 0.5f);
 }
 
-__cuda_callable__ void getXYZFromIJKCellIndex( const int& iCell, const int& jCell, const int& kCell, float &x, float &y, float &z, const InfoStruct &Info)
+__host__ __device__ void getXYZFromIJKCellIndex( const int& iCell, const int& jCell, const int& kCell, float &x, float &y, float &z, const InfoStruct &Info)
 {
     x = iCell * Info.res + Info.ox;
     y = jCell * Info.res + Info.oy;
     z = kCell * Info.res + Info.oz;
 }
 
-__cuda_callable__ void getOuterNormal( 	const int& iCell, const int& jCell, const int& kCell,
+__host__ __device__ void getOuterNormal( 	const int& iCell, const int& jCell, const int& kCell,
 										int& outerNormalX, int& outerNormalY, int& outerNormalZ, const InfoStruct &Info )
 {
     outerNormalX = 0;
@@ -45,7 +45,7 @@ __cuda_callable__ void getOuterNormal( 	const int& iCell, const int& jCell, cons
     else if 	( kCell == Info.cellCountZ - 1 ) 	outerNormalZ = 1;
 }
 
-__cuda_callable__ void getFeq(
+__host__ __device__ void getFeq(
 	const float &rho, const float &ux, const float &uy, const float &uz, 
 	float (&feq)[27]
 	)
@@ -123,12 +123,12 @@ __cuda_callable__ void getFeq(
 	*/
 }
 
-__cuda_callable__ void getFneq(const float (&f)[27], const float (&feq)[27], float (&fneq)[27])
+__host__ __device__ void getFneq(const float (&f)[27], const float (&feq)[27], float (&fneq)[27])
 {
 	for ( int i = 0; i < 27; i++ ) fneq[i] = f[i] - feq[i];
 }
 
-__cuda_callable__ void getRhoUxUyUz(
+__host__ __device__ void getRhoUxUyUz(
 	float &rho, float &ux, float &uy, float &uz, 
 	float (&f)[27] // const float (&f)[27]
 	)
@@ -165,28 +165,28 @@ __cuda_callable__ void getRhoUxUyUz(
     //for ( int direction = 0; direction < 27; direction++ ) f[direction] += weights[direction];
 }
 
-__cuda_callable__ void convertToPhysicalVelocity( float &ux, float &uy, float &uz, const InfoStruct &Info )
+__host__ __device__ void convertToPhysicalVelocity( float &ux, float &uy, float &uz, const InfoStruct &Info )
 {
 	ux = ux * (Info.res/1000.f) / Info.dtPhys;
 	uy = uy * (Info.res/1000.f) / Info.dtPhys;
 	uz = uz * (Info.res/1000.f) / Info.dtPhys;
 }
 
-__cuda_callable__ void convertToPhysicalPressure( float &rho )
+__host__ __device__ void convertToPhysicalPressure( float &rho )
 {
 	// converts LBM rho to physical pressure, overwrites the variable (LBM rho -> physical p)
 	const float p = (rho - 1.f) * rhoNominalPhys * soundspeedPhys * soundspeedPhys;
 	rho = p;
 }
 
-__cuda_callable__ void convertToPhysicalPressure( float &rho, const InfoStruct &Info )
+__host__ __device__ void convertToPhysicalPressure( float &rho, const InfoStruct &Info )
 {
 	// converts LBM rho to physical pressure, overwrites the variable (LBM rho -> physical p)
 	const float p = (rho - 1.f) * rhoNominalPhys * soundspeedPhys * soundspeedPhys;
 	rho = p;
 }
 
-__cuda_callable__ void convertToPhysicalForce( float &gx, float &gy, float &gz, const InfoStruct &Info )
+__host__ __device__ void convertToPhysicalForce( float &gx, float &gy, float &gz, const InfoStruct &Info )
 {
 	gx = gx * rhoNominalPhys * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) / (Info.dtPhys * Info.dtPhys);
 	gy = gy * rhoNominalPhys * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) * (Info.res/1000.f) / (Info.dtPhys * Info.dtPhys);

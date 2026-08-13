@@ -213,7 +213,8 @@ struct STLStruct { 	static constexpr int threadsToTrianglesRatio = 4;
 					}
 				};
 
-struct FlowReportStruct { float ux = 0.f; float uy = 0.f; float uz = 0.f; float rho = 1.f; float areamm2 = 0.f; }; 
+struct FlowReportStruct { float uxPhys = 0.f; float uyPhys = 0.f; float uzPhys = 0.f; float pPhys = 0.f; float areamm2 = 0.f; 
+							float massFlowZPhys = 0.f; float momentumFlowZPhys = 0.f; float kineticEnergyFlowZPhys = 0.f; };
 
 struct LocalDuStruct { float duxdx = 0.f; float duydy = 0.f; float duzdz = 0.f; float duxdyCross = 0.f; float duydzCross = 0.f; float duxdzCross = 0.f; };
 
