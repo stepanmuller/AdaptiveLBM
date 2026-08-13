@@ -10,8 +10,8 @@ static constexpr int GRID_REBUILD_PERIOD = 24;
 static constexpr int GRID_LEVEL_COUNT = 1;
 
 int reportChunk = 31;
-int plotterChunk = 1000;
-constexpr int iterationCount = 30000;
+int plotterChunk = 2000;
+constexpr int iterationCount = 80000;
 
 constexpr float resGlobal = 0.1f; 														// mm
 
@@ -156,7 +156,7 @@ void applyGlobalUpdate( std::vector<GridStruct>& grids, int level, VoxelizerStru
 }
 
 void exportHistoryData( const std::vector<float>& historyInletPower, 
-                        const std::vector<float>& historyMassFlow, 
+                        const std::vector<float>& historyThrust, 
                         const std::vector<float>& historyTorque, 
                         const int &currentIteration, int fileNumber ) {
     FILE* fp = fopen("/dev/shm/historyData.bin", "wb");
@@ -167,7 +167,7 @@ void exportHistoryData( const std::vector<float>& historyInletPower,
     
     // Write all three vectors sequentially
     fwrite(historyInletPower.data(), sizeof(float), count, fp);
-    fwrite(historyMassFlow.data(), sizeof(float), count, fp);
+    fwrite(historyThrust.data(), sizeof(float), count, fp);
     fwrite(historyTorque.data(), sizeof(float), count, fp);
     
     fclose(fp);
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
 	std::cout << std::endl;
 	
 	std::vector<float> historyInletPower( iterationCount, 0.f );
-	std::vector<float> historyMassFlow( iterationCount, 0.f );
+	std::vector<float> historyThrust( iterationCount, 0.f );
 	std::vector<float> historyTorque( iterationCount, 0.f );
 	
 	TNL::Timer lapTimer;
@@ -244,11 +244,8 @@ int main(int argc, char **argv)
 			FlowReportStruct FlowReportIn;
 			int kCut = 0;
 			getFlowReportXY( grids, kCut, Bounds, FlowReportIn );
-			float pIn = FlowReportIn.rho;
-			float uzIn = FlowReportIn.uz;
-			convertToPhysicalPressure( pIn );
-			float uTemp = 0.f;
-			convertToPhysicalVelocity( uzIn, uTemp, uTemp, grids[0].Info );
+			float pIn = FlowReportIn.pPhys;
+			float uzIn = FlowReportIn.uzPhys;
 			
 			// get outlet data
 			FlowReportStruct FlowReportOut;
@@ -257,14 +254,11 @@ int main(int argc, char **argv)
 			float z = 15.41f;
 			getIJKCellIndexFromXYZ( iTemp, jTemp, kCut, xTemp, yTemp, z, grids[GRID_LEVEL_COUNT-1].Info);
 			getFlowReportXY( grids, kCut, Bounds, FlowReportOut );
-			float pOut = FlowReportOut.rho;
-			convertToPhysicalPressure( pOut );
+			float pOut = FlowReportOut.pPhys;
 			
 			const float pDiff = pIn - pOut;
 			
-			const float pTotalIn = 0.5f * rhoNominalPhys * uzIn * uzIn + pDiff;
-			const float massFlow = uzIn * ( FlowReportIn.areamm2 / 1000000.f ) * FlowReportIn.rho * rhoNominalPhys;
-			const float inletPower = pTotalIn * massFlow / rhoNominalPhys;
+			const float inletPower = FlowReportIn.kineticEnergyFlowZPhys + FlowReportIn.pPhys * uzIn * ( FlowReportIn.areamm2 / 1000000.f );
 			
 			// regulate inlet
 			grids[0].Info.iRegulatorInlet -= (inletPower - targetInletPower) * iRegulatorInletStrength * (float)reportChunk * dtPhysGlobal;
@@ -289,7 +283,7 @@ int main(int argc, char **argv)
 				if ( iteration+shifter < iterationCount )
 				{
 					historyInletPower[iteration+shifter] = inletPower;
-					historyMassFlow[iteration+shifter] = massFlow;
+					historyThrust[iteration+shifter] = FlowReportOut.momentumFlowZPhys;
 					historyTorque[iteration+shifter] = torque;
 				}
 			}
@@ -306,21 +300,17 @@ int main(int argc, char **argv)
 			const float glups = updateCount / lapTime / 1000000000.f;
 			if ( iteration > 0) std::cout << "GLUPS: " << glups << std::endl;
 			
-			if ( iteration > 0 ) exportHistoryData( historyInletPower, historyMassFlow, historyTorque, iteration, 0 );
+			if ( iteration > 0 ) exportHistoryData( historyInletPower, historyThrust, historyTorque, iteration, 0 );
 			
 			float r = 12.0f;
 			exportSectionCutPlotToiletPaperZ( grids, r, iteration );
 			float rotatingFrameUy = - ( r / 1000.f ) * angularVelocity;
 			if (system(("python3 ../../include/plotter/plotterRotatingFrame.py " + std::to_string(rotatingFrameUy)).c_str()) != 0) {}
-			/*
-			r = 21.75f;
-			exportSectionCutPlotToiletPaperZ( grids, r, iteration+1 );
+
+			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
+			exportSectionCutPlotZY( grids, iCut, iteration+1 );
 			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
 			
-			const int iCut = grids[GRID_LEVEL_COUNT-1].Info.cellCountX/2;
-			exportSectionCutPlotZY( grids, iCut, iteration+2 );
-			if (system("python3 ../../include/plotter/plotter.py") != 0) {}
-			*/
 			lapTimer.reset();
 			lapTimer.start();
 		}
